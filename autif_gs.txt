@@ -1,0 +1,1357 @@
+
+/**
+ * Verifica si el usuario tiene permiso para acceder a Gestión de Disputas
+ */
+function verificarPermisoDisputas() {
+  try {
+    const email = Session.getActiveUser().getEmail().toLowerCase().trim();
+    const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+    const hojaUsuario = ss.getSheetByName('Usuario');
+    
+    if (!hojaUsuario) {
+      console.log('⚠️ Hoja Usuario no encontrada');
+      return { permitido: false, mensaje: 'No se pudo verificar permisos' };
+    }
+    
+    const data = hojaUsuario.getDataRange().getValues();
+    
+    // ⭐ ÍNDICES CORREGIDOS
+    const ccmsIdIndex = 0;       // A: ccms id
+    const nombreIndex = 1;       // B: Agent
+    const emailIndex = 2;        // C: Ext (correo)
+    const tipoAccesoIndex = 3;   // D: Tipo de Acceso (cambia con select)
+    const rolBaseIndex = 4;      // E: Roll Base (NO cambia) ← ⭐ ESTE ES EL IMPORTANTE
+    
+    console.log('🔍 Verificando permisos para:', email);
+    
+    // Buscar usuario
+    for (let i = 1; i < data.length; i++) {
+      const emailFila = String(data[i][emailIndex] || '').toLowerCase().trim();
+      
+      if (emailFila === email) {
+        // ⭐ LEER ROL BASE (columna E), NO Tipo de Acceso (columna D)
+        const rolBase = String(data[i][rolBaseIndex] || '').trim();
+        const rolBaseNormalizado = rolBase.toLowerCase();
+        const nombre = String(data[i][nombreIndex] || 'Usuario').trim();
+        const tipoAcceso = String(data[i][tipoAccesoIndex] || '').trim();
+        
+        console.log(`✅ Usuario encontrado: ${nombre}`);
+        console.log(`📋 Tipo de Acceso (columna D): "${tipoAcceso}"`);
+        console.log(`📋 Roll Base (columna E): "${rolBase}"`);
+        console.log(`📋 Roll Base normalizado: "${rolBaseNormalizado}"`);
+        
+        // ⭐ ROLES PERMITIDOS PARA DISPUTAS (solo basado en Roll Base)
+        const rolesPermitidos = ['reporting analyst', 'audit'];
+        
+        const tienePermiso = rolesPermitidos.includes(rolBaseNormalizado);
+        
+        console.log(`🔐 ¿Tiene permiso para disputas? ${tienePermiso}`);
+        
+        if (tienePermiso) {
+          console.log(`✅ Acceso a disputas CONCEDIDO (Roll Base: ${rolBase})`);
+          return { 
+            permitido: true, 
+            rol: rolBase,
+            tipoAcceso: tipoAcceso,
+            usuario: nombre,
+            mensaje: `Acceso permitido (Roll Base: ${rolBase})`
+          };
+        } else {
+          console.log(`❌ Roll Base "${rolBase}" no tiene permisos para disputas`);
+          return { 
+            permitido: false, 
+            rol: rolBase,
+            tipoAcceso: tipoAcceso,
+            usuario: nombre,
+            mensaje: `Tu Roll Base (${rolBase}) no tiene permisos para gestionar disputas. Solo Reporting Analyst y Audit pueden responder disputas.`
+          };
+        }
+      }
+    }
+    
+    console.log('❌ Usuario no encontrado en hoja Usuario');
+    return { 
+      permitido: false, 
+      mensaje: 'Usuario no encontrado en la base de datos.'
+    };
+    
+  } catch (error) {
+    console.log('❌ Error en verificarPermisoDisputas:', error.toString());
+    return { 
+      permitido: false, 
+      mensaje: 'Error al verificar permisos: ' + error.toString()
+    };
+  }
+}
+
+// ========================================
+// FUNCIONES PARA DASHBOARD DE AUDITORÍA
+// ========================================
+
+/**
+ * Obtiene todos los datos de auditoría para el dashboard
+ */
+
+function obtenerDatosAuditCompleto() {
+  try {
+    console.log('═══════════════════════════════════════');
+    console.log('🔍 INICIO: obtenerDatosAuditCompleto');
+    console.log('═══════════════════════════════════════');
+    
+    let usuario;
+    let permisoDisputas = { permitido: false };
+    
+    try {
+      usuario = obtenerDatosUsuarioActivo();
+      permisoDisputas = verificarPermisoDisputas();
+      console.log('✅ Usuario obtenido:', usuario.nombre);
+      console.log('🔐 Permiso disputas:', permisoDisputas.permitido);
+      console.log('📋 Roll Base:', usuario.rol);
+      
+    } catch (e) {
+      console.log('❌ Error al obtener usuario:', e.toString());
+      
+      return {
+        usuario: { 
+          nombre: 'Error', 
+          correo: Session.getActiveUser().getEmail() || '', 
+          rol: '' 
+        },
+        auditData: [],
+        permisoDisputas: { permitido: false },
+        error: e.message || e.toString(),
+        timestamp: new Date().toISOString(),
+        status: 'error'
+      };
+    }
+    
+    // ⭐ OBTENER LOBs QUE TIENEN DISPUTAS (filtradas por rol)
+    const lobsPermitidas = obtenerLobsConDisputas(usuario);
+    console.log(`📋 LOBs con disputas para mostrar: ${lobsPermitidas.join(', ')}`);
+    
+    // 2. Consolidar datos
+    console.log('\n📊 Iniciando consolidación de datos...');
+    let auditData = [];
+    
+    try {
+      auditData = obtenerDatosAuditConsolidado();
+      console.log(`✅ Datos consolidados: ${auditData.length} registros`);
+      
+      // ⭐ FILTRAR POR LOBs PERMITIDAS
+      if (lobsPermitidas.length > 0) {
+        const normalizar = s => s ? s.toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() : "";
+        const lobsNormalizadas = lobsPermitidas.map(normalizar);
+        
+        const datosFiltrados = auditData.filter(registro => {
+          const lobRegistro = normalizar(registro.lob);
+          return lobsNormalizadas.includes(lobRegistro);
+        });
+        
+        console.log(`🔍 Filtrado: ${datosFiltrados.length} de ${auditData.length} registros`);
+        auditData = datosFiltrados;
+      }
+      
+    } catch (error) {
+      console.log('❌ Error al consolidar datos:', error.toString());
+      auditData = [];
+    }
+    
+    return {
+      usuario: usuario,
+      auditData: auditData,
+      permisoDisputas: permisoDisputas,
+      lobsPermitidas: lobsPermitidas, // ⭐ Solo LOBs con disputas
+      timestamp: new Date().toISOString(),
+      status: 'success'
+    };
+    
+  } catch (error) {
+    console.log('❌ ERROR CRÍTICO:', error.toString());
+    return { 
+      usuario: { nombre: 'Error', correo: '', rol: '' },
+      auditData: [],
+      permisoDisputas: { permitido: false },
+      error: error.message || error.toString(),
+      timestamp: new Date().toISOString(),
+      status: 'error'
+    };
+  }
+}
+
+
+/**
+ * Función de diagnóstico para ver la estructura de Usuario
+ */
+function diagnosticarEstructuraUsuario() {
+  try {
+    const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+    const hojaUsuario = ss.getSheetByName('Usuario');
+    
+    if (!hojaUsuario) {
+      Logger.log('❌ No existe la hoja Usuario');
+      return;
+    }
+    
+    const data = hojaUsuario.getDataRange().getValues();
+    const headers = data[0];
+    
+    Logger.log('═══════════════════════════════════════');
+    Logger.log('📋 DIAGNÓSTICO HOJA USUARIO');
+    Logger.log('═══════════════════════════════════════');
+    Logger.log('Total de columnas: ' + headers.length);
+    Logger.log('Total de filas: ' + data.length);
+    Logger.log('');
+    Logger.log('HEADERS ENCONTRADOS:');
+    
+    headers.forEach((header, index) => {
+      const letra = String.fromCharCode(65 + index); // A, B, C, etc.
+      Logger.log(`  Columna ${letra} (índice ${index}): "${header}" (tipo: ${typeof header})`);
+    });
+    
+    Logger.log('');
+    Logger.log('PRIMERA FILA DE DATOS (ejemplo):');
+    if (data.length > 1) {
+      const primeraFila = data[1];
+      primeraFila.forEach((valor, index) => {
+        const letra = String.fromCharCode(65 + index);
+        Logger.log(`  Columna ${letra}: "${valor}"`);
+      });
+    }
+    
+    Logger.log('');
+    Logger.log('BUSCANDO COLUMNAS CRÍTICAS:');
+    
+    // Buscar columnas de diferentes formas
+    const busquedas = [
+      { nombre: 'BMS ID', variantes: ['bms id', 'bmsid', 'ccms id', 'ccmsid', 'id'] },
+      { nombre: 'Nombre', variantes: ['nombre', 'name', 'agente'] },
+      { nombre: 'Correo', variantes: ['correo', 'email', 'e-mail', 'mail'] },
+      { nombre: 'Rol', variantes: ['rol', 'role', 'perfil'] },
+      { nombre: 'LOB', variantes: ['lob', 'linea', 'area'] }
+    ];
+    
+    busquedas.forEach(busqueda => {
+      Logger.log(`\n🔍 Buscando: ${busqueda.nombre}`);
+      const encontrada = headers.findIndex(h => {
+        const headerNorm = String(h).toLowerCase().trim().replace(/\s+/g, '');
+        return busqueda.variantes.some(v => 
+          headerNorm === v.replace(/\s+/g, '') || 
+          headerNorm.includes(v.replace(/\s+/g, ''))
+        );
+      });
+      
+      if (encontrada !== -1) {
+        const letra = String.fromCharCode(65 + encontrada);
+        Logger.log(`  ✅ Encontrada en columna ${letra} (índice ${encontrada}): "${headers[encontrada]}"`);
+      } else {
+        Logger.log(`  ❌ NO encontrada`);
+      }
+    });
+    
+    Logger.log('');
+    Logger.log('═══════════════════════════════════════');
+    
+    return {
+      headers: headers,
+      totalColumnas: headers.length,
+      totalFilas: data.length,
+      primeraFila: data.length > 1 ? data[1] : []
+    };
+    
+  } catch (error) {
+    Logger.log('❌ Error en diagnóstico: ' + error.toString());
+    return { error: error.toString() };
+  }
+}
+
+/**
+ * Función wrapper segura para el frontend
+ */
+
+function obtenerDatosAuditSeguro() {
+  try {
+    console.log('🛡️ Ejecutando obtenerDatosAuditSeguro...');
+    
+    const resultado = obtenerDatosAuditCompleto();
+    
+    // Asegurar que nunca retorne null
+    if (resultado === null || resultado === undefined) {
+      console.log('⚠️ Resultado fue null/undefined, retornando estructura por defecto');
+      return {
+        usuario: { nombre: 'Usuario', correo: '', rol: 'Auditor' },
+        auditData: [],
+        error: 'No se pudieron cargar los datos',
+        timestamp: new Date().toISOString()
+      };
+    }
+    
+    console.log('✅ obtenerDatosAuditSeguro ejecutado correctamente');
+    return resultado;
+    
+  } catch (error) {
+    console.log('❌ Error crítico en obtenerDatosAuditSeguro: ' + error.toString());
+    return { 
+      usuario: { nombre: 'Usuario', correo: '', rol: 'Auditor' },
+      auditData: [],
+      error: 'Error crítico: ' + error.toString(),
+      timestamp: new Date().toISOString()
+    };
+  }
+}
+
+
+
+
+/**
+ * Obtiene y consolida datos de todas las fuentes de auditoría
+ */
+
+
+
+function obtenerDatosAuditConsolidado() {
+  const datosConsolidados = [];
+  
+  console.log('🔄 Consolidando datos de auditoría...');
+  
+  try {
+    // 1. DATOS DE APROBACIONES (Audit)
+    console.log('📋 Obteniendo datos de aprobaciones...');
+    const aprobaciones = obtenerDatosAprobaciones();
+    console.log(`✅ ${aprobaciones.length} aprobaciones cargadas`);
+    datosConsolidados.push(...aprobaciones);
+  } catch (error) {
+    console.log('❌ Error cargando aprobaciones:', error.toString());
+  }
+  
+  try {
+    // 2. DATOS DE DISPUTAS (Disputa)
+    console.log('📋 Obteniendo datos de disputas...');
+    const disputas = obtenerDatosDisputas();
+    console.log(`✅ ${disputas.length} disputas cargadas`);
+    datosConsolidados.push(...disputas);
+  } catch (error) {
+    console.log('❌ Error cargando disputas:', error.toString());
+  }
+  
+  try {
+    // 3. DATOS DE TRASLADOS (Ajustes_Traslados)
+    console.log('📋 Obteniendo datos de traslados...');
+    const traslados = obtenerDatosTraslados();
+    console.log(`✅ ${traslados.length} traslados cargadas`);
+    datosConsolidados.push(...traslados);
+  } catch (error) {
+    console.log('❌ Error cargando traslados:', error.toString());
+  }
+  
+  try {
+    // 4. DATOS DE PRORRATEOS (Ajustes_Prorrateo)
+    console.log('📋 Obteniendo datos de prorrateos...');
+    const prorrateos = obtenerDatosProrrateos();
+    console.log(`✅ ${prorrateos.length} prorrateos cargadas`);
+    datosConsolidados.push(...prorrateos);
+  } catch (error) {
+    console.log('❌ Error cargando prorrateos:', error.toString());
+  }
+  
+  try {
+    // 5. DATOS DE CAMBIOS DE ROL (Usuario - histórico)
+    console.log('📋 Obteniendo datos de cambios de rol...');
+    const cambiosRol = obtenerDatosCambiosRol();
+    console.log(`✅ ${cambiosRol.length} cambios de rol cargadas`);
+    datosConsolidados.push(...cambiosRol);
+  } catch (error) {
+    console.log('❌ Error cargando cambios de rol:', error.toString());
+  }
+  
+  // Ordenar por timestamp descendente
+  datosConsolidados.sort((a, b) => {
+    try {
+      return new Date(b.timestamp) - new Date(a.timestamp);
+    } catch (e) {
+      return 0;
+    }
+  });
+  
+  console.log(`📊 Datos consolidados: ${datosConsolidados.length} registros`);
+  
+  return datosConsolidados;
+}
+
+/**
+ * Obtiene datos de la hoja Audit (aprobaciones)
+ */
+
+function obtenerDatosAprobaciones() {
+  try {
+    console.log('📋 Cargando aprobaciones desde Audit...');
+    const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+    const hoja = ss.getSheetByName('Audit');
+    
+    if (!hoja || hoja.getLastRow() <= 1) {
+      console.log('ℹ️ Hoja Audit vacía');
+      return [];
+    }
+    
+    const data = hoja.getDataRange().getValues();
+    const headers = data[0];
+    
+    console.log('📋 Headers de Audit:', headers);
+    
+  // ⭐ ESTRUCTURA REAL de H_C (verifica en tu spreadsheet)
+const indices = {
+  bmsId: 0,           // A: BMS ID
+  nombre: 1,          // B: Nombre
+  lob: 2,             // C: LOB
+  role: 3,            // D: Role  ← AQUÍ ESTÁ EL PROBLEMA
+  supervisor: 4,      // E: Supervisor
+  accm: 5,            // F: ACCM
+  om: 6,              // G: OM
+  director: 7,        // H: Director  ← VERIFICAR
+  monto: 8,           // I: Bono
+  fechaAprobacion: 9, // J: Fecha Aprobación
+  usuario: 10,        // K: Usuario
+  correo: 11,         // L: Correo
+  fechaKPI: 12,       // M: Fecha KPI
+  mesCDM: 13,         // N: Mes CDM
+  estado: 14          // O: Estado
+};
+    
+    const aprobaciones = [];
+    
+    for (let i = 1; i < data.length; i++) {
+      const fila = data[i];
+      
+      if (!fila[indices.bmsId]) continue;
+      
+      const registro = {
+        timestamp: parsearFechaSegura(fila[indices.fechaAprobacion]),
+        tipoAccion: 'Aprobación',
+        usuario: String(fila[indices.usuario] || 'Sistema').trim(),
+        correo: String(fila[indices.correo] || '').trim(),
+        bmsId: String(fila[indices.bmsId] || '').trim(),
+        nombreAgente: String(fila[indices.nombre] || '').trim(),
+        lob: String(fila[indices.lob] || '').trim(),
+        role: String(fila[indices.role] || '').trim(),
+        supervisor: String(fila[indices.supervisor] || '').trim(),
+        accm: String(fila[indices.accm] || '').trim(),
+        om: String(fila[indices.om] || '').trim(),
+        director: String(fila[indices.director] || '').trim(),
+        monto: parseFloat(fila[indices.monto]) || 0,
+        mesCDM: String(fila[indices.mesCDM] || '').trim(),
+        fechaKPI: fila[indices.fechaKPI] || '',
+        estado: String(fila[indices.estado] || 'APROBADO').trim(),
+        detalles: `Aprobación de bono para ${fila[indices.nombre] || 'N/A'}`
+      };
+      
+      aprobaciones.push(registro);
+    }
+    
+    console.log(`✅ ${aprobaciones.length} aprobaciones cargadas`);
+    return aprobaciones;
+    
+  } catch (error) {
+    console.log('❌ Error en obtenerDatosAprobaciones:', error.toString());
+    return [];
+  }
+}
+
+
+function parsearFechaSegura(fecha) {
+  try {
+    if (fecha instanceof Date) {
+      return fecha.toISOString();
+    }
+    if (typeof fecha === 'string' && fecha.trim()) {
+      return new Date(fecha).toISOString();
+    }
+    if (typeof fecha === 'number') {
+      return new Date(fecha).toISOString();
+    }
+  } catch (e) {
+    // Ignorar error
+  }
+  return new Date().toISOString();
+}
+
+/**
+ * Obtiene datos de la hoja Disputa
+ */
+function obtenerDatosDisputas() {
+  try {
+    console.log('📋 Cargando disputas...');
+    const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+    const hoja = ss.getSheetByName('Disputa');
+    
+    if (!hoja || hoja.getLastRow() <= 1) {
+      console.log('ℹ️ Hoja Disputa vacía');
+      return [];
+    }
+    
+    const data = hoja.getDataRange().getValues();
+    
+    // ⭐ ESTRUCTURA REAL de Disputa
+    const indices = {
+      fechaDisputa: 0,    // A: Fecha Disputa
+      bmsId: 1,           // B: BMS ID
+      nombre: 2,          // C: Nombre
+      lob: 3,             // D: LOB
+      fechaKPI: 4,        // E: Fecha KPI
+      total: 5,           // F: Total Bono
+      comentario: 6,      // G: Comentario
+      estado: 7,          // H: Estado
+      usuario: 8,         // I: Usuario que Disputa
+      correo: 9           // J: Correo Usuario
+    };
+    
+    const disputas = [];
+    
+    for (let i = 1; i < data.length; i++) {
+      const fila = data[i];
+      
+      if (!fila[indices.bmsId]) continue;
+      
+      const registro = {
+        timestamp: parsearFechaSegura(fila[indices.fechaDisputa]),
+        tipoAccion: 'Disputa',
+        usuario: String(fila[indices.usuario] || 'Sistema').trim(),
+        correo: String(fila[indices.correo] || '').trim(),
+        bmsId: String(fila[indices.bmsId] || '').trim(),
+        nombreAgente: String(fila[indices.nombre] || '').trim(),
+        lob: String(fila[indices.lob] || '').trim(),
+        monto: parseFloat(fila[indices.total]) || 0,
+        fechaKPI: fila[indices.fechaKPI] || '',
+        estado: String(fila[indices.estado] || 'Pendiente').trim(),
+        detalles: String(fila[indices.comentario] || 'Sin comentario').trim(),
+        fila: i + 1 // ⭐ Guardar fila para actualizar después
+      };
+      
+      disputas.push(registro);
+    }
+    
+    console.log(`✅ ${disputas.length} disputas cargadas`);
+    return disputas;
+    
+  } catch (error) {
+    console.log('❌ Error en obtenerDatosDisputas:', error.toString());
+    return [];
+  }
+}
+/**
+ * Obtiene datos de traslados temporales
+ */
+
+
+
+function obtenerDatosTraslados() {
+  try {
+    console.log('📋 Accediendo a hoja Ajustes_Traslados...');
+    const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+    const hoja = ss.getSheetByName('Ajustes_Traslados');
+    
+    if (!hoja || hoja.getLastRow() <= 1) {
+      console.log('ℹ️ Hoja Ajustes_Traslados vacía o no existe');
+      return [];
+    }
+    
+    const data = hoja.getDataRange().getValues();
+    const headers = data[0];
+    
+    console.log('📋 Headers de Ajustes_Traslados:', headers);
+    
+    // ⭐ ESTRUCTURA REAL (documento 4):
+    // | Fecha Traslado | Fecha HC | Mes CDM | BMS ID | Nombre | LOB Anterior | LOB Nueva | Usuario | Nota |
+    
+    const indices = {
+      fechaTraslado: headers.indexOf('Fecha Traslado'),
+      fechaHC: headers.indexOf('Fecha HC'),
+      mesCDM: headers.indexOf('Mes CDM'),
+      bmsId: headers.indexOf('BMS ID'),
+      nombre: headers.indexOf('Nombre'),
+      lobAnterior: headers.indexOf('LOB Anterior'),
+      lobNueva: headers.indexOf('LOB Nueva'),
+      usuario: headers.indexOf('Usuario'),
+      nota: headers.indexOf('Nota')
+    };
+    
+    console.log('🔍 Índices mapeados:', indices);
+    
+    if (indices.fechaTraslado === -1 || indices.bmsId === -1) {
+      console.log('❌ Estructura de Ajustes_Traslados incorrecta');
+      console.log('📋 Headers encontrados:', headers);
+      return [];
+    }
+    
+    const traslados = [];
+    
+    for (let i = 1; i < data.length; i++) {
+      const fila = data[i];
+      
+      if (!fila[indices.bmsId] && !fila[indices.nombre]) {
+        continue;
+      }
+      
+      // ⭐ PARSEAR FECHA
+      let timestamp;
+      const fechaRaw = fila[indices.fechaTraslado];
+      
+      if (fechaRaw instanceof Date) {
+        timestamp = fechaRaw.toISOString();
+      } else if (typeof fechaRaw === 'string') {
+        try {
+          timestamp = new Date(fechaRaw).toISOString();
+        } catch (e) {
+          timestamp = new Date().toISOString();
+        }
+      } else {
+        timestamp = new Date().toISOString();
+      }
+      
+      const registro = {
+        timestamp: timestamp,
+        tipoAccion: 'Traslado',
+        usuario: String(fila[indices.usuario] || 'Sistema').trim(),
+        bmsId: String(fila[indices.bmsId] || '').trim(),
+        nombreAgente: String(fila[indices.nombre] || '').trim(),
+        lob: String(fila[indices.lobAnterior] || '').trim(),
+        lobDestino: String(fila[indices.lobNueva] || '').trim(),
+        mesCDM: String(fila[indices.mesCDM] || '').trim(),
+        fechaKPI: fila[indices.fechaHC] || '',
+        detalles: `Traslado de ${fila[indices.lobAnterior] || 'N/A'} a ${fila[indices.lobNueva] || 'N/A'} - ${fila[indices.nota] || 'Sin nota'}`
+      };
+      
+      traslados.push(registro);
+      
+      if (i <= 3) {
+        console.log(`📋 Traslado ${i}: ${registro.nombreAgente}`);
+      }
+    }
+    
+    console.log(`✅ ${traslados.length} traslados cargados`);
+    return traslados;
+    
+  } catch (error) {
+    console.log('❌ Error en obtenerDatosTraslados: ' + error.toString());
+    return [];
+  }
+}
+
+/**
+ * Obtiene datos de prorrateos aplicados
+ */
+function obtenerDatosProrrateos() {
+  try {
+    const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+    const hoja = ss.getSheetByName('Ajustes_Prorrateo');
+    
+    if (!hoja || hoja.getLastRow() <= 1) {
+      console.log('ℹ️ Hoja Ajustes_Prorrateo vacía o no existe');
+      return [];
+    }
+    
+    const data = hoja.getDataRange().getValues();
+    const headers = data[0];
+    
+    console.log('📋 Headers de Ajustes_Prorrateo:', headers);
+    
+    const indices = {
+      fechaProrrateo: headers.indexOf('Fecha Prorrateo'),
+      bmsId: headers.indexOf('BMS ID'),
+      nombre: headers.indexOf('Nombre'),
+      lob: headers.indexOf('LOB'),
+      mesCDM: headers.indexOf('Mes CDM'),
+      horasTrabajadas: headers.indexOf('Horas Trabajadas'),
+      montoOriginal: headers.indexOf('Monto Original'),
+      montoProrrateado: headers.indexOf('Monto Prorrateado'),
+      usuario: headers.indexOf('Usuario'),
+      motivo: headers.indexOf('Motivo')
+    };
+    
+    // Validar columnas críticas
+    if (indices.fechaProrrateo === -1 || indices.bmsId === -1) {
+      console.log('❌ Estructura de Ajustes_Prorrateo incorrecta');
+      return [];
+    }
+    
+    const prorrateos = [];
+    
+    for (let i = 1; i < data.length; i++) {
+      const fila = data[i];
+      
+      if (!fila[indices.bmsId] && !fila[indices.nombre]) {
+        continue;
+      }
+      
+      const registro = {
+        timestamp: fila[indices.fechaProrrateo],
+        tipoAccion: 'Prorrateo',
+        usuario: fila[indices.usuario] || 'Sistema',
+        bmsId: fila[indices.bmsId] || '',
+        nombreAgente: fila[indices.nombre] || '',
+        lob: fila[indices.lob] || '',
+        mesCDM: fila[indices.mesCDM] || '',
+        horas: parseFloat(fila[indices.horasTrabajadas]) || 0,
+        montoOriginal: parseFloat(fila[indices.montoOriginal]) || 0,
+        monto: parseFloat(fila[indices.montoProrrateado]) || 0,
+        detalles: `Prorrateo aplicado: ${fila[indices.motivo] || 'Sin motivo especificado'} - Horas: ${fila[indices.horasTrabajadas] || 0}`
+      };
+      
+      if (registro.timestamp) {
+        prorrateos.push(registro);
+      }
+    }
+    
+    console.log(`✅ ${prorrateos.length} prorrateos cargados`);
+    return prorrateos;
+    
+  } catch (error) {
+    console.log('❌ Error en obtenerDatosProrrateos: ' + error.toString());
+    return [];
+  }
+}
+
+/**
+ * Obtiene datos de cambios de rol históricos
+ */
+function obtenerDatosCambiosRol() {
+  try {
+    const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+    const hoja = ss.getSheetByName('Usuario');
+    
+    if (!hoja || hoja.getLastRow() <= 1) {
+      console.log('ℹ️ Hoja Usuario vacía o no existe');
+      return [];
+    }
+    
+    const data = hoja.getDataRange().getValues();
+    const headers = data[0];
+    
+    console.log('📋 Headers de Usuario:', headers);
+    
+    // Buscar columnas relacionadas con histórico de cambios
+    const indices = {
+      fechaCambio: headers.indexOf('Fecha Cambio'),
+      bmsId: headers.indexOf('BMS ID'),
+      nombre: headers.indexOf('Nombre'),
+      lob: headers.indexOf('LOB'),
+      rolAnterior: headers.indexOf('Rol Anterior'),
+      rolNuevo: headers.indexOf('Rol Nuevo'),
+      usuario: headers.indexOf('Usuario Modificador'),
+      motivo: headers.indexOf('Motivo Cambio')
+    };
+    
+    // Si no existe la columna de fecha de cambio, usar una alternativa
+    if (indices.fechaCambio === -1) {
+      console.log('ℹ️ No se encontró columna de histórico de cambios');
+      return [];
+    }
+    
+    const cambiosRol = [];
+    
+    for (let i = 1; i < data.length; i++) {
+      const fila = data[i];
+      
+      // Solo procesar si hay un cambio de rol registrado
+      if (!fila[indices.rolAnterior] || !fila[indices.rolNuevo] || !fila[indices.fechaCambio]) {
+        continue;
+      }
+      
+      const registro = {
+        timestamp: fila[indices.fechaCambio],
+        tipoAccion: 'Cambio Rol',
+        usuario: fila[indices.usuario] || 'Sistema',
+        bmsId: fila[indices.bmsId] || '',
+        nombreAgente: fila[indices.nombre] || '',
+        lob: fila[indices.lob] || '',
+        estadoAnterior: fila[indices.rolAnterior] || '',
+        estadoNuevo: fila[indices.rolNuevo] || '',
+        detalles: `Cambio de rol: ${fila[indices.rolAnterior] || 'N/A'} → ${fila[indices.rolNuevo] || 'N/A'} - ${fila[indices.motivo] || 'Sin motivo'}`
+      };
+      
+      if (registro.timestamp) {
+        cambiosRol.push(registro);
+      }
+    }
+    
+    console.log(`✅ ${cambiosRol.length} cambios de rol cargados`);
+    return cambiosRol;
+    
+  } catch (error) {
+    console.log('❌ Error en obtenerDatosCambiosRol: ' + error.toString());
+    return [];
+  }
+}
+/**
+ * Obtiene información del usuario activo (ADAPTADO A TU ESTRUCTURA)
+ */
+/**
+ * Obtiene información del usuario activo (ESTRUCTURA CORREGIDA)
+ */
+// EN EL DOCUMENTO 2 (.gs), línea ~50 aproximadamente
+
+function obtenerDatosUsuarioActivo() {
+  const email = Session.getActiveUser().getEmail().toLowerCase().trim();
+  const ssUsuario = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+  const hojaUsuario = ssUsuario.getSheetByName('Usuario');
+  const dataUsuario = hojaUsuario.getDataRange().getValues();
+  
+  for (let i = 1; i < dataUsuario.length; i++) {
+    if (String(dataUsuario[i][2]).toLowerCase().trim() === email) {
+      
+      // ⭐ LEER AMBAS COLUMNAS
+      const tipoAcceso = String(dataUsuario[i][3] || '').trim();  // D: Tipo de Acceso
+      const rollBase = String(dataUsuario[i][4] || '').trim();    // E: Roll Base
+      
+      // ⭐ SI COLUMNA E ESTÁ VACÍA, usar columna D como fallback
+      const rolFinal = rollBase || tipoAcceso;
+      
+      console.log(`📋 Usuario encontrado: ${dataUsuario[i][1]}`);
+      console.log(`   Tipo de Acceso (D): "${tipoAcceso}"`);
+      console.log(`   Roll Base (E): "${rollBase}"`);
+      console.log(`   Rol usado para LOBs: "${rolFinal}"`);
+      
+      return {
+        ccmsId: dataUsuario[i][0],    // A: ccmd id
+        nombre: dataUsuario[i][1],    // B: Agent
+        correo: dataUsuario[i][2],    // C: Ext (correo)
+        tipoAcceso: tipoAcceso,       // D: Tipo de Acceso (Audit, OM, Registro)
+        rol: rolFinal                 // E: Roll Base (OM, ACCM, Reporting Analyst, Audit)
+      };
+    }
+  }
+  
+  console.log('❌ Usuario no encontrado en hoja Usuario');
+  return null;
+}
+
+/**
+ * Función de utilidad para limpiar y formatear datos
+ */
+function limpiarYFormatearDatos(datos) {
+  return datos.map(registro => {
+    // Asegurar que todos los campos tengan valores por defecto
+    const registroLimpio = {
+      timestamp: registro.timestamp || new Date().toISOString(),
+      tipoAccion: registro.tipoAccion || 'Desconocido',
+      usuario: registro.usuario || 'Sistema',
+      correo: registro.correo || '',
+      bmsId: registro.bmsId || '',
+      nombreAgente: registro.nombreAgente || '',
+      lob: registro.lob || '',
+      role: registro.role || '',
+      supervisor: registro.supervisor || '',
+      monto: parseFloat(registro.monto) || 0,
+      mesCDM: registro.mesCDM || '',
+      fechaKPI: registro.fechaKPI || '',
+      estado: registro.estado || '',
+      detalles: registro.detalles || ''
+    };
+    
+    return registroLimpio;
+  });
+}
+
+
+
+function diagnosticarConexion() {
+  try {
+    console.log('🔧 Ejecutando diagnóstico...');
+    
+    // Verificar permisos básicos
+    const email = Session.getActiveUser().getEmail();
+    console.log('✅ Usuario activo:', email);
+    
+    // Verificar acceso al spreadsheet
+    let ss;
+    try {
+      ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+      console.log('✅ Spreadsheet accesible');
+    } catch (e) {
+      console.log('❌ No se puede acceder al spreadsheet:', e.toString());
+      return {
+        error: 'No se puede acceder al spreadsheet: ' + e.toString(),
+        usuario: { nombre: 'Usuario', correo: email, rol: 'Auditor' },
+        timestamp: new Date().toISOString()
+      };
+    }
+    
+    // Verificar hojas
+    const hojas = ss.getSheets().map(sheet => sheet.getName());
+    console.log('📋 Hojas disponibles:', hojas);
+    
+    // Probar obtener datos básicos
+    const datosBasicos = obtenerDatosAuditCompleto();
+    
+    return {
+      status: 'success',
+      usuario: datosBasicos.usuario,
+      hojas_disponibles: hojas,
+      registros_cargados: datosBasicos.auditData.length,
+      timestamp: new Date().toISOString(),
+      mensaje: 'Diagnóstico completado exitosamente'
+    };
+    
+  } catch (error) {
+    console.log('❌ Error en diagnóstico:', error.toString());
+    return {
+      error: 'Error en diagnóstico: ' + error.toString(),
+      timestamp: new Date().toISOString(),
+      status: 'error'
+    };
+  }
+}
+
+
+
+
+
+// ========================================
+// SISTEMA DE GESTIÓN DE DISPUTAS
+// ========================================
+
+/**
+ * Responde a una disputa
+ */
+function responderDisputa(datosRespuesta) {
+  try {
+    console.log('📝 Respondiendo disputa:', datosRespuesta);
+    
+    const {
+      fila,           // Número de fila en hoja Disputa
+      bmsId,
+      nombre,
+      lob,
+      decision,       // 'APROBADA', 'RECHAZADA', 'MAS_INFO'
+      respuesta,      // Texto de respuesta
+      montoAjustado,  // Si se aprueba: nuevo monto
+      comentarioInterno
+    } = datosRespuesta;
+    
+    const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+    const hojaDisputa = ss.getSheetByName('Disputa');
+    
+    if (!hojaDisputa) {
+      return { success: false, error: 'Hoja Disputa no encontrada' };
+    }
+    
+    // 1. Actualizar estado en Disputa
+    const nuevoEstado = obtenerEstadoSegunDecision(decision);
+    hojaDisputa.getRange(fila, 8).setValue(nuevoEstado); // Columna H: Estado
+    
+    // 2. Guardar respuesta en hoja de respuestas
+    guardarRespuestaEnHoja(datosRespuesta, nuevoEstado);
+    
+    // 3. Si se aprueba: ajustar bono en Audit
+    if (decision === 'APROBADA' && montoAjustado) {
+      ajustarBonoEnAudit(bmsId, lob, montoAjustado);
+    }
+    
+    // 4. Registrar en log de auditoría
+    registrarAccionAuditoria({
+      tipoAccion: 'Respuesta Disputa',
+      bmsId: bmsId,
+      nombre: nombre,
+      lob: lob,
+      decision: decision,
+      respuesta: respuesta
+    });
+    
+    console.log(`✅ Disputa respondida: ${decision}`);
+    
+    return {
+      success: true,
+      mensaje: `Disputa ${decision === 'APROBADA' ? 'aprobada' : decision === 'RECHAZADA' ? 'rechazada' : 'actualizada'} exitosamente`,
+      nuevoEstado: nuevoEstado
+    };
+    
+  } catch (error) {
+    console.log('❌ Error en responderDisputa:', error.toString());
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+/**
+ * Obtiene estado según decisión
+ */
+function obtenerEstadoSegunDecision(decision) {
+  const estados = {
+    'APROBADA': '✅ Aprobada',
+    'RECHAZADA': '❌ Rechazada',
+    'MAS_INFO': '📋 Más Información',
+    'EN_PROCESO': '⏳ En Proceso'
+  };
+  return estados[decision] || 'Pendiente';
+}
+
+/**
+ * Guarda respuesta en hoja Disputa_Respuestas
+ */
+function guardarRespuestaEnHoja(datosRespuesta, nuevoEstado) {
+  try {
+    const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+    let hojaRespuestas = ss.getSheetByName('Disputa_Respuestas');
+    
+    // Crear hoja si no existe
+    if (!hojaRespuestas) {
+      hojaRespuestas = ss.insertSheet('Disputa_Respuestas');
+      
+      const headers = [
+        'ID Disputa',
+        'BMS ID',
+        'Nombre',
+        'LOB',
+        'Fecha Disputa',
+        'Estado Original',
+        'Estado Nuevo',
+        'Respuesta',
+        'Decisión',
+        'Monto Ajustado',
+        'Usuario Responde',
+        'Fecha Respuesta',
+        'Comentario Interno'
+      ];
+      
+      hojaRespuestas.appendRow(headers);
+      
+      const headerRange = hojaRespuestas.getRange(1, 1, 1, headers.length);
+      headerRange.setBackground('#9b59b6');
+      headerRange.setFontColor('#FFFFFF');
+      headerRange.setFontWeight('bold');
+      headerRange.setHorizontalAlignment('center');
+    }
+    
+    const usuario = Session.getActiveUser().getEmail();
+    const ahora = new Date();
+    
+    const nuevaFila = [
+      datosRespuesta.fila,
+      datosRespuesta.bmsId,
+      datosRespuesta.nombre,
+      datosRespuesta.lob,
+      datosRespuesta.fechaDisputa || ahora,
+      datosRespuesta.estadoOriginal || 'Pendiente',
+      nuevoEstado,
+      datosRespuesta.respuesta,
+      datosRespuesta.decision,
+      datosRespuesta.montoAjustado || 0,
+      usuario,
+      ahora,
+      datosRespuesta.comentarioInterno || ''
+    ];
+    
+    hojaRespuestas.appendRow(nuevaFila);
+    
+    const lastRow = hojaRespuestas.getLastRow();
+    
+    // Formato
+    hojaRespuestas.getRange(lastRow, 5).setNumberFormat('dd/mm/yyyy');
+    hojaRespuestas.getRange(lastRow, 10).setNumberFormat('$#,##0.00');
+    hojaRespuestas.getRange(lastRow, 12).setNumberFormat('dd/mm/yyyy hh:mm:ss');
+    
+    console.log('✅ Respuesta guardada en Disputa_Respuestas');
+    
+  } catch (error) {
+    console.log('❌ Error en guardarRespuestaEnHoja:', error.toString());
+  }
+}
+
+/**
+ * Ajusta bono en Audit cuando se aprueba una disputa
+ */
+function ajustarBonoEnAudit(bmsId, lob, nuevoMonto) {
+  try {
+    const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+    const hojaAudit = ss.getSheetByName('Audit');
+    
+    if (!hojaAudit) return;
+    
+    const data = hojaAudit.getDataRange().getValues();
+    
+    // Buscar el registro del agente
+    for (let i = 1; i < data.length; i++) {
+      const filaBmsId = String(data[i][0]).trim();
+      const filaLob = String(data[i][2]).trim();
+      
+      if (filaBmsId === bmsId && filaLob === lob) {
+        // Actualizar monto
+        hojaAudit.getRange(i + 1, 9).setValue(nuevoMonto); // Columna I: Bono
+        
+        // Agregar nota de ajuste
+        const estadoActual = data[i][14] || 'APROBADO';
+        hojaAudit.getRange(i + 1, 15).setValue(estadoActual + ' (Ajustado por Disputa)');
+        
+        console.log(`✅ Bono ajustado en Audit: BMS ${bmsId} → $${nuevoMonto}`);
+        return;
+      }
+    }
+    
+    console.log(`⚠️ No se encontró registro en Audit para BMS ${bmsId}`);
+    
+  } catch (error) {
+    console.log('❌ Error en ajustarBonoEnAudit:', error.toString());
+  }
+}
+
+/**
+ * Registra acción en log de auditoría
+ */
+function registrarAccionAuditoria(accion) {
+  try {
+    const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+    let hojaLog = ss.getSheetByName('Audit_Log');
+    
+    if (!hojaLog) {
+      hojaLog = ss.insertSheet('Audit_Log');
+      hojaLog.appendRow([
+        'Timestamp',
+        'Tipo Acción',
+        'Usuario',
+        'BMS ID',
+        'Nombre',
+        'LOB',
+        'Decisión',
+        'Detalles'
+      ]);
+    }
+    
+    const usuario = Session.getActiveUser().getEmail();
+    const ahora = new Date();
+    
+    hojaLog.appendRow([
+      ahora,
+      accion.tipoAccion,
+      usuario,
+      accion.bmsId,
+      accion.nombre,
+      accion.lob,
+      accion.decision,
+      accion.respuesta
+    ]);
+    
+    console.log('✅ Acción registrada en Audit_Log');
+    
+  } catch (error) {
+    console.log('❌ Error en registrarAccionAuditoria:', error.toString());
+  }
+}
+
+/**
+ * Obtiene disputas pendientes para mostrar en dashboard
+ */
+function obtenerDisputasPendientes() {
+  try {
+    const disputas = obtenerDatosDisputas();
+    
+    // Filtrar solo pendientes o en proceso
+    const pendientes = disputas.filter(d => {
+      const estado = d.estado.toLowerCase();
+      return estado === 'pendiente' || 
+             estado === '⏳ en proceso' || 
+             estado === '📋 más información';
+    });
+    
+    console.log(`📋 ${pendientes.length} disputas pendientes`);
+    return pendientes;
+    
+  } catch (error) {
+    console.log('❌ Error en obtenerDisputasPendientes:', error.toString());
+    return [];
+  }
+}
+
+function inicializarRollBase() {
+  try {
+    const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+    const hojaUsuario = ss.getSheetByName('Usuario');
+    
+    if (!hojaUsuario) {
+      Logger.log('❌ Hoja Usuario no encontrada');
+      return;
+    }
+    
+    const data = hojaUsuario.getDataRange().getValues();
+    let registrosActualizados = 0;
+    
+    Logger.log('🔄 Inicializando columna E (Roll Base)...');
+    
+    for (let i = 1; i < data.length; i++) {
+      const tipoAcceso = data[i][3]; // Columna D
+      const rollBase = data[i][4];   // Columna E
+      
+      // Si columna E está vacía, copiar de columna D
+      if (!rollBase || rollBase.toString().trim() === '') {
+        hojaUsuario.getRange(i + 1, 5).setValue(tipoAcceso); // Columna E
+        Logger.log(`✅ Fila ${i + 1}: Roll Base inicializado con "${tipoAcceso}"`);
+        registrosActualizados++;
+      }
+    }
+    
+    Logger.log(`✅ Proceso completado. ${registrosActualizados} registros actualizados.`);
+    
+    return {
+      success: true,
+      actualizados: registrosActualizados,
+      mensaje: `${registrosActualizados} registros inicializados con Roll Base`
+    };
+    
+  } catch (error) {
+    Logger.log('❌ Error en inicializarRollBase:', error.toString());
+    return { success: false, error: error.toString() };
+  }
+}
+
+function diagnosticarUsuarioYLobs() {
+  try {
+    console.log('═══════════════════════════════════════');
+    console.log('🔍 DIAGNÓSTICO DE USUARIO Y LOBS');
+    console.log('═══════════════════════════════════════');
+    
+    // 1. Obtener usuario
+    const usuario = obtenerDatosUsuarioActivo();
+    console.log('\n📋 USUARIO ACTIVO:');
+    console.log('   Nombre:', usuario.nombre);
+    console.log('   Correo:', usuario.correo);
+    console.log('   Tipo Acceso (D):', usuario.tipoAcceso);
+    console.log('   Rol (E):', usuario.rol);
+    
+    // 2. Obtener LOBs según rol
+    let lobs = [];
+    
+    if (usuario.rol === 'OM') {
+      console.log('\n🔍 Buscando LOBs para OM:', usuario.nombre);
+      lobs = obtenerLobsPorOM(usuario.nombre);
+    } else if (usuario.rol === 'ACCM') {
+      console.log('\n🔍 Buscando LOBs para ACCM:', usuario.nombre);
+      lobs = obtenerLobsPorACCM(usuario.nombre);
+    } else if (usuario.rol === 'Supervisor') {
+      console.log('\n🔍 Buscando LOBs para Supervisor:', usuario.nombre);
+      lobs = obtenerLobsPorSupervisor(usuario.nombre);
+    } else if (usuario.rol === 'Reporting Analyst' || usuario.rol === 'Audit') {
+      console.log('\n✅ Reporting Analyst/Audit: Ver todas las LOBs');
+      lobs = obtenerTodasLasLobs();
+    }
+    
+    console.log('\n📊 LOBS ENCONTRADAS:', lobs.length);
+    lobs.forEach((lob, i) => {
+      console.log(`   ${i + 1}. "${lob}"`);
+    });
+    
+    // 3. Verificar en H_C qué filas coinciden
+    const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+    const hojaHC = ss.getSheetByName('H_C');
+    const dataHC = hojaHC.getDataRange().getValues();
+    
+    console.log('\n🔍 VERIFICANDO H_C - Primeras 5 filas donde OM coincide:');
+    
+    let coincidencias = 0;
+    for (let i = 1; i < dataHC.length && coincidencias < 5; i++) {
+      const omFila = String(dataHC[i][6] || '').trim(); // Columna G
+      const lobFila = String(dataHC[i][1] || '').trim(); // Columna B
+      const nombreFila = String(dataHC[i][2] || '').trim(); // Columna C
+      
+      if (omFila === usuario.nombre) {
+        coincidencias++;
+        console.log(`   Fila ${i + 1}: OM="${omFila}", LOB="${lobFila}", Agente="${nombreFila}"`);
+      }
+    }
+    
+    if (coincidencias === 0) {
+      console.log('   ❌ NO SE ENCONTRARON COINCIDENCIAS');
+      console.log('\n🔍 Buscando con normalización:');
+      
+      const normalizar = s => s ? s.toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() : "";
+      const nombreNorm = normalizar(usuario.nombre);
+      
+      for (let i = 1; i < Math.min(10, dataHC.length); i++) {
+        const omFila = dataHC[i][6];
+        const omNorm = normalizar(omFila);
+        
+        if (omNorm.includes(nombreNorm) || nombreNorm.includes(omNorm)) {
+          console.log(`   Posible coincidencia en fila ${i + 1}:`);
+          console.log(`      H_C columna G: "${omFila}" (norm: "${omNorm}")`);
+          console.log(`      Usuario: "${usuario.nombre}" (norm: "${nombreNorm}")`);
+        }
+      }
+    }
+    
+    console.log('\n═══════════════════════════════════════');
+    
+    return {
+      usuario: usuario,
+      lobs: lobs,
+      coincidencias: coincidencias
+    };
+    
+  } catch (error) {
+    console.log('❌ Error:', error.toString());
+    return { error: error.toString() };
+  }
+}
+
+
+
+function obtenerLobsConDisputas(usuario) {
+  try {
+    console.log('🔍 obtenerLobsConDisputas - Rol:', usuario.rol);
+    
+    const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+    const hojaDisputa = ss.getSheetByName('Disputa');
+    
+    if (!hojaDisputa || hojaDisputa.getLastRow() <= 1) {
+      console.log('ℹ️ No hay disputas registradas');
+      return [];
+    }
+    
+    const dataDisputa = hojaDisputa.getDataRange().getValues();
+    
+    // 1️⃣ EXTRAER LOBs únicas de las disputas (columna D = índice 3)
+    const lobsConDisputas = new Set();
+    
+    for (let i = 1; i < dataDisputa.length; i++) {
+      const lob = String(dataDisputa[i][3] || '').trim(); // Columna D
+      if (lob) {
+        lobsConDisputas.add(lob);
+      }
+    }
+    
+    console.log(`📊 Total LOBs con disputas: ${lobsConDisputas.size}`);
+    console.log(`   LOBs: ${Array.from(lobsConDisputas).join(', ')}`);
+    
+    // 2️⃣ FILTRAR según el rol del usuario
+    let lobsPermitidas = [];
+    
+    if (usuario.rol === 'Reporting Analyst' || usuario.rol === 'Audit') {
+      // ✅ Ver TODAS las LOBs que tienen disputas
+      lobsPermitidas = Array.from(lobsConDisputas);
+      console.log('✅ Reporting Analyst/Audit: Todas las LOBs con disputas');
+      
+    } else if (usuario.rol === 'OM') {
+      // 🔒 Solo LOBs del OM que tienen disputas
+      const lobsDelOM = obtenerLobsPorOM(usuario.nombre);
+      lobsPermitidas = Array.from(lobsConDisputas).filter(lob => lobsDelOM.includes(lob));
+      console.log(`🔒 OM: ${lobsPermitidas.length} de ${lobsDelOM.length} LOBs asignadas tienen disputas`);
+      
+    } else if (usuario.rol === 'ACCM') {
+      // 🔒 Solo LOBs del ACCM que tienen disputas
+      const lobsDelACCM = obtenerLobsPorACCM(usuario.nombre);
+      lobsPermitidas = Array.from(lobsConDisputas).filter(lob => lobsDelACCM.includes(lob));
+      console.log(`🔒 ACCM: ${lobsPermitidas.length} LOBs con disputas`);
+      
+    } else if (usuario.rol === 'Supervisor') {
+      // 🔒 Solo LOBs del Supervisor que tienen disputas
+      const lobsDelSupervisor = obtenerLobsPorSupervisor(usuario.nombre);
+      lobsPermitidas = Array.from(lobsConDisputas).filter(lob => lobsDelSupervisor.includes(lob));
+      console.log(`🔒 Supervisor: ${lobsPermitidas.length} LOBs con disputas`);
+    }
+    
+    console.log(`✅ LOBs finales a mostrar: ${lobsPermitidas.join(', ')}`);
+    
+    return lobsPermitidas.sort();
+    
+  } catch (error) {
+    console.log('❌ Error en obtenerLobsConDisputas:', error.toString());
+    return [];
+  }
+}

@@ -1,0 +1,2564 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro de Métricas</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #3498db;
+            --success: #2ecc71;
+            --danger: #e74c3c;
+            --warning: #f39c12;
+            --secondary: #9b59b6;
+            --info: #17a2b8;
+            --dark: #2c3e50;
+            --light: #ecf0f1;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .navbar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 15px 30px;
+            margin: -20px -20px 20px -20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .navbar a {
+            color: white;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1.2rem;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .user-card {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 25px;
+            margin: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .user-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .user-info-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .user-info-label {
+            font-weight: 600;
+            color: #7f8c8d;
+            font-size: 0.85rem;
+            margin-bottom: 5px;
+        }
+
+        .user-info-value {
+            color: #2c3e50;
+            font-size: 1rem;
+            font-weight: 500;
+        }
+
+        .tab-buttons {
+            display: flex;
+            background: #f1f3f5;
+            padding: 10px 10px 0;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .tab-btn {
+            padding: 15px 30px;
+            border: none;
+            background: transparent;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #6c757d;
+            cursor: pointer;
+            border-radius: 10px 10px 0 0;
+            transition: all 0.3s ease;
+        }
+
+        .tab-btn.active {
+            background: white;
+            color: var(--primary);
+            border-bottom: 3px solid var(--primary);
+        }
+
+        .tab-content {
+            display: none;
+            padding: 30px;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .form-section {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 25px;
+            border: 1px solid #e9ecef;
+        }
+
+        .form-section h3 {
+            color: var(--dark);
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #dee2e6;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .form-control:focus {
+            border-color: var(--primary);
+            outline: none;
+        }
+
+        .btn {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+            color: white;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .kpi-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .kpi-table th {
+            background: #f8f9fa;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #555;
+            border-bottom: 2px solid #dee2e6;
+        }
+
+        .kpi-table td {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .kpi-table input,
+        .kpi-table select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transform: translateY(100px);
+            transition: transform 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            z-index: 1000;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+        }
+
+        .toast.success {
+            border-left: 5px solid var(--success);
+        }
+
+        .toast.danger {
+            border-left: 5px solid var(--danger);
+        }
+
+        .toast.warning {
+            border-left: 5px solid var(--warning);
+        }
+
+        .toast.info {
+            border-left: 5px solid var(--info);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            overflow-y: auto;
+        }
+
+        .modal-content {
+            background: white;
+            margin: 5% auto;
+            padding: 30px;
+            width: 90%;
+            max-width: 1000px;
+            border-radius: 15px;
+            position: relative;
+            animation: slideDown 0.4s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 24px;
+            cursor: pointer;
+            color: #aaa;
+            transition: color 0.3s;
+        }
+
+        .close-btn:hover {
+            color: var(--danger);
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.9);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            flex-direction: column;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .progress-container {
+            width: 100%;
+            background-color: #e0e0e0;
+            border-radius: 10px;
+            margin-top: 10px;
+            height: 20px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #2ecc71, #27ae60);
+            text-align: center;
+            line-height: 20px;
+            color: white;
+            font-size: 12px;
+            transition: width 0.5s ease;
+        }
+
+        .progress-bar.warning {
+            background: linear-gradient(90deg, #f1c40f, #f39c12);
+        }
+
+        .progress-bar.danger {
+            background: linear-gradient(90deg, #e74c3c, #c0392b);
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="spinner"></div>
+        <h3 id="loadingText" style="color: var(--dark);">Procesando...</h3>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast">
+        <span id="toastIcon"></span>
+        <span id="toastMessage"></span>
+    </div>
+
+    <div class="navbar">
+        <a href="#">📊 Sistema de Gestión de Métricas</a>
+        <div style="color: white; font-size: 0.9rem;">v2.5.0 (PVE Support)</div>
+    </div>
+
+    <div class="container">
+        <!-- User Info Card -->
+        <div class="user-card">
+            <div class="user-info-grid">
+                <div class="user-info-item">
+                    <span class="user-info-label">Usuario</span>
+                    <span class="user-info-value" id="nombreUsuario">Cargando...</span>
+                </div>
+                <div class="user-info-item">
+                    <span class="user-info-label">Correo</span>
+                    <span class="user-info-value" id="correoUsuario">...</span>
+                </div>
+                <div class="user-info-item">
+                    <span class="user-info-label">Rol</span>
+                    <span class="user-info-value" id="rolUsuario">...</span>
+                </div>
+                <div class="user-info-item">
+                    <span class="user-info-label">Fecha</span>
+                    <span class="user-info-value" id="fechaActual"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tab-buttons">
+            <button class="tab-btn active" onclick="cambiarTab('registro')">📝 Registro de Metas</button>
+            <button class="tab-btn" onclick="cambiarTab('simulacion')">💰 Simulador de Bonos</button>
+        </div>
+
+        <!-- TAB 1: REGISTRO -->
+        <div id="tab-registro" class="tab-content active">
+            <div id="mensajeCarga" style="text-align: center; padding: 50px;">
+                <div class="spinner" style="margin: 0 auto;"></div>
+                <p style="margin-top: 20px; color: #666;">Cargando datos del usuario...</p>
+            </div>
+
+            <div id="formRegistroContainer" style="display: none;">
+                <form id="formRegistro">
+                    <!-- Configuración General -->
+                    <div class="form-section">
+                        <h3>⚙️ Configuración General</h3>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>LOB <span style="color: red">*</span></label>
+                                <select id="selectLob" class="form-control" required>
+                                    <option value="">Cargando LOBs...</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Mes de Registro</label>
+                                <input type="text" id="mes" class="form-control" readonly style="background: #e9ecef;">
+                            </div>
+                            <div class="form-group">
+                                <label>Tipo de Hoja <span style="color: red">*</span></label>
+                                <select id="tipoHoja" class="form-control" required onchange="actualizarLimites()">
+                                    <option value="">-- Seleccione --</option>
+                                    <option value="Registro">Registro (Estándar)</option>
+                                    <option value="Registro_pisos">Registro Pisos (Complejo)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Info Dinámica -->
+                        <div id="mesInfo"
+                            style="display: none; margin-top: 15px; padding: 15px; background: #e3f2fd; border-radius: 8px; border-left: 4px solid #2196f3;">
+                            <strong>📅 Mes Seleccionado:</strong> <span id="mesTexto"></span>
+                            <div id="contadorAgentes" style="margin-top: 5px; font-size: 0.9em; color: #555;">
+                                👥 Total Agentes (HC): <strong id="totalAgentes">0</strong>
+                            </div>
+                        </div>
+
+                        <!-- Alerta Configuración Previa -->
+                        <div id="alertaSalarioPorcentaje"
+                            style="display: none; margin-top: 15px; padding: 15px; background: #d4edda; border-radius: 8px; border-left: 4px solid #28a745;">
+                            <strong>✅ Configuración Cargada:</strong>
+                            Se encontró un salario base de <strong id="salarioTextoAlerta"></strong>
+                            y un bono del <strong id="porcentajeTextoAlerta"></strong>
+                            registrado en <span id="mesOrigenAlerta"></span>.
+                        </div>
+                    </div>
+
+                    <!-- Responsables -->
+                    <div class="form-section">
+                        <h3>👥 Responsables</h3>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>ACCM</label>
+                                <input type="text" id="accm" class="form-control" placeholder="Nombre del ACCM">
+                            </div>
+                            <div class="form-group">
+                                <label>OM / Director</label>
+                                <input type="text" id="om" class="form-control" placeholder="Nombre del OM">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Configuración Salarial -->
+                    <div class="form-section">
+                        <h3>💰 Configuración Salarial</h3>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Salario Base <span style="color: red">*</span></label>
+                                <input type="number" id="salario" class="form-control" required min="0" step="1000"
+                                    onchange="calcularBonoMaximo()">
+                            </div>
+                            <div class="form-group">
+                                <label>% Bono (Max 30%) <span style="color: red">*</span></label>
+                                <input type="number" id="porcentajeBono" class="form-control" required min="0" max="30"
+                                    step="0.01" onchange="calcularBonoMaximo()">
+                            </div>
+
+                            <!-- NUEVO: PVE -->
+                            <div class="form-group">
+                                <label>PVE Presupuesto (Opcional)</label>
+                                <input type="number" id="pvePresupuesto" class="form-control" min="0" step="1000"
+                                    placeholder="Presupuesto PVE asignado">
+                                <small style="color: #666;">Si se deja vacío, se usará el global en
+                                    simulaciones.</small>
+                            </div>
+                        </div>
+
+                        <!-- Indicador de Bono -->
+                        <div id="bonoIndicator"
+                            style="display: none; margin-top: 20px; padding: 20px; background: #fff3cd; border-radius: 10px; border: 1px solid #ffeeba;">
+                            <div
+                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <span style="font-weight: bold; color: #856404;">💰 Bono Máximo por Agente:</span>
+                                <span id="bonoMaximoTexto"
+                                    style="font-size: 1.2em; font-weight: bold; color: #28a745;">$0.00</span>
+                            </div>
+
+                            <div style="margin-top: 15px;">
+                                <div
+                                    style="display: flex; justify-content: space-between; font-size: 0.9em; margin-bottom: 5px;">
+                                    <span>Asignado en Bonus Structure: <strong
+                                            id="porcentajeAsignadoTexto">0%</strong></span>
+                                    <span>Disponible: <strong id="porcentajeDisponibleTexto">100%</strong></span>
+                                </div>
+                                <div class="progress-container">
+                                    <div id="progressBar" class="progress-bar" style="width: 0%">0%</div>
+                                </div>
+                                <div style="margin-top: 5px; text-align: right; font-size: 0.85em; color: #666;">
+                                    Monto Asignado: <strong id="montoAsignadoTexto">$0.00</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SECCIONES DE KPIs (Ocultas inicialmente) -->
+                    <div id="sectionKeys" class="form-section" style="display: none;">
+                        <h3>🔑 Key KPIs <button type="button" class="btn btn-primary"
+                                style="font-size: 0.8em; margin-left: auto;" onclick="agregarFilaKPI('keys')">+ Agregar
+                                KPI</button></h3>
+                        <table class="kpi-table">
+                            <thead>
+                                <tr>
+                                    <th>KPI</th>
+                                    <th>Comparación</th>
+                                    <th>Meta/Score</th>
+                                    <th>Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyKeys"></tbody>
+                        </table>
+                    </div>
+
+                    <div id="sectionBonus" class="form-section" style="display: none;">
+                        <h3>🟢 Bonus Structure <button type="button" class="btn btn-primary"
+                                style="font-size: 0.8em; margin-left: auto;" onclick="agregarFilaKPI('bonus')">+ Agregar
+                                KPI</button></h3>
+                        <table class="kpi-table">
+                            <thead>
+                                <tr>
+                                    <th>KPI</th>
+                                    <th>Comparación</th>
+                                    <th>Meta/Score</th>
+                                    <th>% Asignado</th>
+                                    <th>Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyBonus"></tbody>
+                        </table>
+                    </div>
+
+                    <div id="sectionAdditional" class="form-section" style="display: none;">
+                        <h3>🟠 Additional Incentive <button type="button" class="btn btn-primary"
+                                style="font-size: 0.8em; margin-left: auto;" onclick="agregarFilaKPI('additional')">+
+                                Agregar KPI</button></h3>
+                        <table class="kpi-table">
+                            <thead>
+                                <tr>
+                                    <th>KPI</th>
+                                    <th>Comparación</th>
+                                    <th>Meta/Score</th>
+                                    <th>% Asignado</th>
+                                    <th>Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyAdditional"></tbody>
+                        </table>
+                    </div>
+
+                    <div id="sectionDecreased" class="form-section" style="display: none;">
+                        <h3>🔴 Decreased (Penalizaciones) <button type="button" class="btn btn-primary"
+                                style="font-size: 0.8em; margin-left: auto;" onclick="agregarFilaKPI('decreased')">+
+                                Agregar KPI</button></h3>
+                        <table class="kpi-table">
+                            <thead>
+                                <tr>
+                                    <th>KPI</th>
+                                    <th>Comparación</th>
+                                    <th>Meta/Score</th>
+                                    <th>% Penalización</th>
+                                    <th>Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyDecreased"></tbody>
+                        </table>
+                    </div>
+
+                    <div style="text-align: center; margin-top: 30px;">
+                        <button type="submit" id="btnGuardar" class="btn btn-success"
+                            style="font-size: 1.2rem; padding: 15px 40px;">
+                            💾 GUARDAR REGISTRO
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- TAB 2: SIMULACIÓN -->
+        <div id="tab-simulacion" class="tab-content">
+            <div class="form-section">
+                <h3>🔍 Consultar / Simular Estructura</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>LOB</label>
+                        <select id="simSelectLob" class="form-control">
+                            <option value="">Cargando...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Mes Registrado</label>
+                        <select id="simSelectMes" class="form-control">
+                            <option value="">-- Seleccione LOB primero --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-grid" style="margin-top: 15px;">
+                    <div class="form-group">
+                        <label>Salario Base (Simulación)</label>
+                        <input type="number" id="simInputSalario" class="form-control"
+                            placeholder="Opcional (usa registrado)">
+                    </div>
+                    <div class="form-group">
+                        <label>% Bono (Simulación)</label>
+                        <input type="number" id="simInputPorcentaje" class="form-control"
+                            placeholder="Opcional (usa registrado)">
+                    </div>
+                </div>
+
+                <div style="text-align: center; margin-top: 20px; display: flex; gap: 15px; justify-content: center;">
+                    <button onclick="consultarEstructuraRegistrada()" class="btn btn-primary">
+                        👁️ VER ESTRUCTURA
+                    </button>
+                    <button onclick="abrirModalSimulacion()" class="btn btn-success">
+                        💰 SIMULAR BONO
+                    </button>
+                </div>
+            </div>
+
+            <!-- NUEVO: SIMULACIÓN MASIVA -->
+            <div class="form-section" style="border-left: 5px solid #9b59b6;">
+                <h3 id="tituloSimMasiva">🚀 Simulación Masiva</h3>
+                <p style="color: #666; margin-bottom: 15px;">
+                    Calcula el costo total de todas las LOBs para el próximo mes.
+                </p>
+
+                <!-- 🔥 SELECTOR DE REGIÓN (solo Reporting Analyst) -->
+                <div id="regionSelectorContainer" style="display: none; margin-bottom: 20px;">
+                    <div class="form-group">
+                        <label style="font-weight: bold; color: #8e44ad;">🌎 Seleccionar Región</label>
+                        <select id="simSelectRegion" class="form-control" onchange="filtrarLOBsPorRegion()">
+                            <option value="">-- Seleccione Región --</option>
+                            <option value="Rebel US&C">Rebel US&C</option>
+                            <option value="Rebel LATAM">Rebel LATAM</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Configuración PVE -->
+                <div style="background: #f3e5f5; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <h4 style="color: #8e44ad; margin-bottom: 10px;">💰 Configuración PVE (Plan vs Estimate)</h4>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>PVE Total Global ($)</label>
+                            <input type="number" id="simPVETotal" class="form-control" placeholder="Ej: 500000000"
+                                onchange="calcularPresupuestoPVE()" oninput="actualizarTextoAyudaPVE(this)">
+                            <small id="simPVETotalHelp"
+                                style="color: #27ae60; font-weight: bold; display: block; margin-top: 5px;"></small>
+                        </div>
+                        <div class="form-group">
+                            <label>% PVE Asignado</label>
+                            <input type="number" id="simPorcPVE" class="form-control" placeholder="Ej: 4.5" step="0.1"
+                                onchange="calcularPresupuestoPVE()">
+                        </div>
+                        <div class="form-group">
+                            <label>Presupuesto Disponible</label>
+                            <input type="text" id="simPresupuestoDisponible" class="form-control" readonly
+                                style="background: #e9ecef; font-weight: bold; color: #27ae60;">
+                        </div>
+                    </div>
+                    <div id="alertaPVE" style="display: none; margin-top: 10px; font-size: 0.9em; color: #8e44ad;">
+                        ✅ Se calculará el cumplimiento del presupuesto PVE para cada LOB.
+                    </div>
+                </div>
+
+                <div style="text-align: center;">
+                    <button id="btnSimularTodasLOBs" onclick="simularTodasLOBsUnificado()" class="btn"
+                        style="background: #8e44ad; color: white;">
+                        📊 SIMULAR TODAS MIS LOBs
+                    </button>
+                </div>
+
+                <!-- Filtros (Ocultos inicialmente) -->
+                <div id="filtrosSimulacionMasiva"
+                    style="display: none; margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd;">
+                    <h4>🌪️ Filtros de Resultados</h4>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Eficiencia</label>
+                            <select id="filtroEficiencia" class="form-control" onchange="aplicarFiltrosSimulacion()">
+                                <option value="todas">Todas</option>
+                                <option value="alta">Alta (>90%)</option>
+                                <option value="media">Media (70-90%)</option>
+                                <option value="baja">Baja (<70%)< /option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Costo</label>
+                            <select id="filtroCosto" class="form-control" onchange="aplicarFiltrosSimulacion()">
+                                <option value="todas">Todos</option>
+                                <option value="alto">Alto (>$50k)</option>
+                                <option value="medio">Medio ($10k-$50k)</option>
+                                <option value="bajo">Bajo (<$10k)< /option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>HC</label>
+                            <select id="filtroHC" class="form-control" onchange="aplicarFiltrosSimulacion()">
+                                <option value="todas">Todos</option>
+                                <option value="grande">Grande (>50)</option>
+                                <option value="mediano">Mediano (10-50)</option>
+                                <option value="pequeno">Pequeño (<10)< /option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Ordenar por</label>
+                            <select id="ordenarPor" class="form-control" onchange="aplicarFiltrosSimulacion()">
+                                <option value="costo_desc">Mayor Costo</option>
+                                <option value="costo_asc">Menor Costo</option>
+                                <option value="eficiencia_desc">Mayor Eficiencia</option>
+                                <option value="hc_desc">Mayor HC</option>
+                                <option value="nombre_asc">Nombre A-Z</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="text-align: center; margin-top: 10px;">
+                        <button onclick="limpiarFiltros()" class="btn btn-secondary" style="font-size: 0.8em;">🗑️
+                            Limpiar Filtros</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contenedor de Resultados -->
+            <div id="estructuraRegistrada" style="display: none; margin-top: 30px;"></div>
+        </div>
+    </div>
+
+    <!-- MODAL DE SIMULACIÓN -->
+    <div id="simulacionModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="cerrarModalSimulacion()">&times;</span>
+            <div id="contenidoSimulacion"></div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================================
+        // 📊 SCRIPT PRINCIPAL
+        // ============================================================
+
+        // Variables Globales
+        var datosUsuario = null;
+        var lobsDisponibles = [];
+        var kpisDisponibles = null;
+        var estructuraCargada = null;
+        var limites = {
+            'Registro': { keys: 2, bonus: 4, additional: 3, decreased: 2 },
+            'Registro_pisos': { keys: 6, bonus: 25, additional: 3, decreased: 4 }
+        };
+
+        // Inicialización
+        window.addEventListener('DOMContentLoaded', function () {
+            document.getElementById('fechaActual').textContent = new Date().toLocaleDateString();
+            cargarDatosIniciales();
+            inicializarEventos();
+        });
+
+        // Tabs
+        function cambiarTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+            // Buscar botón específico
+            const buttons = document.querySelectorAll('.tab-btn');
+            if (tab === 'registro') buttons[0].classList.add('active');
+            else buttons[1].classList.add('active');
+
+            document.getElementById('tab-' + tab).classList.add('active');
+        }
+
+        // Carga de Datos
+        function cargarDatosIniciales() {
+            google.script.run
+                .withSuccessHandler(function (response) {
+                    if (response.success) {
+                        datosUsuario = response.usuario;
+                        lobsDisponibles = response.lobs;
+
+                        document.getElementById('nombreUsuario').textContent = datosUsuario.nombre;
+                        document.getElementById('correoUsuario').textContent = datosUsuario.correo;
+                        document.getElementById('rolUsuario').textContent = datosUsuario.rol;
+
+                        // Cargar LOBs en Registro
+                        const selectLob = document.getElementById('selectLob');
+                        selectLob.innerHTML = '<option value="">-- Seleccione LOB --</option>';
+                        lobsDisponibles.forEach(lob => selectLob.appendChild(new Option(lob, lob)));
+
+                        // Cargar LOBs en Simulación (solo registradas)
+                        cargarLobsRegistradasEnSimulacion();
+
+                        // Cargar KPIs
+                        cargarKPIsDisponibles();
+
+                        document.getElementById('mensajeCarga').style.display = 'none';
+                        document.getElementById('formRegistroContainer').style.display = 'block';
+                    } else {
+                        mostrarToast('❌ ' + response.error, 'danger');
+                    }
+                })
+                .obtenerDatosParaFormularioRegistro();
+        }
+
+        function cargarLobsRegistradasEnSimulacion() {
+            google.script.run
+                .withSuccessHandler(function (lobs) {
+                    const select = document.getElementById('simSelectLob');
+                    select.innerHTML = '<option value="">-- Seleccione LOB --</option>';
+                    if (lobs && lobs.length > 0) {
+                        lobs.forEach(lob => select.appendChild(new Option(lob, lob)));
+                    } else {
+                        select.innerHTML = '<option value="">-- Sin registros --</option>';
+                    }
+                })
+                .obtenerLobsRegistradas();
+        }
+
+        function cargarKPIsDisponibles() {
+            google.script.run
+                .withSuccessHandler(function (kpis) {
+                    kpisDisponibles = kpis;
+                })
+                .obtenerTodosLosKPIsDisponibles();
+        }
+
+        // Eventos
+        function inicializarEventos() {
+            // Cambio de LOB en Registro
+            document.getElementById('selectLob').addEventListener('change', function () {
+                const lob = this.value;
+                if (!lob) return;
+
+                // Set Mes (Next Month)
+                const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+                const mes = meses[(new Date().getMonth() + 1) % 12];
+                document.getElementById('mes').value = mes;
+                document.getElementById('mesTexto').textContent = mes;
+                document.getElementById('mesInfo').style.display = 'block';
+
+                // Cargar Config Previa
+                google.script.run.withSuccessHandler(function (config) {
+                    if (config.encontrado) {
+                        document.getElementById('salario').value = config.salario;
+                        document.getElementById('porcentajeBono').value = config.porcentaje;
+                        document.getElementById('pvePresupuesto').value = config.pve || '';
+
+                        document.getElementById('salarioTextoAlerta').textContent = formatearMoneda(config.salario);
+                        document.getElementById('porcentajeTextoAlerta').textContent = config.porcentaje + '%';
+                        document.getElementById('mesOrigenAlerta').textContent = config.mes;
+                        document.getElementById('alertaSalarioPorcentaje').style.display = 'block';
+                        calcularBonoMaximo();
+                    } else {
+                        document.getElementById('alertaSalarioPorcentaje').style.display = 'none';
+                        document.getElementById('salario').value = '';
+                        document.getElementById('porcentajeBono').value = '';
+                        document.getElementById('pvePresupuesto').value = '';
+                    }
+                }).obtenerSalarioPorLob(lob);
+
+                // Cargar Responsables y HC
+                google.script.run.withSuccessHandler(function (resp) {
+                    document.getElementById('accm').value = resp.accm || '';
+                    document.getElementById('om').value = (datosUsuario.rol === 'OM') ? datosUsuario.nombre : (resp.om || '');
+                }).obtenerResponsablesPorLob(lob);
+
+                google.script.run.withSuccessHandler(function (count) {
+                    document.getElementById('totalAgentes').textContent = count;
+                }).contarAgentesPorLob(lob);
+
+                mostrarSeccionesConBotones();
+            });
+
+            // Cambio de LOB en Simulación
+            document.getElementById('simSelectLob').addEventListener('change', function () {
+                const lob = this.value;
+                if (!lob) return;
+                google.script.run.withSuccessHandler(function (meses) {
+                    const select = document.getElementById('simSelectMes');
+                    select.innerHTML = '<option value="">-- Seleccione Mes --</option>';
+                    meses.forEach(m => select.appendChild(new Option(m, m)));
+                }).obtenerMesesRegistrados(lob, datosUsuario);
+            });
+
+            // Submit Registro
+            document.getElementById('formRegistro').addEventListener('submit', manejarSubmitRegistro);
+        }
+
+        // Funciones de Formulario
+        function mostrarSeccionesConBotones() {
+            ['Keys', 'Bonus', 'Additional', 'Decreased'].forEach(id => {
+                document.getElementById('section' + id).style.display = 'block';
+            });
+        }
+
+        function agregarFilaKPI(tipo) {
+            const tipoHoja = document.getElementById('tipoHoja').value;
+            if (!tipoHoja) { alert('Seleccione Tipo de Hoja'); return; }
+
+            const tbody = document.getElementById('tbody' + capitalize(tipo));
+            if (tbody.rows.length >= limites[tipoHoja][tipo]) {
+                alert('Límite de KPIs alcanzado para esta sección');
+                return;
+            }
+
+            const row = tbody.insertRow();
+            let kpis = kpisDisponibles ? (kpisDisponibles[tipo === 'bonus' ? 'bonusStructure' : tipo === 'additional' ? 'additionalIncentives' : tipo === 'decreased' ? 'decreasedKPIs' : 'keys'] || []) : [];
+            let opts = '<option value="">-- Seleccionar --</option>' + kpis.map(k => `<option value="${k}">${k}</option>`).join('');
+
+            let html = `<td><select class="kpi-nombre">${opts}</select></td>
+                        <td><select class="kpi-comparacion"><option value="<"><</option><option value="<="><=</option><option value=">">></option><option value=">=">>=</option><option value="=">=</option></select></td>
+                        <td><input type="number" class="kpi-score" step="0.01"></td>`;
+
+            if (tipo !== 'keys') {
+                html += `<td><input type="number" class="kpi-porcentaje" step="0.01" oninput="actualizarIndicadorBono()"></td>`;
+            }
+            html += `<td><button type="button" class="btn-delete" onclick="eliminarFila(this)" style="background:none;border:none;cursor:pointer;">🗑️</button></td>`;
+            row.innerHTML = html;
+        }
+
+        function eliminarFila(btn) {
+            btn.closest('tr').remove();
+            actualizarIndicadorBono();
+        }
+
+        function manejarSubmitRegistro(e) {
+            e.preventDefault();
+            const lob = document.getElementById('selectLob').value;
+            const mes = document.getElementById('mes').value;
+
+            // Validar Bonus <= 100
+            let totalBonus = 0;
+            document.querySelectorAll('#tbodyBonus .kpi-porcentaje').forEach(i => totalBonus += parseFloat(i.value) || 0);
+            if (totalBonus > 100) { alert('Total Bonus excede 100%'); return; }
+
+            const datos = {
+                mes, lob,
+                tipoHoja: document.getElementById('tipoHoja').value,
+                accm: document.getElementById('accm').value,
+                om: document.getElementById('om').value,
+                salario: parseFloat(document.getElementById('salario').value) || 0,
+                porcentaje: parseFloat(document.getElementById('porcentajeBono').value) || 0,
+                keys: extraerKPIsDeTabla('keys'),
+                bonus: extraerKPIsDeTabla('bonus'),
+                additional: extraerKPIsDeTabla('additional'),
+                decreased: extraerKPIsDeTabla('decreased')
+            };
+
+            mostrarLoading('Guardando registro...');
+            google.script.run
+                .withSuccessHandler(function (r) {
+                    ocultarLoading();
+                    if (r.success) {
+                        mostrarToast('✅ Registro guardado', 'success');
+                    } else {
+                        mostrarToast('❌ ' + r.error, 'danger');
+                    }
+                })
+                .withFailureHandler(function (err) {
+                    ocultarLoading();
+                    mostrarToast('❌ Error: ' + err, 'danger');
+                })
+                .guardarRegistroMetricas(datos);
+        }
+
+        function extraerKPIsDeTabla(tipo) {
+            const tbody = document.getElementById('tbody' + capitalize(tipo));
+            if (!tbody) return [];
+            const kpis = [];
+            for (let row of tbody.rows) {
+                const nombre = row.querySelector('.kpi-nombre')?.value || '';
+                const comparacion = row.querySelector('.kpi-comparacion')?.value || '';
+                const score = row.querySelector('.kpi-score')?.value || '';
+                const porcentaje = row.querySelector('.kpi-porcentaje')?.value || '';
+                if (nombre) {
+                    let obj = { nombre, comparacion, score };
+                    if (tipo !== 'keys') obj.porcentaje = porcentaje;
+                    kpis.push(obj);
+                }
+            }
+            return kpis;
+        }
+
+        // Tabs
+        function cambiarTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+            const buttons = document.querySelectorAll('.tab-btn');
+            if (tab === 'registro') buttons[0].classList.add('active');
+            else buttons[1].classList.add('active');
+
+            document.getElementById('tab-' + tab).classList.add('active');
+        }
+
+        // Carga de Datos
+        function cargarDatosIniciales() {
+            google.script.run
+                .withSuccessHandler(function (response) {
+                    if (response.success) {
+                        datosUsuario = response.usuario;
+                        lobsDisponibles = response.lobs;
+
+                        document.getElementById('nombreUsuario').textContent = datosUsuario.nombre;
+                        document.getElementById('correoUsuario').textContent = datosUsuario.correo;
+                        document.getElementById('rolUsuario').textContent = datosUsuario.rol;
+
+                        // Cargar LOBs en Registro
+                        const selectLob = document.getElementById('selectLob');
+                        selectLob.innerHTML = '<option value="">-- Seleccione LOB --</option>';
+                        lobsDisponibles.forEach(lob => selectLob.appendChild(new Option(lob, lob)));
+
+                        // Cargar LOBs en Simulación (solo registradas)
+                        cargarLobsRegistradasEnSimulacion();
+
+                        // Cargar KPIs
+                        cargarKPIsDisponibles();
+
+                        document.getElementById('mensajeCarga').style.display = 'none';
+                        document.getElementById('formRegistroContainer').style.display = 'block';
+                    } else {
+                        mostrarToast('❌ ' + response.error, 'danger');
+                    }
+                })
+                .obtenerDatosParaFormularioRegistro();
+        }
+
+        function cargarLobsRegistradasEnSimulacion() {
+            google.script.run
+                .withSuccessHandler(function (lobs) {
+                    const select = document.getElementById('simSelectLob');
+                    select.innerHTML = '<option value="">-- Seleccione LOB --</option>';
+                    if (lobs && lobs.length > 0) {
+                        lobs.forEach(lob => select.appendChild(new Option(lob, lob)));
+                    } else {
+                        select.innerHTML = '<option value="">-- Sin registros --</option>';
+                    }
+                })
+                .obtenerLobsRegistradas();
+        }
+
+        function cargarKPIsDisponibles() {
+            google.script.run
+                .withSuccessHandler(function (kpis) {
+                    kpisDisponibles = kpis;
+                })
+                .obtenerTodosLosKPIsDisponibles();
+        }
+
+        // Eventos
+        function inicializarEventos() {
+            // Cambio de LOB en Registro
+            document.getElementById('selectLob').addEventListener('change', function () {
+                const lob = this.value;
+                if (!lob) return;
+
+                // Set Mes (Next Month)
+                const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+                const mes = meses[(new Date().getMonth() + 1) % 12];
+                document.getElementById('mes').value = mes;
+                document.getElementById('mesTexto').textContent = mes;
+                document.getElementById('mesInfo').style.display = 'block';
+
+                // Cargar Config Previa
+                google.script.run.withSuccessHandler(function (config) {
+                    if (config.encontrado) {
+                        document.getElementById('salario').value = config.salario;
+                        document.getElementById('porcentajeBono').value = config.porcentaje;
+                        document.getElementById('pvePresupuesto').value = config.pve || '';
+
+                        document.getElementById('salarioTextoAlerta').textContent = formatearMoneda(config.salario);
+                        document.getElementById('porcentajeTextoAlerta').textContent = config.porcentaje + '%';
+                        document.getElementById('mesOrigenAlerta').textContent = config.mes;
+                        document.getElementById('alertaSalarioPorcentaje').style.display = 'block';
+                        calcularBonoMaximo();
+                    } else {
+                        document.getElementById('alertaSalarioPorcentaje').style.display = 'none';
+                        document.getElementById('salario').value = '';
+                        document.getElementById('porcentajeBono').value = '';
+                        document.getElementById('pvePresupuesto').value = '';
+                    }
+                }).obtenerSalarioPorLob(lob);
+
+                // Cargar Responsables y HC
+                google.script.run.withSuccessHandler(function (resp) {
+                    document.getElementById('accm').value = resp.accm || '';
+                    document.getElementById('om').value = (datosUsuario.rol === 'OM') ? datosUsuario.nombre : (resp.om || '');
+                }).obtenerResponsablesPorLob(lob);
+
+                google.script.run.withSuccessHandler(function (count) {
+                    document.getElementById('totalAgentes').textContent = count;
+                }).contarAgentesPorLob(lob);
+
+                mostrarSeccionesConBotones();
+            });
+
+            // Cambio de LOB en Simulación
+            document.getElementById('simSelectLob').addEventListener('change', function () {
+                const lob = this.value;
+                if (!lob) return;
+                google.script.run.withSuccessHandler(function (meses) {
+                    const select = document.getElementById('simSelectMes');
+                    select.innerHTML = '<option value="">-- Seleccione Mes --</option>';
+                    meses.forEach(m => select.appendChild(new Option(m, m)));
+                }).obtenerMesesRegistrados(lob, datosUsuario);
+            });
+
+            // Submit Registro
+            document.getElementById('formRegistro').addEventListener('submit', manejarSubmitRegistro);
+        }
+
+        // Funciones de Formulario
+        function mostrarSeccionesConBotones() {
+            ['Keys', 'Bonus', 'Additional', 'Decreased'].forEach(id => {
+                document.getElementById('section' + id).style.display = 'block';
+            });
+        }
+
+        function agregarFilaKPI(tipo) {
+            const tipoHoja = document.getElementById('tipoHoja').value;
+            if (!tipoHoja) { alert('Seleccione Tipo de Hoja'); return; }
+
+            const tbody = document.getElementById('tbody' + capitalize(tipo));
+            if (tbody.rows.length >= limites[tipoHoja][tipo]) {
+                alert('Límite de KPIs alcanzado para esta sección');
+                return;
+            }
+
+            const row = tbody.insertRow();
+            let kpis = kpisDisponibles ? (kpisDisponibles[tipo === 'bonus' ? 'bonusStructure' : tipo === 'additional' ? 'additionalIncentives' : tipo === 'decreased' ? 'decreasedKPIs' : 'keys'] || []) : [];
+            let opts = '<option value="">-- Seleccionar --</option>' + kpis.map(k => `<option value="${k}">${k}</option>`).join('');
+
+            let html = `<td><select class="kpi-nombre">${opts}</select></td>
+                        <td><select class="kpi-comparacion"><option value="<"><</option><option value="<="><=</option><option value=">">></option><option value=">=">>=</option><option value="=">=</option></select></td>
+                        <td><input type="number" class="kpi-score" step="0.01"></td>`;
+
+            if (tipo !== 'keys') {
+                html += `<td><input type="number" class="kpi-porcentaje" step="0.01" oninput="actualizarIndicadorBono()"></td>`;
+            }
+            html += `<td><button type="button" class="btn-delete" onclick="eliminarFila(this)" style="background:none;border:none;cursor:pointer;">🗑️</button></td>`;
+            row.innerHTML = html;
+        }
+
+        function eliminarFila(btn) {
+            btn.closest('tr').remove();
+            actualizarIndicadorBono();
+        }
+
+        function manejarSubmitRegistro(e) {
+            e.preventDefault();
+            const lob = document.getElementById('selectLob').value;
+            const mes = document.getElementById('mes').value;
+
+            // Validar Bonus <= 100
+            let totalBonus = 0;
+            document.querySelectorAll('#tbodyBonus .kpi-porcentaje').forEach(i => totalBonus += parseFloat(i.value) || 0);
+            if (totalBonus > 100) { alert('Total Bonus excede 100%'); return; }
+
+            const datos = {
+                mes, lob,
+                tipoHoja: document.getElementById('tipoHoja').value,
+                accm: document.getElementById('accm').value,
+                om: document.getElementById('om').value,
+                salario: parseFloat(document.getElementById('salario').value),
+                porcentaje: parseFloat(document.getElementById('porcentajeBono').value),
+                pve: parseFloat(document.getElementById('pvePresupuesto').value) || 0, // 🔥 PVE
+                keys: extraerKPIs('keys'),
+                bonus: extraerKPIs('bonus'),
+                additional: extraerKPIs('additional'),
+                decreased: extraerKPIs('decreased')
+            };
+
+            if (!confirm(`¿Guardar registro para ${lob}?`)) return;
+
+            mostrarLoading('Guardando...');
+            google.script.run.withSuccessHandler(function (r) {
+                ocultarLoading();
+                if (r.success) {
+                    mostrarToast('✅ Guardado exitosamente', 'success');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    mostrarToast('❌ ' + r.error, 'danger');
+                }
+            }).guardarRegistroMetricas(datos);
+        }
+
+        function extraerKPIs(tipo) {
+            const kpis = [];
+            document.querySelectorAll(`#tbody${capitalize(tipo)} tr`).forEach(row => {
+                const nombre = row.querySelector('.kpi-nombre').value;
+                if (nombre) {
+                    kpis.push({
+                        nombre,
+                        comparacion: row.querySelector('.kpi-comparacion').value,
+                        score: row.querySelector('.kpi-score').value,
+                        porcentaje: row.querySelector('.kpi-porcentaje')?.value
+                    });
+                }
+            });
+            return kpis;
+        }
+
+        // ============================================================
+        // 📊 SCRIPT PRINCIPAL INTEGRADO
+        // ============================================================
+
+        // Variables Globales
+        var datosUsuario = null;
+        var lobsDisponibles = [];
+        var kpisDisponibles = null;
+        var limites = {
+            'Registro': { keys: 2, bonus: 4, additional: 3, decreased: 2 },
+            'Registro_pisos': { keys: 6, bonus: 25, additional: 3, decreased: 4 }
+        };
+        window.simulacionMasivaActual = null; // Para exportación
+
+        // Inicialización
+        window.addEventListener('DOMContentLoaded', function () {
+            document.getElementById('fechaActual').textContent = new Date().toLocaleDateString();
+            cargarDatosIniciales();
+            inicializarEventos();
+        });
+
+        // Tabs
+        function cambiarTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+            const buttons = document.querySelectorAll('.tab-btn');
+            if (tab === 'registro') buttons[0].classList.add('active');
+            else buttons[1].classList.add('active');
+
+            document.getElementById('tab-' + tab).classList.add('active');
+        }
+
+        // Carga de Datos
+        function cargarDatosIniciales() {
+            mostrarLoading('Cargando datos del usuario...');
+            google.script.run
+                .withSuccessHandler(function (response) {
+                    ocultarLoading();
+                    if (response.success) {
+                        datosUsuario = response.usuario;
+                        lobsDisponibles = response.lobs;
+
+                        document.getElementById('nombreUsuario').textContent = datosUsuario.nombre;
+                        document.getElementById('correoUsuario').textContent = datosUsuario.correo;
+                        document.getElementById('rolUsuario').textContent = datosUsuario.rol;
+
+                        // Cargar LOBs en Registro
+                        const selectLob = document.getElementById('selectLob');
+                        selectLob.innerHTML = '<option value="">-- Seleccione LOB --</option>';
+                        lobsDisponibles.forEach(lob => selectLob.appendChild(new Option(lob, lob)));
+
+                        // Cargar LOBs en Simulación
+                        cargarLobsRegistradasEnSimulacion();
+
+                        // Cargar KPIs
+                        cargarKPIsDisponibles();
+
+                        // 🔥 CONFIGURAR UI SEGÚN ROL
+                        configurarUISegunRol();
+
+                        document.getElementById('mensajeCarga').style.display = 'none';
+                        document.getElementById('formRegistroContainer').style.display = 'block';
+                    } else {
+                        mostrarToast('❌ ' + response.error, 'danger');
+                    }
+                })
+                .obtenerDatosParaFormularioRegistro();
+        }
+
+        // 🔥 NUEVA: Configurar UI según rol
+        function configurarUISegunRol() {
+            const regionContainer = document.getElementById('regionSelectorContainer');
+            const btnSimular = document.getElementById('btnSimularTodasLOBs');
+            const titulo = document.getElementById('tituloSimMasiva');
+
+            if (datosUsuario.rol === 'Reporting Analyst' || datosUsuario.rol === 'Audit') {
+                // Mostrar selector de región
+                regionContainer.style.display = 'block';
+                btnSimular.textContent = '📊 SIMULAR LOBs DE REGIÓN';
+                titulo.textContent = '🚀 Simulación Masiva por Región';
+            } else if (datosUsuario.rol === 'OM') {
+                // Ocultar selector de región
+                regionContainer.style.display = 'none';
+                btnSimular.textContent = '📊 SIMULAR TODAS MIS LOBs';
+                titulo.textContent = '🚀 Simulación Masiva (Mis LOBs)';
+            } else {
+                // Otros roles: ocultar simulación masiva
+                regionContainer.style.display = 'none';
+            }
+        }
+
+        function cargarLobsRegistradasEnSimulacion() {
+            google.script.run
+                .withSuccessHandler(function (lobs) {
+                    const select = document.getElementById('simSelectLob');
+                    select.innerHTML = '<option value="">-- Seleccione LOB --</option>';
+                    if (lobs && lobs.length > 0) {
+                        lobs.forEach(lob => select.appendChild(new Option(lob, lob)));
+                    } else {
+                        select.innerHTML = '<option value="">-- Sin registros --</option>';
+                    }
+                })
+                .obtenerLobsRegistradas();
+        }
+
+        function cargarKPIsDisponibles() {
+            google.script.run
+                .withSuccessHandler(function (kpis) {
+                    kpisDisponibles = kpis;
+                })
+                .obtenerTodosLosKPIsDisponibles();
+        }
+
+        // Eventos
+        function inicializarEventos() {
+            // Cambio de LOB en Registro
+            document.getElementById('selectLob').addEventListener('change', function () {
+                const lob = this.value;
+                if (!lob) return;
+
+                const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+                const mes = meses[(new Date().getMonth() + 1) % 12];
+                document.getElementById('mes').value = mes;
+                document.getElementById('mesTexto').textContent = mes;
+                document.getElementById('mesInfo').style.display = 'block';
+
+                // Cargar Config Previa
+                google.script.run.withSuccessHandler(function (config) {
+                    if (config.encontrado) {
+                        document.getElementById('salario').value = config.salario;
+                        document.getElementById('porcentajeBono').value = config.porcentaje;
+                        document.getElementById('pvePresupuesto').value = config.pve || '';
+
+                        document.getElementById('salarioTextoAlerta').textContent = formatearMoneda(config.salario);
+                        document.getElementById('porcentajeTextoAlerta').textContent = config.porcentaje + '%';
+                        document.getElementById('mesOrigenAlerta').textContent = config.mes;
+                        document.getElementById('alertaSalarioPorcentaje').style.display = 'block';
+                        calcularBonoMaximo();
+                    } else {
+                        document.getElementById('alertaSalarioPorcentaje').style.display = 'none';
+                        document.getElementById('salario').value = '';
+                        document.getElementById('porcentajeBono').value = '';
+                        document.getElementById('pvePresupuesto').value = '';
+                    }
+                }).obtenerSalarioPorLob(lob);
+
+                // Cargar Responsables y HC
+                google.script.run.withSuccessHandler(function (resp) {
+                    document.getElementById('accm').value = resp.accm || '';
+                    document.getElementById('om').value = (datosUsuario.rol === 'OM') ? datosUsuario.nombre : (resp.om || '');
+                }).obtenerResponsablesPorLob(lob);
+
+                google.script.run.withSuccessHandler(function (count) {
+                    document.getElementById('totalAgentes').textContent = count;
+                }).contarAgentesPorLob(lob);
+
+                mostrarSeccionesConBotones();
+            });
+
+            // Cambio de LOB en Simulación
+            document.getElementById('simSelectLob').addEventListener('change', function () {
+                const lob = this.value;
+                if (!lob) return;
+
+                // Cargar meses registrados
+                google.script.run.withSuccessHandler(function (meses) {
+                    const select = document.getElementById('simSelectMes');
+                    select.innerHTML = '<option value="">-- Seleccione Mes --</option>';
+                    meses.forEach(m => select.appendChild(new Option(m, m)));
+                }).obtenerMesesRegistrados(lob, datosUsuario);
+
+                // 🔥 CARGAR SALARIO AUTOMÁTICAMENTE
+                google.script.run.withSuccessHandler(function (config) {
+                    if (config && config.encontrado) {
+                        document.getElementById('simInputSalario').value = config.salario || '';
+                        document.getElementById('simInputPorcentaje').value = config.porcentaje || '';
+                        document.getElementById('simInputSalario').placeholder = 'Registrado: ' + formatearMoneda(config.salario);
+                        document.getElementById('simInputPorcentaje').placeholder = 'Registrado: ' + config.porcentaje + '%';
+                    } else {
+                        document.getElementById('simInputSalario').value = '';
+                        document.getElementById('simInputPorcentaje').value = '';
+                        document.getElementById('simInputSalario').placeholder = 'No hay salario registrado';
+                        document.getElementById('simInputPorcentaje').placeholder = 'No hay % registrado';
+                    }
+                }).obtenerSalarioPorLob(lob);
+            });
+
+            // Submit Registro
+            document.getElementById('formRegistro').addEventListener('submit', manejarSubmitRegistro);
+        }
+
+        // Funciones de Formulario
+        function mostrarSeccionesConBotones() {
+            ['Keys', 'Bonus', 'Additional', 'Decreased'].forEach(id => {
+                document.getElementById('section' + id).style.display = 'block';
+            });
+        }
+
+        function agregarFilaKPI(tipo) {
+            const tipoHoja = document.getElementById('tipoHoja').value;
+            if (!tipoHoja) { alert('Seleccione Tipo de Hoja'); return; }
+
+            const tbody = document.getElementById('tbody' + capitalize(tipo));
+            if (tbody.rows.length >= limites[tipoHoja][tipo]) {
+                alert('Límite de KPIs alcanzado para esta sección');
+                return;
+            }
+
+            const row = tbody.insertRow();
+            let kpis = kpisDisponibles ? (kpisDisponibles[tipo === 'bonus' ? 'bonusStructure' : tipo === 'additional' ? 'additionalIncentives' : tipo === 'decreased' ? 'decreasedKPIs' : 'keys'] || []) : [];
+            let opts = '<option value="">-- Seleccionar --</option>' + kpis.map(k => `<option value="${k}">${k}</option>`).join('');
+
+            let html = `<td><select class="kpi-nombre">${opts}</select></td>
+                    <td><select class="kpi-comparacion"><option value="<"><</option><option value="<="><=</option><option value=">">></option><option value=">=">>=</option><option value="=">=</option></select></td>
+                    <td><input type="number" class="kpi-score" step="0.01"></td>`;
+
+            if (tipo !== 'keys') {
+                html += `<td><input type="number" class="kpi-porcentaje" step="0.01" oninput="actualizarIndicadorBono()"></td>`;
+            }
+            html += `<td><button type="button" class="btn-delete" onclick="eliminarFila(this)" style="background:none;border:none;cursor:pointer;">🗑️</button></td>`;
+            row.innerHTML = html;
+        }
+
+        function eliminarFila(btn) {
+            btn.closest('tr').remove();
+            actualizarIndicadorBono();
+        }
+
+        function manejarSubmitRegistro(e) {
+            e.preventDefault();
+            const lob = document.getElementById('selectLob').value;
+            const mes = document.getElementById('mes').value;
+
+            // Validar Bonus <= 100
+            let totalBonus = 0;
+            document.querySelectorAll('#tbodyBonus .kpi-porcentaje').forEach(i => totalBonus += parseFloat(i.value) || 0);
+            if (totalBonus > 100) { alert('Total Bonus excede 100%'); return; }
+
+            const datos = {
+                mes, lob,
+                tipoHoja: document.getElementById('tipoHoja').value,
+                accm: document.getElementById('accm').value,
+                om: document.getElementById('om').value,
+                salario: parseFloat(document.getElementById('salario').value),
+                porcentaje: parseFloat(document.getElementById('porcentajeBono').value),
+                pve: parseFloat(document.getElementById('pvePresupuesto').value) || 0,
+                keys: extraerKPIs('keys'),
+                bonus: extraerKPIs('bonus'),
+                additional: extraerKPIs('additional'),
+                decreased: extraerKPIs('decreased')
+            };
+
+            if (!confirm(`¿Guardar registro para ${lob}?`)) return;
+
+            mostrarLoading('Guardando...');
+            google.script.run.withSuccessHandler(function (r) {
+                ocultarLoading();
+                if (r.success) {
+                    mostrarToast('✅ Guardado exitosamente', 'success');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    mostrarToast('❌ ' + r.error, 'danger');
+                }
+            }).guardarRegistroMetricas(datos);
+        }
+
+        function extraerKPIs(tipo) {
+            const kpis = [];
+            document.querySelectorAll(`#tbody${capitalize(tipo)} tr`).forEach(row => {
+                const nombre = row.querySelector('.kpi-nombre').value;
+                if (nombre) {
+                    kpis.push({
+                        nombre,
+                        comparacion: row.querySelector('.kpi-comparacion').value,
+                        score: row.querySelector('.kpi-score').value,
+                        porcentaje: row.querySelector('.kpi-porcentaje')?.value
+                    });
+                }
+            });
+            return kpis;
+        }
+
+        // ============================================================
+        // 🚀 SIMULACIÓN MASIVA UNIFICADA (OM + REPORTING ANALYST)
+        // ============================================================
+
+        // 🔥 FUNCIÓN UNIFICADA: Detecta rol y ejecuta simulación correspondiente
+        function simularTodasLOBsUnificado() {
+            if (!datosUsuario) {
+                mostrarToast('❌ Usuario no cargado', 'danger');
+                return;
+            }
+
+            const pveTotal = parseFloat(document.getElementById('simPVETotal').value) || 0;
+            const porcPVE = parseFloat(document.getElementById('simPorcPVE').value) || 0;
+
+            if (datosUsuario.rol === 'Reporting Analyst' || datosUsuario.rol === 'Audit') {
+                // Simular por región
+                simularPorRegion(pveTotal, porcPVE);
+            } else if (datosUsuario.rol === 'OM') {
+                // Simular por OM
+                simularPorOM(pveTotal, porcPVE);
+            } else {
+                mostrarToast('❌ Tu rol no permite simulación masiva', 'warning');
+            }
+        }
+
+        // 🔥 Simular para OM
+        function simularPorOM(pveTotal, porcPVE) {
+            mostrarLoading('Simulando todas tus LOBs...');
+
+            const handler = function (response) {
+                ocultarLoading();
+                if (response.success) {
+                    window.simulacionMasivaActual = response;
+                    mostrarResultadosSimulacionMasiva(response);
+                } else {
+                    mostrarToast('❌ ' + response.error, 'danger');
+                }
+            };
+
+            if (pveTotal > 0 && porcPVE > 0) {
+                google.script.run.withSuccessHandler(handler)
+                    .simularTodasLOBsPorOMConPVE(datosUsuario.nombre, pveTotal, porcPVE);
+            } else {
+                google.script.run.withSuccessHandler(handler)
+                    .simularTodasLOBsPorOM(datosUsuario.nombre);
+            }
+        }
+
+        // 🔥 Simular por Región (Reporting Analyst)
+        function simularPorRegion(pveTotal, porcPVE) {
+            const region = document.getElementById('simSelectRegion').value;
+
+            if (!region) {
+                mostrarToast('⚠️ Selecciona una región primero', 'warning');
+                return;
+            }
+
+            mostrarLoading('Simulando LOBs de ' + region + '...');
+
+            const handler = function (response) {
+                ocultarLoading();
+                if (response.success) {
+                    window.simulacionMasivaActual = response;
+                    mostrarResultadosSimulacionMasiva(response);
+                } else {
+                    mostrarToast('❌ ' + response.error, 'danger');
+                }
+            };
+
+            if (pveTotal > 0 && porcPVE > 0) {
+                google.script.run.withSuccessHandler(handler)
+                    .simularTodasLOBsPorRegionConPVE(region, pveTotal, porcPVE);
+            } else {
+                google.script.run.withSuccessHandler(handler)
+                    .simularTodasLOBsPorRegion(region);
+            }
+        }
+
+        // 🔥 Filtrar LOBs por Región (actualiza dropdown de LOBs)
+        function filtrarLOBsPorRegion() {
+            const region = document.getElementById('simSelectRegion').value;
+
+            if (!region) {
+                cargarLobsRegistradasEnSimulacion();
+                return;
+            }
+
+            mostrarLoading('Cargando LOBs de ' + region + '...');
+
+            google.script.run
+                .withSuccessHandler(function (lobs) {
+                    ocultarLoading();
+                    const select = document.getElementById('simSelectLob');
+                    select.innerHTML = '<option value="">-- Seleccione LOB --</option>';
+
+                    if (lobs && lobs.length > 0) {
+                        lobs.forEach(function (lob) {
+                            select.appendChild(new Option(lob, lob));
+                        });
+                        mostrarToast('✅ ' + lobs.length + ' LOBs en ' + region, 'success');
+                    } else {
+                        select.innerHTML = '<option value="">-- Sin LOBs registradas --</option>';
+                        mostrarToast('⚠️ No hay LOBs con registros en ' + region, 'warning');
+                    }
+                })
+                .withFailureHandler(function (err) {
+                    ocultarLoading();
+                    mostrarToast('❌ Error: ' + err, 'danger');
+                })
+                .obtenerLobsPorRegion(region);
+        }
+
+        // Mantener compatibilidad con el nombre antiguo
+        function simularTodasLOBsOM() {
+            simularTodasLOBsUnificado();
+        }
+
+        function mostrarResultadosSimulacionMasiva(data) {
+            const modal = document.getElementById('simulacionModal');
+            const content = document.getElementById('contenidoSimulacion');
+
+            // 🔥 Título con región o OM
+            const titulo = data.region ?
+                `📊 Simulación Masiva: ${data.lobsProcesadas} LOBs de ${data.region}` :
+                `📊 Simulación Masiva: ${data.lobsProcesadas} LOBs de ${data.om || 'Usuario'}`;
+
+            let html = `
+            <h2 style="text-align: center; color: #2c3e50; margin-bottom: 20px;">${titulo}</h2>
+            `;
+
+            // 🔥 ESTADO DEL PRESUPUESTO PVE (si existe)
+            if (data.estadoPresupuesto && data.pveConfig) {
+                const estado = data.estadoPresupuesto;
+                const pve = data.pveConfig;
+
+                html += `
+                <div style="background: ${estado.color || '#27ae60'}22; border: 2px solid ${estado.color || '#27ae60'}; 
+                            padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                    <h3 style="text-align: center; color: ${estado.color}; margin-bottom: 15px;">
+                        ${estado.diferencia >= 0 ? '✅' : '❌'} ${estado.texto}
+                    </h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; text-align: center;">
+                        <div>
+                            <div style="font-size: 0.8em; color: #666;">Presupuesto PVE</div>
+                            <div style="font-size: 1.2em; font-weight: bold;">${formatearMoneda(pve.presupuestoDisponible)}</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.8em; color: #666;">Inversión Total</div>
+                            <div style="font-size: 1.2em; font-weight: bold;">${formatearMoneda(estado.inversionTotal)}</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.8em; color: #666;">% Usado</div>
+                            <div style="font-size: 1.2em; font-weight: bold; color: ${estado.color};">${estado.pctUsado}%</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.8em; color: #666;">Disponible</div>
+                            <div style="font-size: 1.2em; font-weight: bold; color: ${estado.diferencia >= 0 ? '#27ae60' : '#e74c3c'};">
+                                ${formatearMoneda(estado.diferencia)}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }
+
+            html += `
+            <!-- Resumen General -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                <div style="background: #3498db; color: white; padding: 15px; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 0.9em;">Total LOBs</div>
+                    <div style="font-size: 1.5em; font-weight: bold;">${data.lobsProcesadas || 0}</div>
+                </div>
+                <div style="background: #2ecc71; color: white; padding: 15px; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 0.9em;">Total Agentes</div>
+                    <div style="font-size: 1.5em; font-weight: bold;">${data.resumen?.totalAgentes || 0}</div>
+                </div>
+                <div style="background: #9b59b6; color: white; padding: 15px; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 0.9em;">Inversión Total</div>
+                    <div style="font-size: 1.5em; font-weight: bold;">${formatearMoneda(data.resumen?.inversionTotal || 0)}</div>
+                </div>
+            </div>
+
+            <!-- Tabla de Resultados -->
+            <div style="overflow-x: auto;">
+                <table class="kpi-table">
+                    <thead>
+                        <tr>
+                            <th>LOB</th>
+                            <th>HC</th>
+                            <th>Salario Base</th>
+                            <th>% Bono</th>
+                            <th>Total Bono</th>
+                            <th>Total Add.</th>
+                            <th>Total LOB</th>
+                            <th>Eficiencia</th>
+                            ${data.pveConfig ? '<th>% PVE</th>' : ''}
+                            <th>Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+            data.resultados.forEach(lob => {
+                html += `
+                <tr>
+                    <td>${lob.lob || '-'}</td>
+                    <td>${lob.hc || 0}</td>
+                    <td>${formatearMoneda(lob.salarioBase)}</td>
+                    <td>${lob.porcentajeBono || 0}%</td>
+                    <td>${formatearMoneda(lob.totalBonus)}</td>
+                    <td>${formatearMoneda(lob.totalAdditional)}</td>
+                    <td style="font-weight: bold;">${formatearMoneda(lob.totalLOB)}</td>
+                    <td>${lob.eficiencia || '0'}%</td>
+                    ${data.pveConfig ? `<td style="color: ${(lob.pctDelPVE || 0) > 10 ? '#e74c3c' : '#27ae60'}; font-weight: bold;">${lob.pctDelPVE || 0}%</td>` : ''}
+                    <td>
+                        <button onclick="verDetalleLOB('${lob.lob}')" class="btn btn-primary" style="padding: 5px 10px; font-size: 0.8em;">
+                            🔍 Ver
+                        </button>
+                    </td>
+                </tr>
+            `;
+            });
+
+            html += `</tbody></table></div>`;
+
+            // 🔥 AGREGAR ANÁLISIS Y COMPARADOR
+            html += agregarAnalisisDistribucion(data);
+            html += agregarComparadorEscenarios(data);
+
+            // 🔥 BOTONES EXPORTAR Y ENVIAR CORREO
+            html += `
+            <div style="text-align: center; margin-top: 30px;">
+                <div style="display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;">
+                    <button onclick="exportarSimulacionCompletaExcel(window.simulacionMasivaActual)" 
+                            class="btn btn-success" style="font-size: 1.1em;">
+                        📥 EXPORTAR REPORTE COMPLETO
+                    </button>
+                    <button onclick="togglePanelCorreo()" 
+                            class="btn" style="font-size: 1.1em; background: #3498db; color: white;">
+                        📧 ENVIAR POR CORREO
+                    </button>
+                </div>
+                
+                <!-- Panel de Correo Desplegable -->
+                <div id="panelEnvioCorreo" style="display: none; margin-top: 20px; background: #f8f9fa; padding: 20px; border-radius: 10px; text-align: left;">
+                    <h4 style="color: #2c3e50; margin-bottom: 15px;">📧 Enviar Reporte por Correo</h4>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="font-weight: bold;">Destinatarios:</label>
+                        <div id="listaDestinatarios" style="margin-top: 10px;"></div>
+                        <div style="display: flex; gap: 10px; margin-top: 10px;">
+                            <input type="email" id="inputNuevoCorreo" class="form-control" 
+                                   placeholder="correo@ejemplo.com" style="flex: 1;">
+                            <button onclick="agregarDestinatario()" class="btn btn-primary" style="padding: 8px 15px;">
+                                ➕ Agregar
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="font-weight: bold;">Asunto:</label>
+                        <input type="text" id="inputAsuntoCorreo" class="form-control" 
+                               value="Reporte de Simulación de Bonos - ${new Date().toLocaleDateString()}">
+                    </div>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="font-weight: bold;">Mensaje adicional (opcional):</label>
+                        <textarea id="inputMensajeCorreo" class="form-control" rows="3" 
+                                  placeholder="Adjunto el reporte de simulación de bonos..."></textarea>
+                    </div>
+                    
+                    <div style="text-align: center; margin-top: 20px;">
+                        <button onclick="enviarReportePorCorreo()" class="btn btn-success" style="padding: 12px 30px;">
+                            ✉️ ENVIAR CORREO
+                        </button>
+                        <button onclick="togglePanelCorreo()" class="btn btn-secondary" style="padding: 12px 30px; margin-left: 10px;">
+                            ❌ CANCELAR
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+            content.innerHTML = html;
+            modal.style.display = 'block';
+        }
+
+        function verDetalleLOB(lobName) {
+            const lobData = window.simulacionMasivaActual.resultados.find(l => l.lob === lobName);
+            if (!lobData) return;
+
+            // Necesitamos reconstruir la estructura 'data' que espera generarHTMLSimulacionConDetalle
+            // Como simularTodasLOBsPorOM devuelve un resumen, idealmente deberíamos tener los KPIs detallados.
+            // Si el backend devuelve los KPIs en 'resultados', perfecto. Si no, tendríamos que consultar.
+            // Asumiremos que simularTodasLOBsPorOM fue modificado para devolver KPIs o haremos una consulta rápida.
+            // Para este caso, usaremos consultarEstructuraRegistrada si faltan datos, o mostraremos lo que hay.
+
+            // Si faltan los KPIs en el objeto masivo, hacemos fetch:
+            mostrarLoading('Cargando detalle...');
+            google.script.run.withSuccessHandler(function (r) {
+                ocultarLoading();
+                if (r.encontrado) {
+                    const html = generarHTMLSimulacionConDetalle(r, r.salario, r.porcentaje, (r.salario * r.porcentaje) / 100, lobData.hc);
+                    // Mostrar en un modal secundario o reemplazar contenido
+                    const content = document.getElementById('contenidoSimulacion');
+                    content.innerHTML = `
+                    <button onclick="mostrarResultadosSimulacionMasiva(window.simulacionMasivaActual)" class="btn btn-secondary" style="margin-bottom: 10px;">⬅ Volver al Resumen</button>
+                    ${html}
+                `;
+                }
+            }).obtenerEstructuraRegistrada(lobName, lobData.mes);
+        }
+
+        // ============================================================
+        // 🎯 FUNCIÓN CORREGIDA: MOSTRAR DETALLE ADICIONAL Y BONUS
+        // ============================================================
+        function generarHTMLSimulacionConDetalle(data, salario, porcentaje, bonoMaximo, hcCount) {
+            let totalBonus = 0;
+            let totalAdditional = 0;
+
+            if (data.kpis?.bonusStructure) {
+                data.kpis.bonusStructure.forEach(item => {
+                    totalBonus += calcularMontoPorcentaje(item.porcentaje || 0, bonoMaximo);
+                });
+            }
+
+            if (data.kpis?.additionalIncentives) {
+                data.kpis.additionalIncentives.forEach(item => {
+                    totalAdditional += calcularMontoPorcentaje(item.porcentaje || 0, bonoMaximo);
+                });
+            }
+
+            const granTotal = totalBonus + totalAdditional;
+            const eficiencia = bonoMaximo > 0 ? (granTotal / bonoMaximo) * 100 : 0;
+
+            let html = `<div class="simulation-container">`;
+
+            // Resumen Principal
+            html += `
+            <div class="summary-card" style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                <div class="summary-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                    <div class="summary-item"><strong>LOB:</strong> ${data.lob}</div>
+                    <div class="summary-item"><strong>HC:</strong> ${hcCount}</div>
+                    <div class="summary-item"><strong>Bono Máx/Agente:</strong> ${formatearMoneda(bonoMaximo)}</div>
+                    <div class="summary-item"><strong>Total Potencial:</strong> ${formatearMoneda(bonoMaximo * hcCount)}</div>
+                </div>
+            </div>
+        `;
+
+            // Indicador de Eficiencia
+            html += `
+            <div style="background: ${eficiencia >= 90 ? '#e8f5e9' : eficiencia >= 70 ? '#fff3e0' : '#ffebee'}; 
+                        padding: 20px; border-radius: 10px; margin: 20px 0; text-align: center;">
+                <div style="font-size: 0.9em; color: #666;">📊 Eficiencia de Asignación</div>
+                <div style="font-size: 2.5em; font-weight: bold; 
+                            color: ${eficiencia >= 90 ? '#27ae60' : eficiencia >= 70 ? '#f39c12' : '#e74c3c'};">
+                    ${eficiencia.toFixed(1)}%
+                </div>
+            </div>
+        `;
+
+            // Detalle de KPIs
+            html += `
+            <div style="background: white; padding: 25px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <h3 style="color: #2c3e50; margin-bottom: 20px; border-bottom: 2px solid #eee; padding-bottom: 10px;">📋 Desglose Detallado</h3>
+                
+                <div style="margin-bottom: 25px;">
+                    <h4 style="color: #27ae60;">💰 Bonus Structure</h4>
+                    ${data.kpis?.bonusStructure?.length > 0 ? generarTablaKPIsDetallada(data.kpis.bonusStructure, bonoMaximo, hcCount, 'bonus') : '<p>Sin KPIs</p>'}
+                </div>
+                
+                <div>
+                    <h4 style="color: #f39c12;">⭐ Additional Incentive</h4>
+                    ${data.kpis?.additionalIncentives?.length > 0 ? generarTablaKPIsDetallada(data.kpis.additionalIncentives, bonoMaximo, hcCount, 'additional') : '<p>Sin KPIs</p>'}
+                </div>
+            </div>
+        `;
+
+            // Resumen Totales
+            html += `
+            <div style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 25px; border-radius: 10px; margin-bottom: 20px;">
+                <h3 style="text-align: center;">📊 Resumen Financiero</h3>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; text-align: center;">
+                    <div>
+                        <div>Bonus Structure</div>
+                        <div style="font-size: 1.5em; font-weight: bold;">${formatearMoneda(totalBonus * hcCount)}</div>
+                    </div>
+                    <div>
+                        <div>Additional</div>
+                        <div style="font-size: 1.5em; font-weight: bold;">${formatearMoneda(totalAdditional * hcCount)}</div>
+                    </div>
+                    <div>
+                        <div>TOTAL A PAGAR</div>
+                        <div style="font-size: 2em; font-weight: bold;">${formatearMoneda(granTotal * hcCount)}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+            // Botón Editar
+            html += `
+            <div style="text-align: center; margin: 30px 0;">
+                <button onclick="abrirEditorEstructura('${data.lob}', '${data.mes}')" 
+                        class="btn btn-primary" style="padding: 15px 40px; font-size: 1.1em;">
+                    ✏️ EDITAR ESTRUCTURA PARA NUEVO MES
+                </button>
+            </div>
+        `;
+
+            html += `</div>`;
+            return html;
+        }
+
+        function generarTablaKPIsDetallada(kpis, bonoMaximo, hcCount, tipo) {
+            const colorBorde = tipo === 'bonus' ? '#27ae60' : '#f39c12';
+            let html = `<table class="kpi-table" style="border-left: 4px solid ${colorBorde};">
+            <thead><tr><th>KPI</th><th>Meta</th><th>% Bono</th><th>Valor/Agente</th><th>Total x HC</th></tr></thead><tbody>`;
+
+            let totalVal = 0;
+            kpis.forEach(kpi => {
+                const pct = parseFloat(kpi.porcentaje) || 0;
+                const val = (bonoMaximo * pct) / 100;
+                totalVal += val * hcCount;
+                html += `<tr>
+                <td>${kpi.nombre}</td>
+                <td>${kpi.score || '-'}</td>
+                <td>${pct.toFixed(2)}%</td>
+                <td>${formatearMoneda(val)}</td>
+                <td>${formatearMoneda(val * hcCount)}</td>
+            </tr>`;
+            });
+            html += `</tbody></table>`;
+            return html;
+        }
+
+        // ============================================================
+        // 📊 ANÁLISIS Y COMPARADOR
+        // ============================================================
+        function agregarAnalisisDistribucion(data) {
+            // Top 5 LOBs
+            const top5 = [...data.resultados].sort((a, b) => b.totalLOB - a.totalLOB).slice(0, 5);
+            let topHtml = top5.map((l, i) => `
+            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee;">
+                <span>${i + 1}. ${l.lob}</span>
+                <span style="font-weight: bold; color: #e74c3c;">${formatearMoneda(l.totalLOB)}</span>
+            </div>
+        `).join('');
+
+            return `
+            <div style="background: white; padding: 25px; border-radius: 10px; margin-top: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <h3 style="color: #2c3e50; margin-bottom: 20px; text-align: center;">🔍 Análisis de Distribución</h3>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+                    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px;">
+                        <h4 style="color: #e74c3c; margin-bottom: 15px;">🏆 Top 5 LOBs más Costosas</h4>
+                        ${topHtml}
+                    </div>
+                    <div style="padding: 15px; background: #fff3cd; border-left: 4px solid #f1c40f; border-radius: 5px;">
+                        <h4 style="color: #d35400; margin-bottom: 10px;">💡 Recomendaciones</h4>
+                        <ul style="margin: 0; padding-left: 20px; color: #666;">
+                            <li>Optimizar LOBs con eficiencia < 70%</li>
+                            <li>Revisar KPIs de bajo impacto</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        `;
+        }
+
+        function agregarComparadorEscenarios(data) {
+            const escenarios = [
+                { nombre: 'Conservador (-15%)', factor: 0.85, color: '#3498db' },
+                { nombre: 'Actual', factor: 1, color: '#2ecc71' },
+                { nombre: 'Agresivo (+20%)', factor: 1.20, color: '#e74c3c' }
+            ];
+
+            let html = `<div style="background: white; padding: 25px; border-radius: 10px; margin-top: 20px;">
+            <h3 style="text-align: center; margin-bottom: 20px;">🔄 Comparador de Escenarios</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">`;
+
+            escenarios.forEach(esc => {
+                const total = data.resumen.inversionTotal * esc.factor;
+                html += `
+                <div style="border: 2px solid ${esc.color}; border-radius: 10px; padding: 15px; text-align: center;">
+                    <div style="font-weight: bold; color: ${esc.color};">${esc.nombre}</div>
+                    <div style="font-size: 1.5em; font-weight: bold;">${formatearMoneda(total)}</div>
+                </div>
+            `;
+            });
+
+            html += `</div></div>`;
+            return html;
+        }
+
+        // ============================================================
+        // 📥 EXPORTACIÓN
+        // ============================================================
+        function exportarSimulacionCompletaExcel(data) {
+            if (!data) return;
+            mostrarLoading('Generando Excel...');
+
+            const datosExportar = {
+                encabezados: ['LOB', 'Mes', 'HC', 'Salario Base', '% Bono', 'Total Bonus', 'Total Additional', 'Total LOB', 'Eficiencia'],
+                filas: data.resultados.map(l => [l.lob, l.mes, l.hc, l.salarioBase, l.porcentajeBono + '%', l.totalBonus, l.totalAdditional, l.totalLOB, l.eficiencia]),
+                resumen: [['TOTAL', data.resumen.inversionTotal], ['AGENTES', data.resumen.totalAgentes]]
+            };
+
+            google.script.run.withSuccessHandler(function (url) {
+                ocultarLoading();
+                if (url) window.open(url, '_blank');
+                else mostrarToast('✅ Exportación simulada (Placeholder)', 'success');
+            }).exportarSimulacionAExcel(datosExportar);
+        }
+
+        // ============================================================
+        // 📧 FUNCIONES DE ENVÍO DE CORREO
+        // ============================================================
+
+        // Lista de destinatarios
+        window.destinatariosCorreo = [];
+
+        function togglePanelCorreo() {
+            const panel = document.getElementById('panelEnvioCorreo');
+            if (panel.style.display === 'none') {
+                panel.style.display = 'block';
+                actualizarListaDestinatarios();
+            } else {
+                panel.style.display = 'none';
+            }
+        }
+
+        function agregarDestinatario() {
+            const input = document.getElementById('inputNuevoCorreo');
+            const correo = input.value.trim();
+
+            // Validar formato de correo
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(correo)) {
+                mostrarToast('⚠️ Ingrese un correo válido', 'warning');
+                return;
+            }
+
+            // Verificar que no esté duplicado
+            if (window.destinatariosCorreo.includes(correo)) {
+                mostrarToast('⚠️ Este correo ya está en la lista', 'warning');
+                return;
+            }
+
+            window.destinatariosCorreo.push(correo);
+            input.value = '';
+            actualizarListaDestinatarios();
+            mostrarToast('✅ Destinatario agregado', 'success');
+        }
+
+        function eliminarDestinatario(correo) {
+            window.destinatariosCorreo = window.destinatariosCorreo.filter(c => c !== correo);
+            actualizarListaDestinatarios();
+        }
+
+        function actualizarListaDestinatarios() {
+            const container = document.getElementById('listaDestinatarios');
+            if (!container) return;
+
+            if (window.destinatariosCorreo.length === 0) {
+                container.innerHTML = '<span style="color: #999; font-style: italic;">No hay destinatarios agregados</span>';
+                return;
+            }
+
+            let html = '';
+            window.destinatariosCorreo.forEach(correo => {
+                html += `
+                <span style="display: inline-flex; align-items: center; background: #667eea; color: white; 
+                            padding: 5px 10px; border-radius: 20px; margin: 3px; font-size: 0.9em;">
+                    ${correo}
+                    <button onclick="eliminarDestinatario('${correo}')" 
+                            style="background: none; border: none; color: white; margin-left: 8px; cursor: pointer; font-size: 1.1em;">
+                        ×
+                    </button>
+                </span>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function enviarReportePorCorreo() {
+            // 🔥 Añadir correo del usuario actual si no está
+            const correoUsuario = datosUsuario.correo;
+            const destinatariosFinales = [...window.destinatariosCorreo];
+
+            if (correoUsuario && !destinatariosFinales.includes(correoUsuario)) {
+                destinatariosFinales.push(correoUsuario);
+            }
+
+            // Si no hay destinatarios manuales, al menos se envía al usuario
+            if (destinatariosFinales.length === 0) {
+                mostrarToast('⚠️ No hay destinatarios válidos', 'warning');
+                return;
+            }
+
+            const asunto = document.getElementById('inputAsuntoCorreo').value.trim();
+            const mensaje = document.getElementById('inputMensajeCorreo').value.trim();
+
+            if (!asunto) {
+                mostrarToast('⚠️ El asunto no puede estar vacío', 'warning');
+                return;
+            }
+
+            const data = window.simulacionMasivaActual;
+            if (!data) {
+                mostrarToast('❌ No hay datos de simulación para enviar', 'danger');
+                return;
+            }
+
+            mostrarLoading('Enviando correo...');
+
+            const datosCorreo = {
+                destinatarios: destinatariosFinales,
+                asunto: asunto,
+                mensaje: mensaje,
+                simulacion: {
+                    lobsProcesadas: data.lobsProcesadas,
+                    totalAgentes: data.resumen?.totalAgentes || 0,
+                    inversionTotal: data.resumen?.inversionTotal || 0,
+                    region: data.region || data.om || 'N/A',
+                    resultados: data.resultados.map(r => ({
+                        lob: r.lob,
+                        hc: r.hc,
+                        totalLOB: r.totalLOB,
+                        eficiencia: r.eficiencia
+                    }))
+                }
+            };
+
+            google.script.run
+                .withSuccessHandler(function (response) {
+                    ocultarLoading();
+                    if (response.success) {
+                        mostrarToast('✅ Correo enviado exitosamente (incluyendo copia a ti mismo)', 'success');
+                        window.destinatariosCorreo = [];
+                        actualizarListaDestinatarios();
+                        togglePanelCorreo();
+                    } else {
+                        mostrarToast('❌ Error: ' + response.error, 'danger');
+                    }
+                })
+                .withFailureHandler(function (err) {
+                    ocultarLoading();
+                    mostrarToast('❌ Error al enviar: ' + err, 'danger');
+                })
+                .enviarReporteSimulacionPorCorreo(datosCorreo);
+        }
+
+        function actualizarTextoAyudaPVE(input) {
+            const val = parseFloat(input.value) || 0;
+            const helpText = document.getElementById('simPVETotalHelp');
+            if (val > 0) {
+                helpText.textContent = formatearMoneda(val);
+                helpText.style.display = 'block';
+            } else {
+                helpText.style.display = 'none';
+            }
+        }
+
+        // ============================================================
+        // 🔍 VER ESTRUCTURA REGISTRADA
+        // ============================================================
+        function consultarEstructuraRegistrada() {
+            const lob = document.getElementById('simSelectLob').value;
+            const mes = document.getElementById('simSelectMes').value;
+
+            if (!lob || !mes) {
+                mostrarToast('⚠️ Seleccione LOB y Mes', 'warning');
+                return;
+            }
+
+            mostrarLoading('Consultando estructura...');
+
+            google.script.run
+                .withSuccessHandler(function (response) {
+                    ocultarLoading();
+                    if (response.encontrado) {
+                        window.estructuraActual = response;
+                        mostrarEstructuraRegistrada(response);
+                    } else {
+                        mostrarToast('❌ ' + (response.mensaje || 'No se encontró estructura'), 'danger');
+                    }
+                })
+                .withFailureHandler(function (err) {
+                    ocultarLoading();
+                    mostrarToast('❌ Error: ' + err, 'danger');
+                })
+                .obtenerEstructuraRegistrada(lob, mes, datosUsuario);
+        }
+
+        function mostrarEstructuraRegistrada(data) {
+            // 🔥 MOSTRAR EN MODAL EN LUGAR DE ABAJO
+            const modal = document.getElementById('simulacionModal');
+            const content = document.getElementById('contenidoSimulacion');
+
+            let html = `
+            <h2 style="text-align: center; color: #2c3e50; margin-bottom: 20px;">📋 Estructura de ${data.lob} - ${data.mes}</h2>
+            
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                    <div><strong>ACCM:</strong> ${data.accm || '-'}</div>
+                    <div><strong>OM:</strong> ${data.om || '-'}</div>
+                    <div><strong>HC:</strong> ${data.hc || '-'}</div>
+                    <div><strong>Tipo:</strong> ${data.tipoHoja || data.hojaOrigen || '-'}</div>
+                    <div><strong>Salario:</strong> ${formatearMoneda(data.salario || 0)}</div>
+                    <div><strong>% Bono:</strong> ${data.porcentaje || 0}%</div>
+                </div>
+            </div>
+            `;
+
+            // Keys
+            if (data.kpis?.keys?.length > 0) {
+                html += `<h4 style="color: #3498db; margin-top: 20px;">🔑 Keys</h4>
+                <table class="kpi-table"><thead><tr><th>KPI</th><th>Score</th></tr></thead><tbody>`;
+                data.kpis.keys.forEach(k => {
+                    html += `<tr><td>${k.nombre}</td><td>${k.score || '-'}</td></tr>`;
+                });
+                html += `</tbody></table>`;
+            }
+
+            // Bonus Structure
+            if (data.kpis?.bonusStructure?.length > 0) {
+                html += `<h4 style="color: #27ae60; margin-top: 20px;">💰 Bonus Structure</h4>
+                <table class="kpi-table"><thead><tr><th>KPI</th><th>Score</th><th>%</th></tr></thead><tbody>`;
+                data.kpis.bonusStructure.forEach(k => {
+                    html += `<tr><td>${k.nombre}</td><td>${k.score || '-'}</td><td>${k.porcentaje || 0}%</td></tr>`;
+                });
+                html += `</tbody></table>`;
+            }
+
+            // Additional
+            if (data.kpis?.additionalIncentives?.length > 0) {
+                html += `<h4 style="color: #f39c12; margin-top: 20px;">⭐ Additional Incentive</h4>
+                <table class="kpi-table"><thead><tr><th>KPI</th><th>Score</th><th>%</th></tr></thead><tbody>`;
+                data.kpis.additionalIncentives.forEach(k => {
+                    html += `<tr><td>${k.nombre}</td><td>${k.score || '-'}</td><td>${k.porcentaje || 0}%</td></tr>`;
+                });
+                html += `</tbody></table>`;
+            }
+
+            // Decreased
+            if (data.kpis?.decreasedKPIs?.length > 0) {
+                html += `<h4 style="color: #e74c3c; margin-top: 20px;">📉 Decreased</h4>
+                <table class="kpi-table"><thead><tr><th>KPI</th><th>Score</th><th>%</th></tr></thead><tbody>`;
+                data.kpis.decreasedKPIs.forEach(k => {
+                    html += `<tr><td>${k.nombre}</td><td>${k.score || '-'}</td><td>${k.porcentaje || 0}%</td></tr>`;
+                });
+                html += `</tbody></table>`;
+            }
+
+            // Botón para editar
+            html += `
+            <div style="text-align: center; margin-top: 30px;">
+                <button onclick="abrirEditorEstructura('${data.lob}', '${data.mes}')" class="btn btn-primary" style="padding: 15px 40px;">
+                    ✏️ EDITAR ESTRUCTURA PARA NUEVO MES
+                </button>
+            </div>
+            `;
+
+            content.innerHTML = html;
+            modal.style.display = 'block';
+        }
+
+        // ============================================================
+        // 💰 ABRIR MODAL DE SIMULACIÓN
+        // ============================================================
+        function abrirModalSimulacion() {
+            const lob = document.getElementById('simSelectLob').value;
+            const mes = document.getElementById('simSelectMes').value;
+
+            if (!lob || !mes) {
+                mostrarToast('⚠️ Seleccione LOB y Mes', 'warning');
+                return;
+            }
+
+            mostrarLoading('Cargando simulación...');
+
+            google.script.run
+                .withSuccessHandler(function (response) {
+                    ocultarLoading();
+                    if (response.encontrado) {
+                        // Obtener salario (del input o del registro)
+                        let salario = parseFloat(document.getElementById('simInputSalario').value) || response.salario || 0;
+                        let porcentaje = parseFloat(document.getElementById('simInputPorcentaje').value) || response.porcentaje || 0;
+
+                        if (salario === 0 || porcentaje === 0) {
+                            mostrarToast('⚠️ Falta salario o % de bono. Configure en los campos.', 'warning');
+                            return;
+                        }
+
+                        const bonoMaximo = (salario * porcentaje) / 100;
+                        const hc = response.hc || 1;
+
+                        // Generar HTML de simulación
+                        const html = generarHTMLSimulacionConDetalle(response, salario, porcentaje, bonoMaximo, hc);
+
+                        document.getElementById('contenidoSimulacion').innerHTML = html;
+                        document.getElementById('simulacionModal').style.display = 'block';
+                    } else {
+                        mostrarToast('❌ ' + (response.mensaje || 'No se encontró estructura'), 'danger');
+                    }
+                })
+                .withFailureHandler(function (err) {
+                    ocultarLoading();
+                    mostrarToast('❌ Error: ' + err, 'danger');
+                })
+                .obtenerEstructuraRegistrada(lob, mes, datosUsuario);
+        }
+
+        // ============================================================
+        // ✏️ EDITOR DE ESTRUCTURA COMPLETO
+        // ============================================================
+        function abrirEditorEstructura(lob, mes) {
+            mostrarLoading('Cargando estructura para editar...');
+
+            google.script.run
+                .withSuccessHandler(function (response) {
+                    ocultarLoading();
+                    if (response.encontrado) {
+                        // Cambiar a tab de registro
+                        cambiarTab('registro');
+
+                        // Llenar formulario con datos actuales
+                        document.getElementById('selectLob').value = lob;
+
+                        // Calcular mes siguiente
+                        const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                            'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+                        const mesActualIdx = meses.indexOf(mes);
+                        const mesSiguiente = meses[(mesActualIdx + 1) % 12];
+
+                        document.getElementById('mes').value = mesSiguiente;
+                        document.getElementById('mesTexto').textContent = mesSiguiente;
+                        document.getElementById('mesInfo').style.display = 'block';
+
+                        // Llenar ACCM y OM
+                        document.getElementById('accm').value = response.accm || '';
+                        document.getElementById('om').value = response.om || '';
+
+                        // Llenar salario y porcentaje
+                        if (response.salario) document.getElementById('salario').value = response.salario;
+                        if (response.porcentaje) document.getElementById('porcentajeBono').value = response.porcentaje;
+
+                        // Determinar tipo de hoja
+                        document.getElementById('tipoHoja').value = response.tipoHoja || response.hojaOrigen || 'Registro_pisos';
+
+                        // Mostrar secciones
+                        mostrarSeccionesConBotones();
+
+                        // Llenar KPIs existentes
+                        llenarKPIsEnFormulario(response.kpis);
+
+                        // Calcular bono
+                        calcularBonoMaximo();
+
+                        mostrarToast('✅ Estructura cargada para editar. Modifica y guarda.', 'success');
+
+                        // Cerrar modal si está abierto
+                        cerrarModalSimulacion();
+                    } else {
+                        mostrarToast('❌ No se pudo cargar la estructura', 'danger');
+                    }
+                })
+                .withFailureHandler(function (err) {
+                    ocultarLoading();
+                    mostrarToast('❌ Error: ' + err, 'danger');
+                })
+                .obtenerEstructuraRegistrada(lob, mes, datosUsuario);
+        }
+
+        function llenarKPIsEnFormulario(kpis) {
+            // Limpiar tablas existentes
+            ['Keys', 'Bonus', 'Additional', 'Decreased'].forEach(tipo => {
+                const tbody = document.getElementById('tbody' + tipo);
+                if (tbody) tbody.innerHTML = '';
+            });
+
+            // Llenar Keys
+            if (kpis?.keys) {
+                kpis.keys.forEach(kpi => agregarFilaKPIConDatos('keys', kpi));
+            }
+
+            // Llenar Bonus
+            if (kpis?.bonusStructure) {
+                kpis.bonusStructure.forEach(kpi => agregarFilaKPIConDatos('bonus', kpi));
+            }
+
+            // Llenar Additional
+            if (kpis?.additionalIncentives) {
+                kpis.additionalIncentives.forEach(kpi => agregarFilaKPIConDatos('additional', kpi));
+            }
+
+            // Llenar Decreased
+            if (kpis?.decreasedKPIs) {
+                kpis.decreasedKPIs.forEach(kpi => agregarFilaKPIConDatos('decreased', kpi));
+            }
+        }
+
+        function agregarFilaKPIConDatos(tipo, kpiData) {
+            const tipoHoja = document.getElementById('tipoHoja').value || 'Registro_pisos';
+            const tbody = document.getElementById('tbody' + capitalize(tipo));
+            if (!tbody) return;
+
+            // Verificar límites
+            if (tbody.rows.length >= limites[tipoHoja][tipo]) return;
+
+            const row = tbody.insertRow();
+            let kpis = kpisDisponibles ? (kpisDisponibles[tipo === 'bonus' ? 'bonusStructure' : tipo === 'additional' ? 'additionalIncentives' : tipo === 'decreased' ? 'decreasedKPIs' : 'keys'] || []) : [];
+            let opts = '<option value="">-- Seleccionar --</option>' + kpis.map(k => `<option value="${k}" ${k === kpiData.nombre ? 'selected' : ''}>${k}</option>`).join('');
+
+            // Extraer comparación del score si existe
+            let score = kpiData.score || '';
+            let comparacion = '>=';
+            if (score.startsWith('<=')) { comparacion = '<='; score = score.substring(2); }
+            else if (score.startsWith('>=')) { comparacion = '>='; score = score.substring(2); }
+            else if (score.startsWith('<')) { comparacion = '<'; score = score.substring(1); }
+            else if (score.startsWith('>')) { comparacion = '>'; score = score.substring(1); }
+            else if (score.startsWith('=')) { comparacion = '='; score = score.substring(1); }
+
+            let html = `<td><select class="kpi-nombre">${opts}</select></td>
+                        <td><select class="kpi-comparacion">
+                            <option value="<" ${comparacion === '<' ? 'selected' : ''}><</option>
+                            <option value="<=" ${comparacion === '<=' ? 'selected' : ''}><=</option>
+                            <option value=">" ${comparacion === '>' ? 'selected' : ''}>></option>
+                            <option value=">=" ${comparacion === '>=' ? 'selected' : ''}>>=</option>
+                            <option value="=" ${comparacion === '=' ? 'selected' : ''}>=</option>
+                        </select></td>
+                        <td><input type="number" class="kpi-score" step="0.01" value="${parseFloat(score) || ''}"></td>`;
+
+            if (tipo !== 'keys') {
+                html += `<td><input type="number" class="kpi-porcentaje" step="0.01" value="${parseFloat(kpiData.porcentaje) || ''}" oninput="actualizarIndicadorBono()"></td>`;
+            }
+            html += `<td><button type="button" class="btn-delete" onclick="eliminarFila(this)" style="background:none;border:none;cursor:pointer;">🗑️</button></td>`;
+            row.innerHTML = html;
+        }
+
+        // ============================================================
+        // 🔄 CARGAR SALARIO AUTO EN SIMULACIÓN
+        // ============================================================
+        function cargarSalarioEnSimulacion() {
+            const lob = document.getElementById('simSelectLob').value;
+            if (!lob) return;
+
+            google.script.run
+                .withSuccessHandler(function (config) {
+                    if (config && config.encontrado) {
+                        document.getElementById('simInputSalario').value = config.salario || '';
+                        document.getElementById('simInputPorcentaje').value = config.porcentaje || '';
+                        document.getElementById('simInputSalario').placeholder = formatearMoneda(config.salario);
+                        document.getElementById('simInputPorcentaje').placeholder = config.porcentaje + '%';
+                    }
+                })
+                .obtenerSalarioPorLob(lob);
+        }
+
+        // Helpers
+        function mostrarLoading(txt) { document.getElementById('loadingOverlay').style.display = 'flex'; document.getElementById('loadingText').textContent = txt; }
+        function ocultarLoading() { document.getElementById('loadingOverlay').style.display = 'none'; }
+        function cerrarModalSimulacion() { document.getElementById('simulacionModal').style.display = 'none'; }
+        function mostrarToast(msg, type) {
+            const t = document.getElementById('toast');
+            t.className = 'toast show ' + type;
+            document.getElementById('toastMessage').textContent = msg;
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
+        function formatearMoneda(val) { return '$' + (val || 0).toLocaleString('es-CO', { minimumFractionDigits: 0 }); }
+        function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+        function calcularMontoPorcentaje(pct, max) { return (max * pct) / 100; }
+        function calcularBonoMaximo() {
+            const s = parseFloat(document.getElementById('salario').value) || 0;
+            const p = parseFloat(document.getElementById('porcentajeBono').value) || 0;
+            const max = (s * p) / 100;
+            document.getElementById('bonoMaximoTexto').textContent = formatearMoneda(max);
+            document.getElementById('bonoIndicator').style.display = max > 0 ? 'block' : 'none';
+            actualizarIndicadorBono();
+        }
+        function actualizarIndicadorBono() {
+            let total = 0;
+            document.querySelectorAll('#tbodyBonus .kpi-porcentaje').forEach(i => total += parseFloat(i.value) || 0);
+            const bar = document.getElementById('progressBar');
+            if (bar) {
+                bar.style.width = Math.min(total, 100) + '%';
+                bar.textContent = total.toFixed(1) + '%';
+            }
+            const asignado = document.getElementById('porcentajeAsignadoTexto');
+            const disponible = document.getElementById('porcentajeDisponibleTexto');
+            if (asignado) asignado.textContent = total.toFixed(1) + '%';
+            if (disponible) disponible.textContent = Math.max(0, 100 - total).toFixed(1) + '%';
+            const s = parseFloat(document.getElementById('salario').value) || 0;
+            const p = parseFloat(document.getElementById('porcentajeBono').value) || 0;
+            const montoAsignado = document.getElementById('montoAsignadoTexto');
+            if (montoAsignado) montoAsignado.textContent = formatearMoneda((s * p * total) / 10000);
+        }
+        function calcularPresupuestoPVE() {
+            const t = parseFloat(document.getElementById('simPVETotal').value) || 0;
+            const p = parseFloat(document.getElementById('simPorcPVE').value) || 0;
+            const res = (t * p) / 100;
+            document.getElementById('simPresupuestoDisponible').value = formatearMoneda(res);
+            document.getElementById('alertaPVE').style.display = res > 0 ? 'block' : 'none';
+        }
+        function actualizarLimites() { /* Ya manejado */ }
+        function aplicarFiltrosSimulacion() { /* Pendiente */ }
+        function limpiarFiltros() { /* Pendiente */ }
+    </script>
+</body>
+
+</html>

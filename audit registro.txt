@@ -1,0 +1,989 @@
+// ========================================
+// FUNCIÓN BACKEND: GUARDAR APROBACIONES (COMPLETA)
+// Busca automáticamente las hojas y guarda en Audit + Historico_MAX
+// ========================================
+function guardarAprobaciones(aprobaciones) {
+  try {
+    console.log('🚀 Iniciando guardarAprobaciones...');
+    console.log(`📥 Total aprobaciones recibidas: ${aprobaciones.length}`);
+    
+    // ========================================
+    // ⭐ BUSCAR HOJAS AUTOMÁTICAMENTE EN MÚLTIPLES ARCHIVOS
+    // ========================================
+    let ss = null;
+    let hojaAudit = null;
+    let hojaHC = null;
+    let ssCDM = null;
+    
+    // 1. Intentar en archivo ACTIVO
+    console.log('🔍 Buscando hojas en archivo activo...');
+    const ssActivo = SpreadsheetApp.getActiveSpreadsheet();
+    hojaAudit = ssActivo.getSheetByName('Audit');
+    hojaHC = ssActivo.getSheetByName('H_C');
+    
+    if (hojaAudit && hojaHC) {
+      console.log('✅ Audit y H_C encontradas en archivo ACTIVO');
+      ss = ssActivo;
+    } else {
+      // 2. Intentar en archivo PRINCIPAL (1nzX...)
+      console.log('🔍 Buscando en archivo principal...');
+      try {
+        ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+        hojaAudit = ss.getSheetByName('Audit');
+        hojaHC = ss.getSheetByName('H_C');
+        
+        if (hojaAudit && hojaHC) {
+          console.log('✅ Audit y H_C encontradas en archivo PRINCIPAL');
+        }
+      } catch (e) {
+        console.log('⚠️ No se pudo acceder al archivo principal: ' + e.toString());
+      }
+    }
+    
+    // 3. Si no se encontraron, intentar en archivo CDM
+    if (!hojaAudit || !hojaHC) {
+      console.log('🔍 Buscando en archivo CDM...');
+      try {
+        const ssCDMTemp = SpreadsheetApp.openById('1PtYuAb5C2kIoX8sE7dOvt1nVS-aLamZLOJQUSbTBBCw');
+        hojaAudit = ssCDMTemp.getSheetByName('Audit');
+        hojaHC = ssCDMTemp.getSheetByName('H_C');
+        
+        if (hojaAudit && hojaHC) {
+          console.log('✅ Audit y H_C encontradas en archivo CDM');
+          ss = ssCDMTemp;
+        }
+      } catch (e) {
+        console.log('⚠️ No se pudo acceder al archivo CDM: ' + e.toString());
+      }
+    }
+    
+    // 4. Validar que se encontraron las hojas
+    if (!hojaAudit) {
+      return { success: false, error: 'No se encontró la hoja "Audit" en ningún archivo' };
+    }
+    
+    if (!hojaHC) {
+      return { success: false, error: 'No se encontró la hoja "H_C" en ningún archivo' };
+    }
+    
+    // 5. Abrir archivo CDM para Historico_MAX
+    console.log('🔍 Abriendo archivo CDM para Historico_MAX...');
+    try {
+      ssCDM = SpreadsheetApp.openById('1PtYuAb5C2kIoX8sE7dOvt1nVS-aLamZLOJQUSbTBBCw');
+      console.log('✅ Archivo CDM abierto correctamente');
+    } catch (e) {
+      console.log('⚠️ Error al abrir archivo CDM: ' + e.toString());
+      ssCDM = ss; // Usar el mismo archivo si falla
+    }
+
+    console.log('📋 Guardando aprobaciones en Audit y Historico_MAX');
+    
+    // ========================================
+    // ⭐ DEBUG: VER DATOS RECIBIDOS
+    // ========================================
+    aprobaciones.forEach((ap, index) => {
+      console.log(`   ${index + 1}. BMS: ${ap.bmsId}, Mes: "${ap.mes}", Total: $${ap.total}`);
+      if (ap.desglose) {
+        console.log(`      Desglose - Keys: $${ap.desglose.keys}, Bonus: $${ap.desglose.bonusStructure}, Additional: $${ap.desglose.additionalIncentives}, Decreased: $${ap.desglose.decreasedKPIs}`);
+      }
+    });
+
+    // ========================================
+    // ⭐ CREAR HEADER EN AUDIT SI NO EXISTE
+    // ========================================
+    if (hojaAudit.getLastRow() === 0) {
+      console.log('📝 Creando headers en Audit...');
+      hojaAudit.appendRow([
+        'BMS ID',              // A
+        'Nombre Agente',       // B
+        'LOB',                 // C
+        'Role',                // D
+        'Supervisor',          // E
+        'ACCM',                // F
+        'OM',                  // G
+        'Director',            // H
+        'Bono Aprobado',       // I
+        'Fecha Aprobación',    // J
+        'Usuario Aprobador',   // K
+        'Correo Aprobador',    // L
+        'Fecha KPI',           // M
+        'Mes CDM',             // N
+        'Estado'               // O
+      ]);
+      
+      const headerRange = hojaAudit.getRange(1, 1, 1, 15);
+      headerRange.setBackground('#28a745');
+      headerRange.setFontColor('#FFFFFF');
+      headerRange.setFontWeight('bold');
+      headerRange.setHorizontalAlignment('center');
+      headerRange.setWrap(true);
+      console.log('✅ Headers creados en Audit');
+    }
+
+    // ========================================
+    // ⭐ OBTENER DATOS DEL USUARIO APROBADOR
+    // ========================================
+    const usuario = Session.getActiveUser().getEmail();
+    const nombreUsuario = obtenerNombreUsuario(usuario);
+    const fechaAprobacion = new Date();
+
+    // ========================================
+    // ⭐ CARGAR TODOS LOS DATOS DE H_C EN MEMORIA
+    // ========================================
+    const dataHC = hojaHC.getDataRange().getValues();
+    const datosHCMap = {};
+
+    console.log('📊 Cargando datos de H_C...');
+
+    for (let i = 1; i < dataHC.length; i++) {
+      const bmsId = String(dataHC[i][0]).trim();
+      
+      if (bmsId) {
+        datosHCMap[bmsId] = {
+          lob: String(dataHC[i][1] || '').trim(),
+          nombre: String(dataHC[i][2] || '').trim(),
+          director: String(dataHC[i][3] || '').trim(),
+          supervisor: String(dataHC[i][4] || '').trim(),
+          accm: String(dataHC[i][5] || '').trim(),
+          om: String(dataHC[i][6] || '').trim(),
+          role: String(dataHC[i][7] || '').trim()
+        };
+      }
+    }
+
+    console.log(`📊 Total agentes cargados de H_C: ${Object.keys(datosHCMap).length}`);
+
+    // ========================================
+    // ⭐ AGRUPAR DATOS POR LOB Y MES PARA HISTORICO_MAX
+    // ========================================
+    const datosPorLobYMes = {};
+
+    // ========================================
+    // ⭐ INSERTAR CADA APROBACIÓN EN AUDIT
+    // ========================================
+    let registrosGuardados = 0;
+    let errores = [];
+
+    aprobaciones.forEach(function(aprobacion) {
+      const bmsId = String(aprobacion.bmsId).trim();
+      const datosHC = datosHCMap[bmsId];
+      
+      if (!datosHC) {
+        console.log(`⚠️ BMS ${bmsId} no encontrado en H_C`);
+        errores.push(`BMS ${bmsId} no encontrado en H_C`);
+        return;
+      }
+
+      // Validar LOB
+      if (datosHC.lob !== aprobacion.lob) {
+        console.log(`⚠️ BMS ${bmsId}: LOB no coincide. H_C: "${datosHC.lob}" vs Aprobación: "${aprobacion.lob}"`);
+      }
+
+      // ⭐ USAR EL MES QUE VIENE DEL FRONTEND DIRECTAMENTE
+      const nombreMes = aprobacion.mes || 'General';
+      const numeroMes = obtenerNumeroMesDesdeNombre(aprobacion.mes);
+      
+      console.log(`📅 Para agente ${bmsId}:`);
+      console.log(`   Mes desde frontend: "${aprobacion.mes}"`);
+      console.log(`   Nombre Mes: "${nombreMes}"`);
+      console.log(`   Número Mes: ${numeroMes}`);
+      
+      const claveLobMes = `${datosHC.lob}_${nombreMes}`;
+
+      if (!datosPorLobYMes[claveLobMes]) {
+        datosPorLobYMes[claveLobMes] = {
+          lob: datosHC.lob,
+          om: datosHC.om,
+          mes: nombreMes,
+          numeroMes: numeroMes,
+          fechaRegistro: aprobacion.fecha,
+          totalBonos: 0,
+          agentesUnicos: new Set(),
+          desglose: {
+            keys: 0,
+            bonusStructure: 0,
+            additionalIncentives: 0,
+            decreasedKPIs: 0
+          }
+        };
+        
+        console.log(`✅ Nuevo registro creado para: ${claveLobMes}`);
+      }
+
+      // ========================================
+      // GUARDAR EN AUDIT
+      // ========================================
+      const fila = [
+        bmsId,
+        datosHC.nombre,
+        datosHC.lob,
+        datosHC.role,
+        datosHC.supervisor,
+        datosHC.accm,
+        datosHC.om,
+        datosHC.director,
+        aprobacion.total,
+        fechaAprobacion,
+        nombreUsuario,
+        usuario,
+        aprobacion.fecha,
+        aprobacion.mes,
+        'APROBADO'
+      ];
+      
+      hojaAudit.appendRow(fila);
+      registrosGuardados++;
+
+      // ========================================
+      // ⭐ ACUMULAR DATOS PARA HISTORICO_MAX CON DESGLOSE
+      // ========================================
+      datosPorLobYMes[claveLobMes].totalBonos += aprobacion.total;
+      datosPorLobYMes[claveLobMes].agentesUnicos.add(bmsId);
+      
+      // ⭐ USAR DESGLOSE DEL FRONTEND SI EXISTE
+      if (aprobacion.desglose) {
+        datosPorLobYMes[claveLobMes].desglose.keys += aprobacion.desglose.keys || 0;
+        datosPorLobYMes[claveLobMes].desglose.bonusStructure += aprobacion.desglose.bonusStructure || 0;
+        datosPorLobYMes[claveLobMes].desglose.additionalIncentives += aprobacion.desglose.additionalIncentives || 0;
+        datosPorLobYMes[claveLobMes].desglose.decreasedKPIs += aprobacion.desglose.decreasedKPIs || 0;
+        
+        console.log(`💰 Sumando desglose para ${claveLobMes}:`, aprobacion.desglose);
+      } else {
+        // Si no hay desglose, sumar todo a bonusStructure (fallback)
+        datosPorLobYMes[claveLobMes].desglose.bonusStructure += aprobacion.total;
+        console.log(`💰 Sin desglose, sumando $${aprobacion.total} a bonusStructure`);
+      }
+    });
+
+    // ========================================
+    // ⭐ DEBUG: VER DATOS AGRUPADOS PARA HISTORICO_MAX
+    // ========================================
+    console.log('📊 Datos agrupados para Historico_MAX:');
+    Object.keys(datosPorLobYMes).forEach(clave => {
+      const dato = datosPorLobYMes[clave];
+      console.log(`   ${clave}:`);
+      console.log(`      Total: $${dato.totalBonos}`);
+      console.log(`      Agentes: ${dato.agentesUnicos.size}`);
+      console.log(`      Desglose:`, dato.desglose);
+    });
+
+    // ========================================
+    // ⭐ FORMATEAR DATOS EN AUDIT
+    // ========================================
+    const lastRow = hojaAudit.getLastRow();
+    const startRow = lastRow - registrosGuardados + 1;
+
+    if (registrosGuardados > 0) {
+      const dataRange = hojaAudit.getRange(startRow, 1, registrosGuardados, 15);
+      
+      // Formato de fecha de aprobación (columna J)
+      hojaAudit.getRange(startRow, 10, registrosGuardados, 1).setNumberFormat('dd/mm/yyyy hh:mm:ss');
+      
+      // Formato de bono (columna I)
+      hojaAudit.getRange(startRow, 9, registrosGuardados, 1).setNumberFormat('$#,##0.00');
+      
+      // Bordes
+      dataRange.setBorder(true, true, true, true, true, true);
+      
+      // Alternar colores de filas
+      for (let i = 0; i < registrosGuardados; i++) {
+        const rowNumber = startRow + i;
+        const bgColor = i % 2 === 0 ? '#f8f9fa' : '#ffffff';
+        hojaAudit.getRange(rowNumber, 1, 1, 15).setBackground(bgColor);
+      }
+      
+      // Resaltar estado APROBADO (columna O)
+      hojaAudit.getRange(startRow, 15, registrosGuardados, 1)
+        .setBackground('#d4edda')
+        .setFontColor('#155724')
+        .setFontWeight('bold')
+        .setHorizontalAlignment('center');
+    }
+
+    console.log(`✅ Se guardaron ${registrosGuardados} aprobaciones en Audit`);
+
+    // ========================================
+    // ⭐ GUARDAR EN HISTORICO_MAX
+    // ========================================
+    let resultadoHistorico = { success: false };
+    
+    if (Object.keys(datosPorLobYMes).length > 0) {
+      console.log(`📊 Guardando en Historico_MAX: ${Object.keys(datosPorLobYMes).length} LOB-Mes combinaciones`);
+      
+      // Convertir Set a número
+      const datosParaHistorico = Object.values(datosPorLobYMes).map(dato => ({
+        ...dato,
+        agentes: dato.agentesUnicos.size,
+        agentesUnicos: undefined // Eliminar el Set
+      }));
+
+      console.log('🚀 Llamando a guardarEnHistoricoMax...');
+      resultadoHistorico = guardarEnHistoricoMax(datosParaHistorico, ssCDM);
+      console.log('📋 Resultado de guardarEnHistoricoMax:', resultadoHistorico);
+      
+      if (resultadoHistorico.success) {
+        console.log('✅ Datos guardados exitosamente en Historico_MAX');
+      } else {
+        console.log('⚠️ Error al guardar en Historico_MAX: ' + resultadoHistorico.error);
+      }
+    }
+
+    // ========================================
+    // ⭐ RESULTADO
+    // ========================================
+    if (errores.length > 0) {
+      console.log(`⚠️ Errores encontrados: ${errores.length}`);
+      errores.forEach(err => console.log(`   - ${err}`));
+    }
+
+    return {
+      success: true,
+      count: registrosGuardados,
+      mensaje: `${registrosGuardados} agente(s) aprobado(s) exitosamente`,
+      errores: errores.length > 0 ? errores : null,
+      historicoGuardado: resultadoHistorico.success,
+      historicoMensaje: resultadoHistorico.mensaje || resultadoHistorico.error
+    };
+    
+  } catch (error) {
+    console.log('❌ Error en guardarAprobaciones: ' + error.toString());
+    console.log('Stack trace: ' + error.stack);
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+// ========================================
+// FUNCIONES AUXILIARES
+// ========================================
+function obtenerNumeroMesDesdeNombre(nombreMes) {
+  if (!nombreMes) return 0;
+  
+  const mesesMap = {
+    'enero': 1, 'febrero': 2, 'marzo': 3, 'abril': 4,
+    'mayo': 5, 'junio': 6, 'julio': 7, 'agosto': 8,
+    'septiembre': 9, 'octubre': 10, 'noviembre': 11, 'diciembre': 12
+  };
+  
+  const nombreLower = nombreMes.toString().toLowerCase().trim();
+  
+  for (const mes in mesesMap) {
+    if (nombreLower.includes(mes)) {
+      return mesesMap[mes];
+    }
+  }
+  
+  return 0;
+}
+
+function obtenerNombreUsuario(email) {
+  try {
+    const nombre = email.split('@')[0];
+    return nombre.charAt(0).toUpperCase() + nombre.slice(1).toLowerCase();
+  } catch (e) {
+    return 'Usuario';
+  }
+}
+
+// ========================================
+// ⭐ FUNCIÓN AUXILIAR: GUARDAR EN HISTORICO_MAX
+// ========================================
+
+
+function guardarEnHistoricoMax(datosParaHistorico, ssCDM) {
+  try {
+    console.log('💾 Iniciando guardado en Historico_MAX...');
+    console.log('Datos a guardar:', JSON.stringify(datosParaHistorico));
+    
+    let hojaCache = ssCDM.getSheetByName('Historico_MAX');
+    
+    // Crear hoja si no existe
+    if (!hojaCache) {
+      console.log('📝 Creando hoja Historico_MAX...');
+      hojaCache = ssCDM.insertSheet('Historico_MAX');
+    } else {
+      console.log('✅ Hoja Historico_MAX encontrada');
+    }
+    
+    // ⭐ LIMPIAR COLUMNAS EXTRA SI EXISTEN
+    const ultimaColumna = hojaCache.getLastColumn();
+    if (ultimaColumna > 19) {
+      console.log(`🧹 Limpiando ${ultimaColumna - 19} columnas extra...`);
+      hojaCache.deleteColumns(20, ultimaColumna - 19);
+      console.log('✅ Columnas extra eliminadas');
+    }
+    
+    // Verificar headers
+    const ultimaFila = hojaCache.getLastRow();
+    console.log('📊 Última fila en Historico_MAX:', ultimaFila);
+    
+    const tieneHeaders = ultimaFila > 0;
+    
+    if (!tieneHeaders) {
+      console.log('📝 Agregando headers a Historico_MAX...');
+      const headers = [
+        'Fecha Generación',      // A
+        'Fecha Registro',        // B
+        'LOB',                   // C
+        'OM',                    // D
+        'Mes',                   // E
+        'Numero Mes',            // F
+        'Total Bonos',           // G
+        'Total Agentes',         // H
+        'Keys',                  // I
+        'Bonus Structure',       // J
+        'Additional Incentives', // K
+        'Decreased KPIs',        // L
+        '% Keys',                // M
+        '% Bonus',               // N
+        '% Additional',          // O
+        '% Decreased',           // P
+        'Usuario',               // Q
+        'Correo Usuario',        // R
+        'Año'                    // S
+      ];
+      
+      // ⭐ CAMBIO 1: Usar setValues en lugar de appendRow para headers
+      hojaCache.getRange(1, 1, 1, 19).setValues([headers]);
+      
+      const headerRange = hojaCache.getRange(1, 1, 1, 19);
+      headerRange.setBackground('#8e44ad');
+      headerRange.setFontColor('#FFFFFF');
+      headerRange.setFontWeight('bold');
+      headerRange.setHorizontalAlignment('center');
+      
+      console.log('✅ Headers agregados a Historico_MAX');
+    }
+    
+    // ========================================
+    // PREPARAR DATOS PARA GUARDAR
+    // ========================================
+    const fechaGeneracion = new Date();
+    const usuario = Session.getActiveUser().getEmail();
+    const nombreUsuario = usuario.split('@')[0];
+    const anio = fechaGeneracion.getFullYear();
+    
+    console.log('🔄 Preparando datos para guardar...');
+    
+    let registrosGuardados = 0;
+    let registrosActualizados = 0;
+    
+    // Obtener datos existentes para evitar duplicados
+    const dataExistente = ultimaFila > 1 ? hojaCache.getRange(2, 1, ultimaFila - 1, 19).getValues() : [];
+    const datosExistentesMap = {};
+    const filasExistentes = {};
+    
+    console.log('📋 Datos existentes en Historico_MAX:', dataExistente.length);
+    
+    for (let i = 0; i < dataExistente.length; i++) {
+      const lobFila = String(dataExistente[i][2] || '').trim();
+      const mesFila = String(dataExistente[i][4] || '').trim();
+      const clave = `${lobFila}_${mesFila}`;
+      
+      datosExistentesMap[clave] = true;
+      filasExistentes[clave] = i + 2; // +2 porque la data empieza en fila 2 (fila 1 es header)
+      
+      console.log(`   Existente: ${clave} en fila ${i + 2}`);
+    }
+    
+    // ========================================
+    // GUARDAR CADA REGISTRO
+    // ========================================
+    datosParaHistorico.forEach((dato, index) => {
+      console.log(`📝 Procesando registro ${index + 1}:`, dato);
+      
+      const totalBonos = dato.totalBonos || 0;
+      const totalAgentes = dato.agentes || 0;
+      
+      // Calcular porcentajes
+      const porcKeys = totalBonos > 0 ? ((dato.desglose.keys || 0) / totalBonos * 100) : 0;
+      const porcBonus = totalBonos > 0 ? ((dato.desglose.bonusStructure || 0) / totalBonos * 100) : 0;
+      const porcAdditional = totalBonos > 0 ? ((dato.desglose.additionalIncentives || 0) / totalBonos * 100) : 0;
+      const porcDecreased = totalBonos > 0 ? ((dato.desglose.decreasedKPIs || 0) / totalBonos * 100) : 0;
+      
+      const fila = [
+        fechaGeneracion,                    // A: Fecha Generación
+        dato.fechaRegistro || fechaGeneracion, // B: Fecha Registro
+        dato.lob || 'Sin LOB',             // C: LOB
+        dato.om || '-',                    // D: OM
+        dato.mes || 'General',             // E: Mes
+        dato.numeroMes || 0,               // F: Numero Mes
+        totalBonos,                        // G: Total Bonos
+        totalAgentes,                      // H: Total Agentes
+        dato.desglose.keys || 0,           // I: Keys
+        dato.desglose.bonusStructure || 0, // J: Bonus Structure
+        dato.desglose.additionalIncentives || 0, // K: Additional Incentives
+        dato.desglose.decreasedKPIs || 0,  // L: Decreased KPIs
+        porcKeys,                          // M: % Keys
+        porcBonus,                         // N: % Bonus
+        porcAdditional,                    // O: % Additional
+        porcDecreased,                     // P: % Decreased
+        nombreUsuario,                     // Q: Usuario
+        usuario,                           // R: Correo Usuario
+        anio                               // S: Año
+      ];
+      
+      const clave = `${dato.lob}_${dato.mes}`;
+      console.log(`   Clave: ${clave}`);
+      
+      if (datosExistentesMap[clave]) {
+        // ⭐ ACTUALIZAR REGISTRO EXISTENTE
+        const filaExistente = filasExistentes[clave];
+        console.log(`   ⚡ Actualizando fila ${filaExistente}`);
+        
+        hojaCache.getRange(filaExistente, 1, 1, 19).setValues([fila]);
+        registrosActualizados++;
+        
+        console.log(`   ✅ Actualizado: ${dato.lob} - ${dato.mes}`);
+      } else {
+        // ⭐ CAMBIO 2: Usar setValues en lugar de appendRow para nuevos registros
+        const nuevaFila = hojaCache.getLastRow() + 1;
+        console.log(`   ➕ Nuevo registro en fila ${nuevaFila}...`);
+        
+        hojaCache.getRange(nuevaFila, 1, 1, 19).setValues([fila]);
+        registrosGuardados++;
+        
+        console.log(`   ✅ Guardado: ${dato.lob} - ${dato.mes}`);
+      }
+    });
+    
+    // ========================================
+    // APLICAR FORMATO A NUEVOS REGISTROS
+    // ========================================
+    if (registrosGuardados > 0) {
+      const nuevaUltimaFila = hojaCache.getLastRow();
+      const primeraFilaNueva = nuevaUltimaFila - registrosGuardados + 1;
+      
+      console.log(`🎨 Aplicando formato a nuevas filas: ${primeraFilaNueva} a ${nuevaUltimaFila}`);
+      
+      // Formato de fechas
+      hojaCache.getRange(primeraFilaNueva, 1, registrosGuardados, 1)
+        .setNumberFormat('dd/mm/yyyy hh:mm:ss');
+      hojaCache.getRange(primeraFilaNueva, 2, registrosGuardados, 1)
+        .setNumberFormat('dd/mm/yyyy');
+      
+      // Formato de moneda
+      hojaCache.getRange(primeraFilaNueva, 7, registrosGuardados, 1)
+        .setNumberFormat('$#,##0.00');
+      hojaCache.getRange(primeraFilaNueva, 9, registrosGuardados, 4)
+        .setNumberFormat('$#,##0.00');
+      
+      // Formato de números
+      hojaCache.getRange(primeraFilaNueva, 8, registrosGuardados, 1)
+        .setNumberFormat('#,##0');
+      hojaCache.getRange(primeraFilaNueva, 13, registrosGuardados, 4)
+        .setNumberFormat('0.00"%"');
+      
+      // Bordes
+      hojaCache.getRange(primeraFilaNueva, 1, registrosGuardados, 19)
+        .setBorder(true, true, true, true, true, true, '#ddd', SpreadsheetApp.BorderStyle.SOLID);
+      
+      console.log('✅ Formato aplicado a nuevos registros');
+    }
+    
+    // ========================================
+    // RESULTADO FINAL
+    // ========================================
+    console.log(`📊 RESUMEN Historico_MAX:`);
+    console.log(`   ✅ Nuevos: ${registrosGuardados}`);
+    console.log(`   🔄 Actualizados: ${registrosActualizados}`);
+    console.log(`   📈 Total procesados: ${registrosGuardados + registrosActualizados}`);
+    
+    return {
+      success: true,
+      count: registrosGuardados + registrosActualizados,
+      nuevos: registrosGuardados,
+      actualizados: registrosActualizados,
+      mensaje: `${registrosGuardados} nuevos, ${registrosActualizados} actualizados en Historico_MAX`
+    };
+    
+  } catch (error) {
+    console.error('❌ Error en guardarEnHistoricoMax:', error);
+    console.error('Stack trace:', error.stack);
+    
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+
+
+
+
+
+
+
+// ========================================
+// ⭐ FUNCIÓN AUXILIAR: GUARDAR EN HISTORICO_MAX
+
+
+// ========================================
+// ========================================
+// ⭐ FUNCIÓN AUXILIAR: GUARDAR EN HISTORICO_MAX (CORREGIDA)
+// ========================================
+function guardarEnHistoricoMax(datosParaHistorico, ssCDM) {
+  try {
+    console.log('💾 Iniciando guardado en Historico_MAX...');
+    console.log('Datos a guardar:', JSON.stringify(datosParaHistorico));
+    
+    let hojaCache = ssCDM.getSheetByName('Historico_MAX');
+    
+    // Crear hoja si no existe
+    if (!hojaCache) {
+      console.log('📝 Creando hoja Historico_MAX...');
+      hojaCache = ssCDM.insertSheet('Historico_MAX');
+    } else {
+      console.log('✅ Hoja Historico_MAX encontrada');
+    }
+    
+    // Verificar headers
+    const ultimaFila = hojaCache.getLastRow();
+    console.log('📊 Última fila en Historico_MAX:', ultimaFila);
+    
+    const tieneHeaders = ultimaFila > 0;
+    
+    if (!tieneHeaders) {
+      console.log('📝 Agregando headers a Historico_MAX...');
+      const headers = [
+        'Fecha Generación',      // A
+        'Fecha Registro',        // B
+        'LOB',                   // C
+        'OM',                    // D
+        'Mes',                   // E
+        'Numero Mes',            // F
+        'Total Bonos',           // G
+        'Total Agentes',         // H
+        'Keys',                  // I
+        'Bonus Structure',       // J
+        'Additional Incentives', // K
+        'Decreased KPIs',        // L
+        '% Keys',                // M
+        '% Bonus',               // N
+        '% Additional',          // O
+        '% Decreased',           // P
+        'Usuario',               // Q
+        'Correo Usuario',        // R
+        'Año'                    // S
+      ];
+      
+      hojaCache.appendRow(headers);
+      
+      const headerRange = hojaCache.getRange(1, 1, 1, 19);
+      headerRange.setBackground('#8e44ad');
+      headerRange.setFontColor('#FFFFFF');
+      headerRange.setFontWeight('bold');
+      headerRange.setHorizontalAlignment('center');
+      
+      console.log('✅ Headers agregados a Historico_MAX');
+    }
+    
+    // ========================================
+    // PREPARAR DATOS PARA GUARDAR
+    // ========================================
+    const fechaGeneracion = new Date();
+    const usuario = Session.getActiveUser().getEmail();
+    const nombreUsuario = usuario.split('@')[0];
+    const anio = fechaGeneracion.getFullYear();
+    
+    console.log('🔄 Preparando datos para guardar...');
+    
+    let registrosGuardados = 0;
+    let registrosActualizados = 0;
+    
+    // Obtener datos existentes para evitar duplicados
+    const dataExistente = ultimaFila > 1 ? hojaCache.getRange(2, 1, ultimaFila - 1, 19).getValues() : [];
+    const datosExistentesMap = {};
+    const filasExistentes = {};
+    
+    console.log('📋 Datos existentes en Historico_MAX:', dataExistente.length);
+    
+    for (let i = 0; i < dataExistente.length; i++) {
+      const lobFila = String(dataExistente[i][2] || '').trim();
+      const mesFila = String(dataExistente[i][4] || '').trim();
+      const clave = `${lobFila}_${mesFila}`;
+      
+      datosExistentesMap[clave] = true;
+      filasExistentes[clave] = i + 2; // +2 porque la data empieza en fila 2 (fila 1 es header)
+      
+      console.log(`   Existente: ${clave} en fila ${i + 2}`);
+    }
+    
+    // ========================================
+    // GUARDAR CADA REGISTRO
+    // ========================================
+    datosParaHistorico.forEach((dato, index) => {
+      console.log(`📝 Procesando registro ${index + 1}:`, dato);
+      
+      const totalBonos = dato.totalBonos || 0;
+      const totalAgentes = dato.agentes || 0;
+      
+      // Calcular porcentajes
+      const porcKeys = totalBonos > 0 ? ((dato.desglose.keys || 0) / totalBonos * 100) : 0;
+      const porcBonus = totalBonos > 0 ? ((dato.desglose.bonusStructure || 0) / totalBonos * 100) : 0;
+      const porcAdditional = totalBonos > 0 ? ((dato.desglose.additionalIncentives || 0) / totalBonos * 100) : 0;
+      const porcDecreased = totalBonos > 0 ? ((dato.desglose.decreasedKPIs || 0) / totalBonos * 100) : 0;
+      
+      const fila = [
+        fechaGeneracion,                    // A: Fecha Generación
+        dato.fechaRegistro || fechaGeneracion, // B: Fecha Registro
+        dato.lob || 'Sin LOB',             // C: LOB
+        dato.om || '-',                    // D: OM
+        dato.mes || 'General',             // E: Mes
+        dato.numeroMes || 0,               // F: Numero Mes
+        totalBonos,                        // G: Total Bonos
+        totalAgentes,                      // H: Total Agentes
+        dato.desglose.keys || 0,           // I: Keys
+        dato.desglose.bonusStructure || 0, // J: Bonus Structure
+        dato.desglose.additionalIncentives || 0, // K: Additional Incentives
+        dato.desglose.decreasedKPIs || 0,  // L: Decreased KPIs
+        porcKeys,                          // M: % Keys
+        porcBonus,                         // N: % Bonus
+        porcAdditional,                    // O: % Additional
+        porcDecreased,                     // P: % Decreased
+        nombreUsuario,                     // Q: Usuario
+        usuario,                           // R: Correo Usuario
+        anio                               // S: Año
+      ];
+      
+      const clave = `${dato.lob}_${dato.mes}`;
+      console.log(`   Clave: ${clave}`);
+      
+      if (datosExistentesMap[clave]) {
+        // ⭐ ACTUALIZAR REGISTRO EXISTENTE
+        const filaExistente = filasExistentes[clave];
+        console.log(`   ⚡ Actualizando fila ${filaExistente}`);
+        
+        hojaCache.getRange(filaExistente, 1, 1, 19).setValues([fila]);
+        registrosActualizados++;
+        
+        console.log(`   ✅ Actualizado: ${dato.lob} - ${dato.mes}`);
+      } else {
+        // ⭐ NUEVO REGISTRO
+        console.log(`   ➕ Nuevo registro, agregando fila...`);
+        
+        hojaCache.appendRow(fila);
+        registrosGuardados++;
+        
+        console.log(`   ✅ Guardado: ${dato.lob} - ${dato.mes}`);
+      }
+    });
+    
+    // ========================================
+    // APLICAR FORMATO A NUEVOS REGISTROS
+    // ========================================
+    if (registrosGuardados > 0) {
+      const nuevaUltimaFila = hojaCache.getLastRow();
+      const primeraFilaNueva = nuevaUltimaFila - registrosGuardados + 1;
+      
+      console.log(`🎨 Aplicando formato a nuevas filas: ${primeraFilaNueva} a ${nuevaUltimaFila}`);
+      
+      // Formato de fechas
+      hojaCache.getRange(primeraFilaNueva, 1, registrosGuardados, 1)
+        .setNumberFormat('dd/mm/yyyy hh:mm:ss');
+      hojaCache.getRange(primeraFilaNueva, 2, registrosGuardados, 1)
+        .setNumberFormat('dd/mm/yyyy');
+      
+      // Formato de moneda
+      hojaCache.getRange(primeraFilaNueva, 7, registrosGuardados, 1)
+        .setNumberFormat('$#,##0.00');
+      hojaCache.getRange(primeraFilaNueva, 9, registrosGuardados, 4)
+        .setNumberFormat('$#,##0.00');
+      
+      // Formato de números
+      hojaCache.getRange(primeraFilaNueva, 8, registrosGuardados, 1)
+        .setNumberFormat('#,##0');
+      hojaCache.getRange(primeraFilaNueva, 13, registrosGuardados, 4)
+        .setNumberFormat('0.00"%"');
+      
+      // Bordes
+      hojaCache.getRange(primeraFilaNueva, 1, registrosGuardados, 19)
+        .setBorder(true, true, true, true, true, true, '#ddd', SpreadsheetApp.BorderStyle.SOLID);
+      
+      console.log('✅ Formato aplicado a nuevos registros');
+    }
+    
+    // ========================================
+    // RESULTADO FINAL
+    // ========================================
+    console.log(`📊 RESUMEN Historico_MAX:`);
+    console.log(`   ✅ Nuevos: ${registrosGuardados}`);
+    console.log(`   🔄 Actualizados: ${registrosActualizados}`);
+    console.log(`   📈 Total procesados: ${registrosGuardados + registrosActualizados}`);
+    
+    return {
+      success: true,
+      count: registrosGuardados + registrosActualizados,
+      nuevos: registrosGuardados,
+      actualizados: registrosActualizados,
+      mensaje: `${registrosGuardados} nuevos, ${registrosActualizados} actualizados en Historico_MAX`
+    };
+    
+  } catch (error) {
+    console.error('❌ Error en guardarEnHistoricoMax:', error);
+    console.error('Stack trace:', error.stack);
+    
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+function diagnosticarHistoricoMax() {
+  try {
+    const ssCDM = SpreadsheetApp.openById('1PtYuAb5C2kIoX8sE7dOvt1nVS-aLamZLOJQUSbTBBCw');
+    const hojaCache = ssCDM.getSheetByName('Historico_MAX');
+    
+    if (!hojaCache) {
+      console.log('❌ No se encontró la hoja Historico_MAX');
+      return { existe: false };
+    }
+    
+    const ultimaFila = hojaCache.getLastRow();
+    const data = hojaCache.getDataRange().getValues();
+    
+    console.log('📊 DIAGNÓSTICO Historico_MAX:');
+    console.log(`   📏 Filas totales: ${data.length}`);
+    console.log(`   📍 Última fila: ${ultimaFila}`);
+    console.log(`   🏷️  Headers: ${data[0] ? data[0].slice(0, 8) : 'No hay headers'}`);
+    
+    if (data.length > 1) {
+      console.log('   📋 Primeros registros:');
+      for (let i = 1; i < Math.min(4, data.length); i++) {
+        console.log(`      Fila ${i + 1}: ${data[i].slice(0, 8)}`);
+      }
+    }
+    
+    return {
+      existe: true,
+      totalFilas: data.length,
+      headers: data[0] || [],
+      tieneDatos: data.length > 1
+    };
+    
+  } catch (error) {
+    console.error('❌ Error en diagnóstico:', error);
+    return { existe: false, error: error.toString() };
+  }
+}
+
+// ========================================
+// FUNCIÓN AUXILIAR: OBTENER NÚMERO DE MES
+// ========================================
+// ========================================
+// FUNCIÓN AUXILIAR: OBTENER NÚMERO DE MES (CORREGIDA)
+// ========================================
+function obtenerNumeroMesDeFecha(fecha) {
+  if (!fecha) return 0;
+  
+  // ⭐ CORREGIDO: Enero = 1, Febrero = 2, etc.
+  const mesesMap = {
+    'enero': 1, 'febrero': 2, 'marzo': 3, 'abril': 4,
+    'mayo': 5, 'junio': 6, 'julio': 7, 'agosto': 8,
+    'septiembre': 9, 'octubre': 10, 'noviembre': 11, 'diciembre': 12
+  };
+  
+  const fechaLower = fecha.toString().toLowerCase().trim();
+  
+  for (const mes in mesesMap) {
+    if (fechaLower.includes(mes)) {
+      return mesesMap[mes]; // ⭐ Ahora retorna el número correcto
+    }
+  }
+  
+  // Si es una fecha tipo "2024-05-15"
+  try {
+    const fechaObj = new Date(fecha);
+    if (!isNaN(fechaObj.getTime())) {
+      return fechaObj.getMonth() + 1; // ⭐ getMonth() retorna 0-11, sumamos 1
+    }
+  } catch (e) {
+    // Ignorar errores
+  }
+  
+  return 0;
+}
+
+
+
+// ========================================
+// ⭐ FUNCIÓN BACKEND: LEER DESDE HISTORICO_MAX
+// ========================================
+function leerHistoricoDesdeCache(lob) {
+  try {
+    const ssCDM = SpreadsheetApp.openById('1PtYuAb5C2kIoX8sE7dOvt1nVS-aLamZLOJQUSbTBBCw');
+    const hojaCache = ssCDM.getSheetByName('Historico_MAX');
+    
+    if (!hojaCache) {
+      Logger.log('❌ No se encontró la hoja Historico_MAX');
+      return [];
+    }
+    
+    const data = hojaCache.getDataRange().getValues();
+    
+    if (data.length <= 1) {
+      Logger.log('ℹ️ Historico_MAX está vacío');
+      return [];
+    }
+    
+    Logger.log(`📊 Leyendo Historico_MAX para LOB: ${lob}`);
+    
+    const headers = data[0];
+    const datosFiltrados = [];
+    
+    // Encontrar índices de columnas
+    const lobIndex = headers.indexOf('LOB');
+    const mesIndex = headers.indexOf('Mes');
+    const numeroMesIndex = headers.indexOf('Numero Mes');
+    const totalBonosIndex = headers.indexOf('Total Bonos');
+    const totalAgentesIndex = headers.indexOf('Total Agentes');
+    const keysIndex = headers.indexOf('Keys');
+    const bonusStructureIndex = headers.indexOf('Bonus Structure');
+    const additionalIncentivesIndex = headers.indexOf('Additional Incentives');
+    const decreasedKPIsIndex = headers.indexOf('Decreased KPIs');
+    
+    // Validar que existen las columnas necesarias
+    if (lobIndex === -1 || totalBonosIndex === -1) {
+      Logger.log('❌ Estructura de Historico_MAX incorrecta');
+      return [];
+    }
+    
+    for (let i = 1; i < data.length; i++) {
+      const fila = data[i];
+      const lobFila = String(fila[lobIndex] || '').trim();
+      
+      // Filtrar por LOB
+      if (lobFila === lob) {
+        const datosMes = {
+          mes: fila[mesIndex] || 'Mes Desconocido',
+          numeroMes: fila[numeroMesIndex] || 0,
+          total: Number(fila[totalBonosIndex]) || 0,
+          agentes: Number(fila[totalAgentesIndex]) || 0,
+          desglose: {
+            keys: Number(fila[keysIndex]) || 0,
+            bonusStructure: Number(fila[bonusStructureIndex]) || 0,
+            additionalIncentives: Number(fila[additionalIncentivesIndex]) || 0,
+            decreasedKPIs: Number(fila[decreasedKPIsIndex]) || 0
+          }
+        };
+        
+        // Solo incluir meses con datos válidos
+        if (datosMes.total > 0) {
+          datosFiltrados.push(datosMes);
+        }
+      }
+    }
+    
+    Logger.log(`✅ Encontrados ${datosFiltrados.length} meses para LOB: ${lob}`);
+    
+    return datosFiltrados;
+    
+  } catch (error) {
+    Logger.log('❌ Error en leerHistoricoDesdeCache: ' + error.toString());
+    return [];
+  }
+}

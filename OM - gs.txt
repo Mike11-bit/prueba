@@ -1,0 +1,1992 @@
+
+
+
+// ========================================
+// CONFIGURACIÓN Y LOGIN
+// ========================================
+
+var ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4').getSheetByName('Usuario');
+
+function doGet() {
+  try {
+    var template = HtmlService.createTemplateFromFile('login');
+    template.message = '';
+    return template.evaluate().setTitle('Login Page');
+  } catch (error) {
+    Logger.log('Error en doGet: ' + error.message);
+    return HtmlService.createHtmlOutput('Error en la carga de la página: ' + error.message);
+  }
+}
+
+function getUrl() {
+  return ScriptApp.getService().getUrl();
+}
+
+function doPost(e) {
+  try {
+    if (!e || !e.parameter) {
+      throw new Error('No se recibieron parámetros.');
+    }
+
+    var userIdInput = e.parameter.id ? e.parameter.id.trim() : '';
+    var passwordInput = e.parameter.password ? e.parameter.password.trim() : '';
+
+    if (!userIdInput || !passwordInput) {
+      return renderLoginWithMessage('Por favor, ingrese BMS ID y contraseña.');
+    }
+
+    var userData = ss.getDataRange().getValues();
+    var activeUserEmail = Session.getActiveUser().getEmail();
+    var userFound = false;
+
+    for (var i = 1; i < userData.length; i++) {
+      if (userData[i].length < 4) continue;
+
+      var userId = String(userData[i][0]).trim();
+      var userEmail = String(userData[i][2]).trim();
+      var userProfile = String(userData[i][3]).trim();
+
+      if (userId === userIdInput && userEmail === activeUserEmail && userId === passwordInput) {
+        userFound = true;
+        var role = userProfile;
+        var username = userData[i][1];
+        return renderUserPage(role, username, role);
+      }
+    }
+
+    return renderLoginWithMessage('BMS ID incorrecto, el correo no coincide o la contraseña es incorrecta.');
+  } catch (error) {
+    Logger.log('Error en doPost: ' + error.message);
+    return HtmlService.createHtmlOutput('Error en el inicio de sesión: ' + error.message);
+  }
+}
+
+function renderLoginWithMessage(message) {
+  var template = HtmlService.createTemplateFromFile('login');
+  template.message = message;
+  return template.evaluate().setTitle('Login Page');
+}
+
+function logout() {
+  return HtmlService.createHtmlOutput('Sesión cerrada correctamente.').setTitle('Logout');
+}
+
+function getUserEmail() {
+  return Session.getActiveUser().getEmail();
+}
+
+// ========================================
+// FUNCIONES DE DATOS DE USUARIO
+// ========================================
+
+// EN EL DOCUMENTO 2 (.gs), línea ~50 aproximadamente
+
+function obtenerDatosUsuarioActivo() {
+  const email = Session.getActiveUser().getEmail().toLowerCase().trim();
+  const ssUsuario = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+  const hojaUsuario = ssUsuario.getSheetByName('Usuario');
+  const dataUsuario = hojaUsuario.getDataRange().getValues();
+  
+  for (let i = 1; i < dataUsuario.length; i++) {
+    if (String(dataUsuario[i][2]).toLowerCase().trim() === email) {
+      
+      // ⭐ LEER AMBAS COLUMNAS
+      const tipoAcceso = String(dataUsuario[i][3] || '').trim();  // D: Tipo de Acceso
+      const rollBase = String(dataUsuario[i][4] || '').trim();    // E: Roll Base
+      
+      // ⭐ SI COLUMNA E ESTÁ VACÍA, usar columna D como fallback
+      const rolFinal = rollBase || tipoAcceso;
+      
+      console.log(`📋 Usuario encontrado: ${dataUsuario[i][1]}`);
+      console.log(`   Tipo de Acceso (D): "${tipoAcceso}"`);
+      console.log(`   Roll Base (E): "${rollBase}"`);
+      console.log(`   Rol usado para LOBs: "${rolFinal}"`);
+      
+      return {
+        ccmsId: dataUsuario[i][0],    // A: ccmd id
+        nombre: dataUsuario[i][1],    // B: Agent
+        correo: dataUsuario[i][2],    // C: Ext (correo)
+        tipoAcceso: tipoAcceso,       // D: Tipo de Acceso (Audit, OM, Registro)
+        rol: rolFinal                 // E: Roll Base (OM, ACCM, Reporting Analyst, Audit)
+      };
+    }
+  }
+  
+  console.log('❌ Usuario no encontrado en hoja Usuario');
+  return null;
+}
+
+
+function obtenerConfiguracion(lob, mes) {
+  try {
+    const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+    const hojaConfig = ss.getSheetByName('Configuracion');
+    
+    if (!hojaConfig) {
+      Logger.log('⚠️ Hoja Configuracion no encontrada');
+      return null;
+    }
+    
+    const data = hojaConfig.getDataRange().getValues();
+    
+    if (data.length <= 1) {
+      Logger.log('⚠️ Hoja Configuracion vacía');
+      return null;
+    }
+    
+    const normalizar = s => s ? s.toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() : "";
+    const lobNorm = normalizar(lob);
+    const mesNorm = normalizar(mes);
+    
+    Logger.log(`🔍 Buscando configuración para LOB="${lob}", Mes="${mes}"`);
+    
+    for (let i = 1; i < data.length; i++) {
+      const mesFila = normalizar(String(data[i][0])); // Columna A: Mes
+      const lobFila = normalizar(String(data[i][2])); // Columna C: LOB
+      
+      if (mesFila === mesNorm && lobFila === lobNorm) {
+        const config = {
+          Mes: String(data[i][0]).trim(),
+          OM: String(data[i][1]).trim(),
+          LOB: String(data[i][2]).trim(),
+          Salario_Base: parseFloat(data[i][3]) || 0,
+          Porcentaje_Bono: parseFloat(data[i][4]) || 0
+        };
+        
+        Logger.log(`✅ Configuración encontrada: Salario=${config.Salario_Base}, %=${config.Porcentaje_Bono}`);
+        return config;
+      }
+    }
+    
+    Logger.log(`⚠️ No se encontró configuración para LOB="${lob}", Mes="${mes}"`);
+    return null;
+    
+  } catch (error) {
+    Logger.log(`❌ Error en obtenerConfiguracion: ${error.message}`);
+    return null;
+  }
+}
+/**
+ * Convierte número de mes a nombre
+ */
+function obtenerNombreMes(numeroMes) {
+  const meses = {
+    1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril',
+    5: 'Mayo', 6: 'Junio', 7: 'Julio', 8: 'Agosto',
+    9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre'
+  };
+  return meses[numeroMes] || null;
+}
+
+
+
+// ========================================
+// FUNCIÓN PARA CAMBIAR TIPO DE ACCESO
+// ========================================
+function cambiarTipoAcceso(email, tipoAcceso) {
+  try {
+    const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+    const hojaUsuario = ss.getSheetByName('Usuario');
+    const data = hojaUsuario.getDataRange().getValues();
+    
+    Logger.log(`🔄 Intentando cambiar tipo de acceso para: ${email} a ${tipoAcceso}`);
+    
+    // Validar tipo de acceso
+    const tiposValidos = ['Registro', 'Audit', 'OM'];
+    if (!tiposValidos.includes(tipoAcceso)) {
+      return {
+        success: false,
+        error: 'Tipo de acceso inválido. Debe ser: Registro, Audit o OM'
+      };
+    }
+    
+    for (let i = 1; i < data.length; i++) {
+      const emailFila = String(data[i][2]).toLowerCase().trim();
+      
+      if (emailFila === email.toLowerCase().trim()) {
+        // Columna D (índice 3) es Rol
+        hojaUsuario.getRange(i + 1, 4).setValue(tipoAcceso);
+        
+        Logger.log(`✅ Tipo de acceso actualizado: ${tipoAcceso} para ${email}`);
+        
+        return {
+          success: true,
+          mensaje: `Tipo de acceso cambiado a: ${tipoAcceso}`
+        };
+      }
+    }
+    
+    Logger.log(`⚠️ Usuario no encontrado: ${email}`);
+    return {
+      success: false,
+      error: 'Usuario no encontrado'
+    };
+    
+  } catch (error) {
+    Logger.log(`❌ Error en cambiarTipoAcceso: ${error.message}`);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+// ========================================
+// FUNCIÓN PARA OBTENER TIPO DE ACCESO ACTUAL
+// ========================================
+function obtenerTipoAccesoActual() {
+  try {
+    const email = Session.getActiveUser().getEmail();
+    const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+    const hojaUsuario = ss.getSheetByName('Usuario');
+    const data = hojaUsuario.getDataRange().getValues();
+    
+    for (let i = 1; i < data.length; i++) {
+      const emailFila = String(data[i][2]).toLowerCase().trim();
+      
+      if (emailFila === email.toLowerCase().trim()) {
+        const tipoAcceso = String(data[i][3]).trim(); // Columna D
+        Logger.log(`✅ Tipo de acceso actual: ${tipoAcceso}`);
+        return tipoAcceso || 'Registro'; // Si está vacío, retornar Registro
+      }
+    }
+    
+    return 'Registro'; // Por defecto
+    
+  } catch (error) {
+    Logger.log(`❌ Error en obtenerTipoAccesoActual: ${error.message}`);
+    return 'Registro';
+  }
+}
+
+function obtenerAgentesPermitidos() {
+  const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+  const hojaHC = ss.getSheetByName('H_C');
+  const dataHC = hojaHC.getDataRange().getValues();
+  const agentes = {};
+  
+  const normalizar = s => {
+    if (!s) return "";
+    return s.toString()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, ' ');
+  };
+  
+  Logger.log("📋 ========== CARGANDO AGENTES DE H_C (CON HORAS) ==========");
+  
+  for (let i = 1; i < dataHC.length; i++) {
+    const bms = String(dataHC[i][0]).trim();
+    const lobOriginal = dataHC[i][1];
+    const nombre = String(dataHC[i][2]).trim();
+    const horasSemanales = parseFloat(dataHC[i][9]) || 0;  // ⭐ COLUMNA J (índice 9)
+    
+    if (!bms || !lobOriginal || !nombre) {
+      Logger.log(`⚠️ Fila ${i+1} ignorada - Datos incompletos: BMS=${bms}, LOB=${lobOriginal}, Nombre=${nombre}`);
+      continue;
+    }
+    
+    const lobNormalizada = normalizar(lobOriginal);
+    
+    agentes[bms] = { 
+      nombre, 
+      lob: lobNormalizada,
+      lobOriginal: String(lobOriginal).trim(),
+      horas: horasSemanales  // ⭐ AGREGAR ESTO
+    };
+    
+    Logger.log(`✅ Fila ${i+1}: BMS=${bms} | LOB="${lobOriginal}" (norm: "${lobNormalizada}") | Nombre=${nombre} | Horas=${horasSemanales}h`);
+  }
+  
+  Logger.log(`\n📊 TOTAL AGENTES CARGADOS: ${Object.keys(agentes).length}`);
+  Logger.log("========================================\n");
+  
+  return agentes;
+}
+
+/**
+ * Obtiene las LOBs asignadas a un OM específico desde H_C (columna G)
+ * El OM NO necesita filtro en CDM, solo ve las LOBs que tiene en H_C
+ */
+/**
+ * Obtiene las LOBs asignadas a un OM específico desde H_C (columna G)
+ */
+function obtenerLobsPorOM(nombreOM) {
+    const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+    const hojaHC = ss.getSheetByName('H_C');
+    if (!hojaHC) return [];
+    const dataHC = hojaHC.getDataRange().getValues();
+    const lobsSet = new Set();
+    
+    const normalizar = s => s ? s.toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() : "";
+    const omNormalizado = normalizar(nombreOM);
+    
+    console.log(`🔍 obtenerLobsPorOM - Buscando OM: "${nombreOM}" (normalizado: "${omNormalizado}")`);
+    for (let i = 1; i < dataHC.length; i++) {
+        const omFila = dataHC[i][6];      // Columna G (índice 6 = columna 7) ← ✅ CORRECTO
+        const lobFila = dataHC[i][1];     // Columna B (índice 1 = columna 2) ← ✅ CORRECTO
+        
+        if (!omFila || !lobFila) continue;
+        
+        const omFilaNorm = normalizar(omFila);
+        
+        if (omFilaNorm === omNormalizado) {
+            const lobLimpia = lobFila.toString().trim();
+            lobsSet.add(lobLimpia);
+            
+            // Log de las primeras coincidencias
+            if (lobsSet.size <= 3) {
+                console.log(`   ✅ Coincidencia fila ${i + 1}: OM="${omFila}", LOB="${lobLimpia}"`);
+            }
+        }
+    }
+    
+    const lobs = Array.from(lobsSet).sort();
+    console.log(`✅ obtenerLobsPorOM - Total LOBs encontradas: ${lobs.length}`);
+    
+    return lobs;
+}
+/**
+ * Obtiene las LOBs asignadas a un Supervisor específico desde H_C (columna E)
+ * El Supervisor NO necesita filtro en CDM, solo ve las LOBs que tiene en H_C
+ */
+function obtenerLobsPorSupervisor(nombreSupervisor) {
+  const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+  const hojaHC = ss.getSheetByName('H_C');
+  
+  if (!hojaHC) {
+    Logger.log("❌ ERROR: No se encontró la hoja H_C");
+    return [];
+  }
+  
+  const dataHC = hojaHC.getDataRange().getValues();
+  const lobsSet = new Set();
+  
+  const normalizar = s => {
+    if (!s) return "";
+    return s.toString()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, ' ');
+  };
+  
+  const supervisorNormalizado = normalizar(nombreSupervisor);
+  
+  Logger.log(`\n🔍 ========== BUSCANDO LOBs PARA SUPERVISOR: ${nombreSupervisor} ==========`);
+  Logger.log(`Supervisor normalizado: "${supervisorNormalizado}"`);
+  
+  for (let i = 1; i < dataHC.length; i++) {
+    const supervisorFila = dataHC[i][4];
+    const lobFila = dataHC[i][1];
+    
+    if (!supervisorFila || !lobFila) continue;
+    
+    const supervisorFilaNorm = normalizar(supervisorFila);
+    
+    if (supervisorFilaNorm === supervisorNormalizado) {
+      const lobTrimmed = lobFila.toString().trim();
+      
+      if (lobTrimmed && lobTrimmed !== '-') {
+        lobsSet.add(lobTrimmed);
+        Logger.log(`✅ Fila ${i+1}: LOB="${lobTrimmed}" | Supervisor="${supervisorFila}"`);
+      }
+    }
+  }
+  
+  const lobs = Array.from(lobsSet).sort();
+  
+  Logger.log(`\n📊 TOTAL LOBs PARA SUPERVISOR "${nombreSupervisor}": ${lobs.length}`);
+  lobs.forEach((lob, i) => {
+    Logger.log(`   ${i+1}. "${lob}"`);
+  });
+  Logger.log("⭐ NOTA: Supervisor funciona como Reporting Analyst pero solo ve estas LOBs");
+  Logger.log("========================================\n");
+  
+  return lobs;
+}
+
+function obtenerLobsPorACCM(nombreACCM) {
+  const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+  const hojaHC = ss.getSheetByName('H_C');
+  
+  if (!hojaHC) {
+    Logger.log("❌ ERROR: No se encontró la hoja H_C");
+    return [];
+  }
+  
+  const dataHC = hojaHC.getDataRange().getValues();
+  const lobsSet = new Set();
+  
+  const normalizar = s => {
+    if (!s) return "";
+    return s.toString()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, ' ');
+  };
+  
+  const accmNormalizado = normalizar(nombreACCM);
+  
+  Logger.log(`\n🔍 ========== BUSCANDO LOBs PARA ACCM: ${nombreACCM} ==========`);
+  Logger.log(`ACCM normalizado: "${accmNormalizado}"`);
+  
+  for (let i = 1; i < dataHC.length; i++) {
+    const accmFila = dataHC[i][5];    // Columna F (índice 5) - ACCM
+    const lobFila = dataHC[i][1];     // Columna B (índice 1) - LOB
+    
+    if (!accmFila || !lobFila) continue;
+    
+    const accmFilaNorm = normalizar(accmFila);
+    
+    if (accmFilaNorm === accmNormalizado) {
+      const lobTrimmed = lobFila.toString().trim();
+      
+      if (lobTrimmed && lobTrimmed !== '-') {
+        lobsSet.add(lobTrimmed);
+        Logger.log(`✅ Fila ${i+1}: LOB="${lobTrimmed}" | ACCM="${accmFila}"`);
+      }
+    }
+  }
+  
+  const lobs = Array.from(lobsSet).sort();
+  
+  Logger.log(`\n📊 TOTAL LOBs PARA ACCM "${nombreACCM}": ${lobs.length}`);
+  lobs.forEach((lob, i) => {
+    Logger.log(`   ${i+1}. "${lob}"`);
+  });
+  Logger.log("⭐ NOTA: ACCM funciona como Reporting Analyst pero solo ve estas LOBs");
+  Logger.log("========================================\n");
+  
+  return lobs;
+}
+
+/**
+ * Obtiene el Director asociado a un ACCM desde H_C
+ * Esto se usa para buscar datos en CDM con la columna "Directo"
+ * NOTA: Actualmente no se usa porque ACCM no filtra por Director en CDM
+ */
+function obtenerDirectorPorACCM(nombreACCM) {
+  const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+  const hojaHC = ss.getSheetByName('H_C');
+  
+  if (!hojaHC) {
+    Logger.log("❌ ERROR: No se encontró la hoja H_C");
+    return null;
+  }
+  
+  const dataHC = hojaHC.getDataRange().getValues();
+  
+  const normalizar = s => {
+    if (!s) return "";
+    return s.toString()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, ' ');
+  };
+  
+  const accmNormalizado = normalizar(nombreACCM);
+  
+  for (let i = 1; i < dataHC.length; i++) {
+    const accmFila = dataHC[i][5];      // Columna F - ACCM
+    const directorFila = dataHC[i][3];  // Columna D - Director
+    
+    if (!accmFila || !directorFila) continue;
+    
+    const accmFilaNorm = normalizar(accmFila);
+    
+    if (accmFilaNorm === accmNormalizado) {
+      const directorTrimmed = directorFila.toString().trim();
+      Logger.log(`✅ Director encontrado para ACCM "${nombreACCM}": "${directorTrimmed}"`);
+      return directorTrimmed;
+    }
+  }
+  
+  Logger.log(`⚠️ No se encontró Director para ACCM "${nombreACCM}"`);
+  return null;
+}
+
+// ========================================
+// FUNCIONES DE REGISTRO Y MÉTRICAS
+// ========================================
+
+function obtenerRegistroPorUsuarioYLob(nombre, lob, rol = null) {
+  const ssUsuario = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+  const hojasBuscar = ['Registro', 'Registro_pisos'];
+  
+  const normalizeString = (str) => {
+    return (str && typeof str === 'string') ? str.replace(/\s+/g, ' ').trim() : '';
+  };
+
+  for (const hojaName of hojasBuscar) {
+    const hoja = ssUsuario.getSheetByName(hojaName);
+    if (!hoja) continue;
+    
+    const data = hoja.getDataRange().getValues();
+    
+    for (let i = 1; i < data.length; i++) {
+      let nombreRegistroRaw;
+      const lobRegistroRaw = data[i][1];
+      
+      if (rol === 'ACCM') {
+        nombreRegistroRaw = data[i][2];
+      } else {
+        nombreRegistroRaw = data[i][3];
+      }
+      
+      if (nombreRegistroRaw == null || lobRegistroRaw == null) {
+        continue;
+      }
+      
+      const nombreRegistro = normalizeString(nombreRegistroRaw);
+      const lobRegistro = normalizeString(lobRegistroRaw);
+      
+      if (normalizeString(nombre) === nombreRegistro && normalizeString(lob) === lobRegistro) {
+        Logger.log(`✅ ${rol || 'Usuario'} encontrado: ${nombre} en LOB: ${lob}, Hoja: ${hojaName}`);
+        return { registro: data[i], hoja: hojaName };
+      }
+    }
+  }
+  
+  Logger.log(`⚠️ No se encontró registro para ${rol || 'usuario'}: ${nombre} en LOB: ${lob}`);
+  return null;
+}
+
+function obtenerDatosCDM() {
+  const ss = SpreadsheetApp.openById('1PtYuAb5C2kIoX8sE7dOvt1nVS-aLamZLOJQUSbTBBCw');
+  const hoja = ss.getSheetByName('CDM');
+  return hoja.getDataRange().getValues();
+}
+
+// ========================================
+// FUNCIONES DE FECHAS
+// ========================================
+
+function obtenerFechasPorLob(lobSeleccionada) {
+  const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+  const hojasBuscar = ['Registro', 'Registro_pisos'];
+  const fechasSet = new Set();
+  
+  if (!lobSeleccionada) return [];
+  
+  const normalizar = s => s ? s.toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() : "";
+  const lobNorm = normalizar(lobSeleccionada);
+  
+  Logger.log("✅ Buscando fechas para LOB:", lobNorm);
+  
+  hojasBuscar.forEach(nombreHoja => {
+    const hoja = ss.getSheetByName(nombreHoja);
+    if (!hoja) return;
+    
+    const data = hoja.getDataRange().getValues();
+    
+    for (let i = 1; i < data.length; i++) {
+      const fila = data[i];
+      const fecha = fila[0];
+      const lob = fila[1];
+      
+      // ⭐ VALIDAR: Si es Registro_pisos, verificar que tenga OM (columna D)
+      if (nombreHoja === 'Registro_pisos') {
+        const om = fila[3]; // Columna D (índice 3)
+        
+        if (!om || om.toString().trim() === '' || om.toString().trim() === '-') {
+          Logger.log(`⚠️ Fila ${i+1} ignorada en Registro_pisos: No tiene OM asignado`);
+          continue; // Saltar esta fila
+        }
+      }
+      
+      if (!fecha || !lob) continue;
+      
+      const lobFilaNorm = normalizar(lob);
+      if (lobFilaNorm !== lobNorm) continue;
+      
+      let fechaTxt;
+      if (fecha instanceof Date) {
+        fechaTxt = Utilities.formatDate(fecha, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      } else {
+        fechaTxt = fecha.toString().trim();
+      }
+      
+      if (fechaTxt) fechasSet.add(fechaTxt);
+    }
+  });
+  
+  const fechas = Array.from(fechasSet).sort();
+  Logger.log("📅 Fechas encontradas:", fechas);
+  return fechas;
+}
+
+// ========================================
+// FUNCIONES DE VALIDACIÓN DE KPIs
+// ========================================
+
+function formarLlave(nombre, lobHC, kpi) {
+  return nombre + lobHC + kpi;
+}
+
+
+
+
+function validarKPI1(llave, condicionScore, porcentaje, dataCDM, dataUsuario, agentesPermitidos, lobActual, numeroMes = null, fechaSeleccionada = null) {
+  const resultado = {
+    llave,
+    condicionScore,
+    totalCoincidencias: 0,
+    totalCumplenCondicion: 0,
+    empleadosCumplen: [],
+    empleadosNoCumplen: [],
+    empleadosSinDatos: []
+  };
+  
+  if (!condicionScore || condicionScore === 'N/A' || condicionScore.trim() === '') {
+    resultado.error = 'Score no válido o no definido';
+    return resultado;
+  }
+  
+  const normalizar = s => {
+    if (!s) return "";
+    return s.toString()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, ' ');
+  };
+  
+  const llaveNorm = llave.toLowerCase().trim();
+  const lobActualNorm = normalizar(lobActual);
+  
+  Logger.log(`\n🔍 ========== VALIDANDO KPI ==========`);
+  Logger.log(`KPI: ${llave}`);
+  Logger.log(`LOB solicitada: "${lobActual}" (normalizada: "${lobActualNorm}")`);
+  Logger.log(`Condición: ${condicionScore}`);
+  Logger.log(`Mes: ${numeroMes || 'General'}`);
+  
+  const match = condicionScore.match(/(<=|>=|<|>|=)\s*(\d+(?:\.\d+)?)/);
+  
+  if (!match) {
+    resultado.error = `Condición de score no válida: ${condicionScore}`;
+    return resultado;
+  }
+  
+  const operador = match[1];
+  const valorCondicion = parseFloat(match[2]);
+  
+  const todosLosAgentes = obtenerTodosLosAgentesDeLOB(lobActual, agentesPermitidos);
+  const agentesConDatos = new Set();
+  
+  // Cargar horas reales del mes
+  const horasRealesPorAgente = numeroMes ? obtenerHorasPorAgente(lobActual, numeroMes) : {};
+  
+  // Calcular días laborables del mes
+  let diasLaborables = 22;
+  
+  if (fechaSeleccionada && numeroMes) {
+    try {
+      const fecha = new Date(fechaSeleccionada);
+      const anio = fecha.getFullYear();
+      diasLaborables = obtenerDiasLaborablesMes(numeroMes, anio);
+      Logger.log(`📅 Mes ${numeroMes}/${anio}: ${diasLaborables} días laborables (L-V, incluyendo festivos)`);
+    } catch (error) {
+      Logger.log(`⚠️ Error calculando días laborables, usando valor por defecto: ${error.message}`);
+    }
+  }
+  
+  // ========================================
+  // ⭐ OBTENER % BONO DESDE CONFIGURACION
+  // ========================================
+  const mesNombre = obtenerNombreMes(numeroMes);
+  const config = obtenerConfiguracion(lobActual, mesNombre);
+  
+  let porcentajeBono = 0;
+  let salarioBaseLOB = 0;
+  
+  if (config) {
+    porcentajeBono = config.Porcentaje_Bono;
+    salarioBaseLOB = config.Salario_Base;
+    Logger.log(`💰 Configuración encontrada para ${lobActual} - ${mesNombre}:`);
+    Logger.log(`   Salario Base LOB: $${salarioBaseLOB.toLocaleString('es-CO')}`);
+    Logger.log(`   % Bono: ${porcentajeBono}%`);
+  } else {
+    Logger.log(`⚠️ Sin configuración para ${lobActual} - ${mesNombre || 'mes no especificado'}`);
+    Logger.log(`   Usando valores por defecto temporales`);
+    porcentajeBono = 30;
+    salarioBaseLOB = 1423500;
+  }
+  
+  for (let row = 1; row < dataCDM.length; row++) {
+    const llaveCDM = dataCDM[row][8]?.toString().toLowerCase().trim();
+    
+    if (!llaveCDM || !(llaveCDM.includes(llaveNorm) || llaveNorm.includes(llaveCDM))) {
+      continue;
+    }
+    
+    const bmsId = String(dataCDM[row][1]).trim();
+    
+    if (!agentesPermitidos[bmsId]) {
+      continue;
+    }
+    
+    const agenteInfo = agentesPermitidos[bmsId];
+    const lobAgente = agenteInfo.lob;
+    
+    if (lobAgente !== lobActualNorm) {
+      continue;
+    }
+    
+    agentesConDatos.add(bmsId);
+    resultado.totalCoincidencias++;
+    
+    const valorH = dataCDM[row][7];
+    const valorNumerico = parseFloat(String(valorH).replace('%', '').trim());
+    
+    if (isNaN(valorNumerico)) {
+      continue;
+    }
+    
+    let cumple = false;
+    
+    switch (operador) {
+      case '>': cumple = valorNumerico > valorCondicion; break;
+      case '>=': cumple = valorNumerico >= valorCondicion; break;
+      case '<': cumple = valorNumerico < valorCondicion; break;
+      case '<=': cumple = valorNumerico <= valorCondicion; break;
+      case '=': cumple = valorNumerico === valorCondicion; break;
+    }
+    
+    // ========================================
+    // ⭐ OBTENER SALARIO: Primero Usuario, luego Configuracion
+    // ========================================
+    let salario = 0;
+    
+    // 1. Buscar salario individual en Usuario (Columna H - índice 7)
+    for (let i = 1; i < dataUsuario.length; i++) {
+      const bmsUsuario = String(dataUsuario[i][0]).trim();
+      if (bmsUsuario === bmsId) {
+        let salarioRaw = dataUsuario[i][7];
+        
+        // Limpieza de salario
+        if (typeof salarioRaw === 'string') {
+          salarioRaw = salarioRaw.replace(/[^\d.,]/g, '').trim();
+          if (salarioRaw.includes(',') && salarioRaw.includes('.')) {
+            salarioRaw = salarioRaw.replace(/\./g, '').replace(',', '.');
+          } else if (salarioRaw.includes(',')) {
+            salarioRaw = salarioRaw.replace(',', '.');
+          } else {
+            salarioRaw = salarioRaw.replace(/\./g, '');
+          }
+        }
+        
+        const salarioUsuario = parseFloat(salarioRaw) || 0;
+        
+        if (salarioUsuario > 0) {
+          salario = salarioUsuario;
+          Logger.log(`   💵 Salario individual encontrado en Usuario: $${salario.toLocaleString('es-CO')}`);
+          break;
+        }
+      }
+    }
+    
+    // 2. Si no tiene salario individual, usar de Configuracion
+    if (salario === 0) {
+      salario = salarioBaseLOB;
+      Logger.log(`   💵 Usando salario base LOB (Configuracion): $${salario.toLocaleString('es-CO')}`);
+    }
+    
+    // 3. Fallback final (no debería llegar aquí si hay configuración)
+    if (salario === 0) {
+      salario = 1423500;
+      Logger.log(`   ⚠️ Sin salario, usando default: $${salario.toLocaleString('es-CO')}`);
+    }
+    
+    // ========================================
+    // ⭐ OBTENER HORAS SEMANALES DESDE H_C COLUMNA J
+    // ========================================
+    let horasSemanales = agenteInfo.horas || 0;
+    
+    // ========================================
+    // ⭐ CÁLCULO DEL BONO
+    // ========================================
+    const bonoBase = salario * (porcentajeBono / 100);
+    const porcentajeDecimal = porcentaje;
+    let factorProrrateo = 1;
+    
+    Logger.log(`💰 BMS ${bmsId} (${agenteInfo.nombre}):`);
+    Logger.log(`   Salario: $${salario.toLocaleString('es-CO')}`);
+    Logger.log(`   % Bono (Configuracion): ${porcentajeBono}%`);
+    Logger.log(`   Bono base: $${bonoBase.toLocaleString('es-CO')}`);
+    Logger.log(`   Horas semanales (H_C col J): ${horasSemanales}h`);
+    Logger.log(`   % KPI recibido: ${(porcentaje * 100).toFixed(2)}%`);
+    
+    // Si hay horas reales del mes, calcular prorrateo
+    if (numeroMes && horasRealesPorAgente[bmsId] && horasSemanales > 0) {
+      const horasRealesMes = horasRealesPorAgente[bmsId].horas;
+      
+      // Calcular horas esperadas del mes
+      const diasSemanales = horasSemanales / 8;
+      const horasDiarias = horasSemanales / diasSemanales;
+      const horasEsperadasMes = horasDiarias * diasLaborables;
+      
+      // Factor de prorrateo
+      factorProrrateo = horasRealesMes / horasEsperadasMes;
+      
+      Logger.log(`   Días laborables mes: ${diasLaborables}`);
+      Logger.log(`   Días semanales: ${diasSemanales.toFixed(2)}`);
+      Logger.log(`   Horas diarias: ${horasDiarias.toFixed(2)}h`);
+      Logger.log(`   Horas esperadas mes: ${horasEsperadasMes.toFixed(2)}h`);
+      Logger.log(`   Horas reales mes: ${horasRealesMes}h`);
+      Logger.log(`   Factor prorrateo: ${factorProrrateo.toFixed(4)} (${(factorProrrateo * 100).toFixed(2)}%)`);
+    } else {
+      Logger.log(`   ℹ️ Sin prorrateo (mes general o sin datos de horas)`);
+    }
+    
+    const bono = bonoBase * porcentajeDecimal * factorProrrateo;
+    
+    const valorF = dataCDM[row][5];
+    
+    const infoEmpleado = {
+      bmsId,
+      nombre: agenteInfo.nombre,
+      valorF,
+      bono: cumple ? bono : 0
+    };
+    
+    if (cumple) {
+      resultado.totalCumplenCondicion++;
+      resultado.empleadosCumplen.push(infoEmpleado);
+      Logger.log(`✅ ${agenteInfo.nombre}: Cumple - Bono: $${bono.toLocaleString('es-CO', {minimumFractionDigits: 2})}`);
+    } else {
+      resultado.empleadosNoCumplen.push(infoEmpleado);
+      Logger.log(`❌ ${agenteInfo.nombre}: No cumple - Bono: $0`);
+    }
+  }
+  
+  todosLosAgentes.forEach(agente => {
+    if (!agentesConDatos.has(agente.bmsId)) {
+      resultado.empleadosSinDatos.push({
+        bmsId: agente.bmsId,
+        nombre: agente.nombre,
+        valorF: '-',
+        bono: 0,
+        sinDatos: true
+      });
+      
+      Logger.log(`⚠️ ${agente.nombre} (BMS ${agente.bmsId}) - SIN DATOS EN CDM`);
+    }
+  });
+  
+  Logger.log(`\n📊 RESUMEN:`);
+  Logger.log(`   • Agentes con datos en CDM: ${resultado.totalCoincidencias}`);
+  Logger.log(`   • Agentes que CUMPLEN: ${resultado.totalCumplenCondicion}`);
+  Logger.log(`   • Agentes SIN DATOS: ${resultado.empleadosSinDatos.length}`);
+  Logger.log(`========================================\n`);
+  
+  return resultado;
+}
+
+
+
+// ========================================
+// ⭐ FUNCIÓN AUXILIAR: Calcular días laborables del mes
+// ========================================
+function obtenerDiasLaborablesMes(numeroMes, anio) {
+  const primerDia = new Date(anio, numeroMes - 1, 1);
+  const ultimoDia = new Date(anio, numeroMes, 0);
+  
+  let diasLaborables = 0;
+  
+  for (let dia = new Date(primerDia); dia <= ultimoDia; dia.setDate(dia.getDate() + 1)) {
+    const diaSemana = dia.getDay();
+    // 0 = domingo, 6 = sábado
+    // FESTIVOS SÍ CUENTAN (no los excluimos)
+    if (diaSemana !== 0 && diaSemana !== 6) {
+      diasLaborables++;
+    }
+  }
+  
+  Logger.log(`📅 Mes ${numeroMes}/${anio}: ${diasLaborables} días laborables calculados`);
+  return diasLaborables;
+}
+
+function obtenerDiasLaborablesMes(numeroMes, anio) {
+  const primerDia = new Date(anio, numeroMes - 1, 1);
+  const ultimoDia = new Date(anio, numeroMes, 0);
+  
+  let diasLaborables = 0;
+  
+  for (let dia = primerDia; dia <= ultimoDia; dia.setDate(dia.getDate() + 1)) {
+    const diaSemana = dia.getDay();
+    // 0 = domingo, 6 = sábado
+    // FESTIVOS SÍ CUENTAN (no los excluimos)
+    if (diaSemana !== 0 && diaSemana !== 6) {
+      diasLaborables++;
+    }
+  }
+  
+  return diasLaborables;
+}
+
+function validarKPIsPorCategoria(registro, lobHC, dataCDM, dataUsuario, hoja, agentesPermitidos, numeroMes = null, fechaSeleccionada = null) {
+  const resultados = {
+    keys: [],
+    bonusStructure: [],
+    additionalIncentives: [],
+    decreasedKPIs: []
+  };
+  
+  Logger.log(`\n🔷 ========== VALIDANDO KPIs POR CATEGORÍA ==========`);
+  Logger.log(`LOB: ${lobHC}`);
+  Logger.log(`Hoja: ${hoja}`);
+  Logger.log(`Mes: ${numeroMes || 'General'}`);
+  Logger.log(`Fecha: ${fechaSeleccionada || 'No especificada'}`);
+  
+  function procesarKPIs(tipo, startColKPI, endColKPI, increment) {
+    Logger.log(`\n📂 Procesando categoría: ${tipo}`);
+    Logger.log(`   Columnas: ${startColKPI} a ${endColKPI} (incremento: ${increment})`);
+    
+    let kpisEncontrados = 0;
+    
+    for (let col = startColKPI; col <= endColKPI; col += increment) {
+      const kpi = registro[col]?.toString().trim();
+      const score = registro[col + 1]?.toString().trim();
+      let porcentajeRaw = registro[col + 2];
+      
+      if (kpi && score) {
+        // ⭐ FILTRO ESPECIAL PARA KEYS: Solo KPIs con letras
+        if (tipo === "keys" && !/[a-zA-Z]/.test(kpi)) {
+          Logger.log(`   ⚠️ KPI "${kpi}" ignorado en keys (solo números)`);
+          continue;
+        }
+        
+        kpisEncontrados++;
+        
+        // ========================================
+        // ⭐ NORMALIZACIÓN CRÍTICA DEL PORCENTAJE
+        // ========================================
+        let porcentaje = 0;
+        
+        // Limpiar si viene como texto con %
+        if (typeof porcentajeRaw === 'string') {
+          porcentajeRaw = porcentajeRaw.replace('%', '').trim();
+        }
+        
+        porcentaje = parseFloat(porcentajeRaw) || 0;
+        
+        // ⭐ CLAVE: Si el porcentaje es > 1, dividir entre 100
+        // Ejemplo: 30 → 0.30, pero 0.30 → 0.30 (sin cambios)
+        if (porcentaje > 1) {
+          porcentaje = porcentaje / 100;
+        }
+        
+        Logger.log(`\n   📌 KPI #${kpisEncontrados}: "${kpi}"`);
+        Logger.log(`      Score: ${score}`);
+        Logger.log(`      Porcentaje RAW: "${registro[col + 2]}" (tipo: ${typeof registro[col + 2]})`);
+        Logger.log(`      Porcentaje PROCESADO: ${porcentaje} (${(porcentaje * 100).toFixed(2)}%)`);
+        
+        const llave = formarLlave(registro[3], lobHC, kpi);
+        
+        // ⭐ PASAR numeroMes y fechaSeleccionada
+        const validacion = validarKPI1(
+          llave, 
+          score, 
+          porcentaje,  // ⭐ Ya viene normalizado (0.30 para 30%)
+          dataCDM, 
+          dataUsuario, 
+          agentesPermitidos, 
+          lobHC, 
+          numeroMes, 
+          fechaSeleccionada
+        );
+        
+        resultados[tipo].push({ 
+          kpi, 
+          score, 
+          porcentaje,  // ⭐ Guardamos el valor normalizado
+          validacion 
+        });
+        
+        Logger.log(`      ✅ Validado: ${validacion.totalCumplenCondicion} cumplen de ${validacion.totalCoincidencias}`);
+      }
+    }
+    
+    Logger.log(`\n   📊 Total KPIs encontrados en ${tipo}: ${kpisEncontrados}`);
+  }
+  
+  // ========================================
+  // ⭐ PROCESAMIENTO SEGÚN HOJA
+  // ========================================
+  
+  if (hoja === 'Registro') {
+    Logger.log(`\n📋 Procesando hoja: Registro`);
+    Logger.log(`Estructura de columnas:`);
+    Logger.log(`   • Keys: 5-8 (incremento 1)`);
+    Logger.log(`   • Bonus Structure: 10-21 (incremento 3)`);
+    Logger.log(`   • Additional Incentives: 23-31 (incremento 3)`);
+    Logger.log(`   • Decreased KPIs: 33-38 (incremento 3)`);
+    
+    procesarKPIs("keys", 5, 8, 1);
+    procesarKPIs("bonusStructure", 10, 21, 3);
+    procesarKPIs("additionalIncentives", 23, 31, 3);
+    procesarKPIs("decreasedKPIs", 33, 38, 3);
+    
+  } else if (hoja === 'Registro_pisos') {
+    Logger.log(`\n📋 Procesando hoja: Registro_pisos`);
+    Logger.log(`Estructura de columnas:`);
+    Logger.log(`   • Keys: 5-11 (incremento 1)`);
+    Logger.log(`   • Bonus Structure: 12-50 (incremento 3)`);
+    Logger.log(`   • Additional Incentives: 53-61 (incremento 3)`);
+    Logger.log(`   • Decreased KPIs: 62-74 (incremento 3)`);
+    
+    procesarKPIs("keys", 5, 11, 1);
+    procesarKPIs("bonusStructure", 12, 50, 3);
+    procesarKPIs("additionalIncentives", 53, 61, 3);
+    procesarKPIs("decreasedKPIs", 62, 74, 3);
+    
+  } else {
+    Logger.log(`⚠️ Hoja desconocida: ${hoja}`);
+  }
+  
+  // ========================================
+  // ⭐ RESUMEN FINAL
+  // ========================================
+  Logger.log(`\n🔷 ========== RESUMEN POR CATEGORÍA ==========`);
+  Logger.log(`   📌 Keys: ${resultados.keys.length} KPIs`);
+  Logger.log(`   📌 Bonus Structure: ${resultados.bonusStructure.length} KPIs`);
+  Logger.log(`   📌 Additional Incentives: ${resultados.additionalIncentives.length} KPIs`);
+  Logger.log(`   📌 Decreased KPIs: ${resultados.decreasedKPIs.length} KPIs`);
+  
+  const totalKPIs = resultados.keys.length + 
+                    resultados.bonusStructure.length + 
+                    resultados.additionalIncentives.length + 
+                    resultados.decreasedKPIs.length;
+  
+  Logger.log(`   🎯 TOTAL: ${totalKPIs} KPIs procesados`);
+  Logger.log(`========================================\n`);
+  
+  return resultados;
+}
+
+
+
+
+// ========================================
+// MAPEO DE MESES A NÚMEROS
+// ========================================
+function obtenerNumeroMesDeFecha(fecha) {
+  const mesesMap = {
+    'enero': 1, 'febrero': 2, 'marzo': 3, 'abril': 4,
+    'mayo': 5, 'junio': 6, 'julio': 7, 'agosto': 8,
+    'septiembre': 9, 'octubre': 10, 'noviembre': 11, 'diciembre': 12
+  };
+  
+  const fechaLower = fecha.toLowerCase().trim();
+  return mesesMap[fechaLower] || null;
+}
+
+// ========================================
+// FUNCIÓN ACTUALIZADA: Obtener datos CDM por mes
+// ========================================
+
+function obtenerDatosCDMPorMes(numeroMes) {
+  const ss = SpreadsheetApp.openById('1PtYuAb5C2kIoX8sE7dOvt1nVS-aLamZLOJQUSbTBBCw');
+  const nombreHoja = numeroMes ? `CDM_${numeroMes}` : 'CDM';
+  
+  Logger.log(`📋 Buscando datos en hoja: ${nombreHoja}`);
+  
+  const hoja = ss.getSheetByName(nombreHoja);
+  
+  if (!hoja) {
+    Logger.log(`⚠️ No existe la hoja ${nombreHoja}, usando CDM general`);
+    const hojaGeneral = ss.getSheetByName('CDM');
+    return hojaGeneral ? hojaGeneral.getDataRange().getValues() : [];
+  }
+  
+  return hoja.getDataRange().getValues();
+}
+
+// ========================================
+// FUNCIÓN: Obtener registros por LOB y Fecha
+// ========================================
+function obtenerRegistrosPorLobYFecha(lob, fecha, nombreUsuario = null, rol = null) {
+  const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+  const hojasBuscar = ['Registro', 'Registro_pisos'];
+  const registros = [];
+  
+  const normalizar = s => s ? s.toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() : "";
+  const lobNorm = normalizar(lob);
+  const fechaNorm = normalizar(fecha);
+  
+  Logger.log(`📋 Buscando registros para LOB=${lobNorm}, Fecha=${fechaNorm}, Usuario=${nombreUsuario}, Rol=${rol}`);
+  
+  hojasBuscar.forEach(nombreHoja => {
+    const hoja = ss.getSheetByName(nombreHoja);
+    if (!hoja) return;
+    
+    const data = hoja.getDataRange().getValues();
+    
+    for (let i = 1; i < data.length; i++) {
+      const fila = data[i];
+      const fechaFila = fila[0];
+      const lobFila = fila[1];
+      
+      let fechaTxt = '';
+      if (fechaFila instanceof Date) {
+        fechaTxt = Utilities.formatDate(fechaFila, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      } else {
+        fechaTxt = fechaFila.toString().trim();
+      }
+      
+      if (normalizar(lobFila) !== lobNorm || normalizar(fechaTxt) !== fechaNorm) {
+        continue;
+      }
+      
+      // ⭐ CAMBIO CRÍTICO: ACCM, OM y Supervisor NO filtran por nombre
+      // Solo Reporting Analyst NO filtra (porque ve todo)
+      // Los demás roles (ACCM, OM, Supervisor) ya fueron filtrados por LOB en obtenerDatosParaFrontend
+      
+      registros.push({
+        registro: fila,
+        hoja: nombreHoja
+      });
+      Logger.log(`✅ Encontrado registro en ${nombreHoja}, fila ${i+1}`);
+    }
+  });
+  
+  Logger.log(`📊 Total registros encontrados: ${registros.length}`);
+  return registros;
+}
+
+
+
+
+// ⭐ NUEVA FUNCIÓN: Obtener TODAS las LOBs desde H_C
+function obtenerTodasLasLobs() {
+  const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+  const hojaHC = ss.getSheetByName('H_C');
+  
+  if (!hojaHC) {
+    Logger.log("❌ ERROR: No se encontró la hoja H_C");
+    return [];
+  }
+  
+  const dataHC = hojaHC.getDataRange().getValues();
+  const lobsSet = new Set();
+  
+  Logger.log("\n🔍 ========== OBTENIENDO TODAS LAS LOBs DESDE H_C ==========");
+  
+  for (let i = 1; i < dataHC.length; i++) {
+    const lobFila = dataHC[i][1]; // Columna B
+    
+    if (!lobFila) continue;
+    
+    const lobTrimmed = lobFila.toString().trim();
+    
+    if (lobTrimmed && lobTrimmed !== '-') {
+      lobsSet.add(lobTrimmed);
+      Logger.log(`✅ Fila ${i+1}: LOB="${lobTrimmed}"`);
+    }
+  }
+  
+  const lobs = Array.from(lobsSet).sort();
+  
+  Logger.log(`\n📊 TOTAL LOBs encontradas: ${lobs.length}`);
+  lobs.forEach((lob, i) => {
+    Logger.log(`   ${i+1}. "${lob}"`);
+  });
+  Logger.log("========================================\n");
+  
+  return lobs;
+}
+
+/**
+ * Obtiene la lista de meses disponibles en CDM
+ */
+function obtenerMesesCDMDisponibles() {
+  try {
+    const ss = SpreadsheetApp.openById('1PtYuAb5C2kIoX8sE7dOvt1nVS-aLamZLOJQUSbTBBCw');
+    const hojas = ss.getSheets();
+    const meses = [];
+    
+    const mesesNombres = {
+      1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril',
+      5: 'Mayo', 6: 'Junio', 7: 'Julio', 8: 'Agosto',
+      9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre'
+    };
+    
+    Logger.log("📅 Buscando meses CDM disponibles...");
+    
+    hojas.forEach(hoja => {
+      const nombre = hoja.getName();
+      if (nombre.startsWith('CDM_')) {
+        const numeroMes = parseInt(nombre.replace('CDM_', ''));
+        if (!isNaN(numeroMes) && mesesNombres[numeroMes]) {
+          meses.push({
+            numero: numeroMes,
+            nombre: mesesNombres[numeroMes]
+          });
+          Logger.log(`✅ Mes encontrado: ${mesesNombres[numeroMes]} (${numeroMes})`);
+        }
+      }
+    });
+    
+    meses.sort((a, b) => a.numero - b.numero);
+    Logger.log(`📊 Total meses disponibles: ${meses.length}`);
+    
+    return meses;
+  } catch (error) {
+    Logger.log(`❌ Error en obtenerMesesCDMDisponibles: ${error.message}`);
+    return [];
+  }
+}
+
+// ========================================
+// FUNCIÓN PRINCIPAL PARA FRONTEND
+// ========================================
+
+
+
+function obtenerDatosParaFrontend(lobSeleccionada = null, fechaSeleccionada = null, mesComparativo = null) {
+  try {
+    Logger.log("🔵 ========== INICIO obtenerDatosParaFrontend ==========");
+    Logger.log(`Parámetros: LOB="${lobSeleccionada}", Fecha="${fechaSeleccionada}", Mes=${mesComparativo}`);
+    
+    const usuario = obtenerDatosUsuarioActivo();
+    if (!usuario) {
+      Logger.log("❌ Usuario no encontrado");
+      return { error: "Usuario no encontrado" };
+    }
+    
+    Logger.log(`👤 Usuario: ${usuario.nombre}, Rol: ${usuario.rol}`);
+    
+    let lobs = [];
+    let todasLasLobs = [];
+    
+    // ⭐ Determinar LOBs según rol
+    if (usuario.rol === 'Reporting Analyst') {
+      todasLasLobs = obtenerTodasLasLobs();
+      lobs = lobSeleccionada ? [lobSeleccionada] : todasLasLobs;
+      Logger.log(`📊 Reporting Analyst - Todas las LOBs: ${todasLasLobs.length}`);
+      
+    } else if (usuario.rol === 'OM') {
+      todasLasLobs = obtenerLobsPorOM(usuario.nombre);
+      lobs = lobSeleccionada ? [lobSeleccionada] : todasLasLobs;
+      Logger.log(`📊 OM - LOBs asignadas: ${todasLasLobs.length}`);
+      if (lobs.length === 0) return { error: "OM sin LOBs asignadas" };
+      
+    } else if (usuario.rol === 'ACCM') {
+      todasLasLobs = obtenerLobsPorACCM(usuario.nombre);
+      lobs = lobSeleccionada ? [lobSeleccionada] : todasLasLobs;
+      Logger.log(`📊 ACCM - LOBs asignadas: ${todasLasLobs.length}`);
+      if (lobs.length === 0) {
+        Logger.log("⚠️ ACCM sin LOBs en H_C, usando LOB de Usuario");
+        lobs = [usuario.lob];
+        todasLasLobs = [usuario.lob];
+      }
+      
+    } else if (usuario.rol === 'Supervisor') {
+      todasLasLobs = obtenerLobsPorSupervisor(usuario.nombre);
+      lobs = lobSeleccionada ? [lobSeleccionada] : todasLasLobs;
+      Logger.log(`📊 Supervisor - LOBs asignadas: ${todasLasLobs.length}`);
+      if (lobs.length === 0) return { error: "Supervisor sin LOBs asignadas" };
+      
+    } else {
+      return { error: `Rol "${usuario.rol}" no soportado` };
+    }
+    
+    // Si no hay mes ni fecha, solo retornar info básica
+    if (!mesComparativo && !fechaSeleccionada) {
+      Logger.log("⚠️ Sin mes ni fecha - retornando solo info básica");
+      return {
+        usuario,
+        lobs,
+        todasLasLobs,
+        fechasPorLob: {},
+        metricasPorLob: {},
+        mesSeleccionado: null,
+        esperandoMes: true
+      };
+    }
+    
+    // ⭐ Cargar agentes permitidos
+    const agentesPermitidos = obtenerAgentesPermitidos();
+    Logger.log(`✅ Agentes permitidos cargados: ${Object.keys(agentesPermitidos).length}`);
+    
+    // Determinar qué CDM usar
+    const numeroMes = mesComparativo || (fechaSeleccionada ? obtenerNumeroMesDeFecha(fechaSeleccionada) : null);
+    const dataCDM = obtenerDatosCDMPorMes(numeroMes);
+    Logger.log(`📋 Usando CDM del mes: ${numeroMes || 'general'}`);
+    
+    const ssUsuario = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+    const dataUsuario = ssUsuario.getSheetByName('Usuario').getDataRange().getValues();
+    
+    const resultado = {
+      usuario,
+      lobs,
+      todasLasLobs,
+      fechasPorLob: {},
+      metricasPorLob: {},
+      mesSeleccionado: numeroMes
+    };
+    
+    // ⭐ PROCESAR TODAS LAS LOBs
+    const lobsAProcesar = todasLasLobs.length > 0 ? todasLasLobs : lobs;
+    
+    for (const lob of lobsAProcesar) {
+      Logger.log(`\n🔹 ========== Procesando LOB: ${lob} ==========`);
+
+      const fechas = obtenerFechasPorLob(lob);
+      resultado.fechasPorLob[lob] = fechas;
+      Logger.log(`📅 Fechas disponibles: ${fechas.length}`);
+      
+      if (fechaSeleccionada && fechas.includes(fechaSeleccionada)) {
+        Logger.log(`📆 Buscando registros para fecha: ${fechaSeleccionada}`);
+        
+        const registrosFiltrados = obtenerRegistrosPorLobYFecha(lob, fechaSeleccionada, usuario.nombre, usuario.rol);
+        
+        if (!registrosFiltrados || registrosFiltrados.length === 0) {
+          Logger.log(`⚠️ No hay registros para esta fecha`);
+          resultado.metricasPorLob[lob] = { error: "No hay registros para esta fecha" };
+        } else {
+          Logger.log(`✅ Encontrados ${registrosFiltrados.length} registros`);
+          
+          const resultadosCombinados = {
+            keys: [],
+            bonusStructure: [],
+            additionalIncentives: [],
+            decreasedKPIs: []
+          };
+          
+          registrosFiltrados.forEach((regData, idx) => {
+            Logger.log(`\n🔸 Procesando registro ${idx + 1}/${registrosFiltrados.length}`);
+            
+            const validacion = validarKPIsPorCategoria(
+              regData.registro,
+              lob,
+              dataCDM,
+              dataUsuario,
+              regData.hoja,
+              agentesPermitidos
+            );
+            
+            ['keys', 'bonusStructure', 'additionalIncentives', 'decreasedKPIs'].forEach(cat => {
+              if (validacion[cat] && validacion[cat].length > 0) {
+                resultadosCombinados[cat] = resultadosCombinados[cat].concat(validacion[cat]);
+              }
+            });
+          });
+          
+          resultado.metricasPorLob[lob] = resultadosCombinados;
+        }
+      } else {
+        Logger.log(`📋 Buscando registro por usuario y LOB`);
+        
+        const registroData = obtenerRegistroPorUsuarioYLob(usuario.nombre, lob, usuario.rol);
+        
+        if (!registroData) {
+          Logger.log(`⚠️ No se encontró registro`);
+          resultado.metricasPorLob[lob] = { error: "No se encontró registro para esta LOB" };
+        } else {
+          Logger.log(`✅ Registro encontrado en hoja: ${registroData.hoja}`);
+          
+          resultado.metricasPorLob[lob] = validarKPIsPorCategoria(
+            registroData.registro,
+            lob,
+            dataCDM,
+            dataUsuario,
+            registroData.hoja,
+            agentesPermitidos
+          );
+        }
+      }
+    }
+    
+    // ⭐ CARGAR HORAS POR AGENTE
+    if (lobSeleccionada && numeroMes) {
+      Logger.log('🔄 Cargando horas para LOB: ' + lobSeleccionada + ', Mes: ' + numeroMes);
+      resultado.horasPorAgente = obtenerHorasPorAgente(lobSeleccionada, numeroMes);
+      Logger.log('✅ Horas cargadas: ' + Object.keys(resultado.horasPorAgente).length + ' agentes');
+    } else {
+      Logger.log('⚠️ No se cargaron horas (LOB o mes no especificado)');
+      resultado.horasPorAgente = {};
+    }
+    
+    // ⭐ NUEVO: CARGAR PRORRATEOS APLICADOS
+    if (lobSeleccionada && fechaSeleccionada && numeroMes) {
+      Logger.log('🔄 Cargando prorrateos aplicados...');
+      resultado.agentesProrrateo = obtenerAgentesConProrrateo(lobSeleccionada, fechaSeleccionada, numeroMes);
+      Logger.log('✅ Prorrateos cargados: ' + Object.keys(resultado.agentesProrrateo).length + ' agentes');
+    } else {
+      resultado.agentesProrrateo = {};
+    }
+    
+    Logger.log("\n🔵 ========== FIN obtenerDatosParaFrontend ==========");
+    Logger.log(`📦 Resultado: ${Object.keys(resultado.metricasPorLob).length} LOBs procesadas`);
+    
+    return resultado;
+    
+  } catch (error) {
+    Logger.log('❌ Error en obtenerDatosParaFrontend: ' + error.message);
+    return { error: error.message };
+  }
+}
+
+
+
+
+/**
+ * Obtiene TODOS los agentes de una LOB desde H_C
+ */
+function obtenerTodosLosAgentesDeLOB(lobSeleccionada, agentesPermitidos) {
+  const normalizar = s => {
+    if (!s) return "";
+    return s.toString()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, ' ');
+  };
+  
+  const lobNorm = normalizar(lobSeleccionada);
+  const agentesLOB = [];
+  
+  Logger.log(`\n🔍 ========== OBTENIENDO TODOS LOS AGENTES DE LOB: ${lobSeleccionada} ==========`);
+  
+  for (const bmsId in agentesPermitidos) {
+    const agenteInfo = agentesPermitidos[bmsId];
+    
+    if (agenteInfo.lob === lobNorm) {
+      agentesLOB.push({
+        bmsId: bmsId,
+        nombre: agenteInfo.nombre,
+        lobOriginal: agenteInfo.lobOriginal
+      });
+      
+      Logger.log(`✅ BMS ${bmsId} - ${agenteInfo.nombre}`);
+    }
+  }
+  
+  Logger.log(`\n📊 Total agentes en LOB "${lobSeleccionada}": ${agentesLOB.length}`);
+  Logger.log("========================================\n");
+  
+  return agentesLOB;
+}
+
+function guardarDisputas(disputas) {
+  return withLock(function() {
+    try {
+      const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+      let hoja = ss.getSheetByName('Disputa');
+      
+      if (!hoja) {
+        hoja = ss.insertSheet('Disputa');
+        hoja.appendRow(['Fecha', 'BMS ID', 'Nombre', 'LOB', 'Fecha KPI', 'Monto', 'Comentario', 'Usuario', 'Estado']);
+      }
+      
+      const usuario = Session.getActiveUser().getEmail();
+      const filas = disputas.map(d => [
+        new Date(), d.bmsId, d.nombre, d.lob, d.fecha, d.total, d.comentario, usuario, 'Pendiente'
+      ]);
+      
+      if (filas.length > 0) {
+        hoja.getRange(hoja.getLastRow() + 1, 1, filas.length, 9).setValues(filas);
+      }
+      
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.toString() };
+    }
+  });
+}
+
+
+function obtenerNombreUsuario(email) {
+  try {
+    const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+    const hojaUsuarios = ss.getSheetByName('Usuario');
+    
+    if (!hojaUsuarios) return email;
+    
+    const data = hojaUsuarios.getDataRange().getValues();
+    
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][2] === email) {
+        return data[i][1];
+      }
+    }
+    
+    return email;
+    
+  } catch (error) {
+    Logger.log('Error al obtener nombre de usuario: ' + error.toString());
+    return email;
+  }
+}
+
+
+
+
+
+
+
+// ========================================
+// FUNCIONES PARA TOP 3 PERFORMERS (TAB 2)
+// ========================================
+
+/**
+ * Obtiene todos los KPIs disponibles para una LOB en un mes específico
+ */
+/**
+ * Obtiene todos los KPIs disponibles para una LOB en un mes específico
+ */
+function obtenerKPIsPorLob(lob, mes) {
+  try {
+    const ss = SpreadsheetApp.openById('1PtYuAb5C2kIoX8sE7dOvt1nVS-aLamZLOJQUSbTBBCw');
+    const sheetName = 'CDM_' + mes;
+    const sheet = ss.getSheetByName(sheetName);
+    
+    if (!sheet) {
+      Logger.log(`⚠️ No existe la hoja ${sheetName}`);
+      return [];
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    
+    // Buscar columna de LOB
+    const lobIndex = headers.indexOf('LOB');
+    if (lobIndex === -1) {
+      Logger.log('❌ No se encontró columna LOB');
+      return [];
+    }
+    
+    // Estructura para almacenar KPIs únicos
+    const kpisMap = new Map();
+    
+    Logger.log(`🔍 Buscando KPIs para LOB="${lob}" en ${sheetName}`);
+    
+    // Buscar columnas de KPIs (columna I - "Llave")
+    const llaveIndex = headers.indexOf('Llave');
+    
+    if (llaveIndex === -1) {
+      Logger.log('❌ No se encontró columna Llave');
+      return [];
+    }
+    
+    // Recorrer todas las filas para encontrar KPIs de esta LOB
+    for (let row = 1; row < data.length; row++) {
+      const lobFila = String(data[row][lobIndex]).trim();
+      const llave = String(data[row][llaveIndex]).trim();
+      
+      if (lobFila !== lob || !llave) continue;
+      
+      // Extraer el nombre del KPI desde la llave
+      // Formato esperado: "NombreACCMLOBKPI"
+      // Necesitamos extraer solo el KPI
+      
+      let kpiName = llave;
+      
+      // Remover LOB de la llave
+      const lobIndexPos = kpiName.indexOf(lob);
+      if (lobIndexPos !== -1) {
+        kpiName = kpiName.substring(lobIndexPos + lob.length).trim();
+      }
+      
+      if (!kpiName) continue;
+      
+      // Determinar categoría basada en patrones comunes
+      let categoria = 'bonusStructure'; // Default
+      
+      const kpiLower = kpiName.toLowerCase();
+      
+      if (kpiLower.includes('aht') || 
+          kpiLower.includes('fcr') ||
+          kpiLower.includes('csat') ||
+          kpiLower.includes('nps')) {
+        categoria = 'keys';
+      } else if (kpiLower.includes('adicional') || 
+                 kpiLower.includes('extra')) {
+        categoria = 'additionalIncentives';
+      } else if (kpiLower.includes('penalizacion') ||
+                 kpiLower.includes('reduccion')) {
+        categoria = 'decreasedKPIs';
+      }
+      
+      kpisMap.set(kpiName, categoria);
+    }
+    
+    // Convertir Map a array
+    const kpis = Array.from(kpisMap).map(([nombre, categoria]) => ({
+      nombre: nombre,
+      categoria: categoria
+    }));
+    
+    Logger.log(`✅ Encontrados ${kpis.length} KPIs únicos`);
+    
+    return kpis;
+    
+  } catch (error) {
+    Logger.log(`❌ Error en obtenerKPIsPorLob: ${error.message}`);
+    return [];
+  }
+}
+
+
+
+
+/**
+ * Obtiene el Top 3 de agentes con mayor bono para un KPI específico
+ */
+function obtenerTop3PorKPI(lob, mes, kpi) {
+  try {
+    const ss = SpreadsheetApp.openById('1PtYuAb5C2kIoX8sE7dOvt1nVS-aLamZLOJQUSbTBBCw');
+    const sheetName = 'CDM_' + mes;
+    const sheet = ss.getSheetByName(sheetName);
+    
+    if (!sheet) {
+      Logger.log(`⚠️ No existe la hoja ${sheetName}`);
+      return [];
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    
+    // Encontrar índices de columnas
+    const lobIndex = headers.indexOf('LOB');
+    const bmsIndex = headers.indexOf('BMS ID');
+    const nombreIndex = headers.indexOf('Nombre');
+    const llaveIndex = headers.indexOf('Llave');
+    const valorFIndex = headers.indexOf('Columna F');
+    const bonoIndex = headers.indexOf('Bono');
+    
+    if (lobIndex === -1 || bmsIndex === -1 || llaveIndex === -1) {
+      Logger.log('❌ No se encontraron las columnas necesarias');
+      return [];
+    }
+    
+    Logger.log(`🏆 Calculando Top 3 para KPI="${kpi}" en LOB="${lob}"`);
+    
+    // Recopilar datos de agentes
+    const agentes = [];
+    
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      
+      if (row[lobIndex] !== lob) continue;
+      
+      const llave = String(row[llaveIndex]).trim();
+      
+      // Verificar si esta fila corresponde al KPI buscado
+      if (!llave.endsWith(kpi)) continue;
+      
+      const bmsId = String(row[bmsIndex]).trim();
+      const nombre = String(row[nombreIndex]).trim();
+      const valorF = row[valorFIndex];
+      const bono = parseFloat(row[bonoIndex]) || 0;
+      
+      if (bono > 0 && bmsId && nombre) {
+        agentes.push({
+          bmsId: bmsId,
+          nombre: nombre,
+          valor: valorF,
+          bono: bono
+        });
+      }
+    }
+    
+    // Ordenar por bono descendente
+    agentes.sort((a, b) => b.bono - a.bono);
+    
+    // Retornar top 3
+    const top3 = agentes.slice(0, 3);
+    
+    Logger.log(`✅ Top 3 calculado: ${top3.length} agentes`);
+    top3.forEach((a, i) => {
+      Logger.log(`   ${i+1}. ${a.nombre} (${a.bmsId}) - $${a.bono.toFixed(2)}`);
+    });
+    
+    return top3;
+    
+  } catch (error) {
+    Logger.log(`❌ Error en obtenerTop3PorKPI: ${error.message}`);
+    return [];
+  }
+}
+
+// ========================================
+// FUNCIONES PARA HISTÓRICO MÁXIMOS (TAB 3)
+// ========================================
+
+/**
+ * Obtiene los máximos históricos de bonos por KPI
+ */
+/**
+ * Obtiene los máximos históricos de bonos por KPI
+ */
+/**
+ * Obtiene los máximos históricos de bonos por KPI
+ */
+function obtenerHistoricoMaximos() {
+  try {
+    const ss = SpreadsheetApp.openById('1PtYuAb5C2kIoX8sE7dOvt1nVS-aLamZLOJQUSbTBBCw');
+    const sheets = ss.getSheets();
+    
+    Logger.log('📋 Total hojas en spreadsheet: ' + sheets.length);
+    
+    // Filtrar solo hojas CDM numeradas
+    const cdmSheets = sheets.filter(s => {
+      const nombre = s.getName();
+      const match = nombre.match(/^CDM_(\d+)$/);
+      if (match) {
+        Logger.log('✅ Hoja CDM encontrada: ' + nombre);
+        return true;
+      }
+      return false;
+    });
+    
+    Logger.log(`📊 Hojas CDM numeradas encontradas: ${cdmSheets.length}`);
+    
+    if (cdmSheets.length === 0) {
+      Logger.log('⚠️ No se encontraron hojas CDM numeradas');
+      return [];
+    }
+    
+    // Estructura para almacenar máximos por KPI
+    const maximos = {};
+    
+    const mesesNombres = {
+      1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril',
+      5: 'Mayo', 6: 'Junio', 7: 'Julio', 8: 'Agosto',
+      9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre'
+    };
+    
+    cdmSheets.forEach(sheet => {
+      const sheetName = sheet.getName();
+      const numeroMes = parseInt(sheetName.replace('CDM_', ''));
+      const nombreMes = mesesNombres[numeroMes] || sheetName;
+      
+      Logger.log(`\n📊 Procesando ${sheetName} (${nombreMes})...`);
+      
+      const data = sheet.getDataRange().getValues();
+      
+      if (data.length < 2) {
+        Logger.log('⚠️ Hoja vacía o sin datos');
+        return;
+      }
+      
+      const headers = data[0];
+      Logger.log('📋 Headers: ' + headers.join(', '));
+      
+      const lobIndex = headers.indexOf('LOB');
+      const fechaIndex = headers.indexOf('Fecha');
+      const llaveIndex = headers.indexOf('Llave');
+      const bonoIndex = headers.indexOf('Bono');
+      
+      Logger.log(`Índices - LOB: ${lobIndex}, Fecha: ${fechaIndex}, Llave: ${llaveIndex}, Bono: ${bonoIndex}`);
+      
+      if (lobIndex === -1 || llaveIndex === -1 || bonoIndex === -1) {
+        Logger.log(`⚠️ Columnas faltantes en ${sheetName}`);
+        return;
+      }
+      
+      let registrosProcesados = 0;
+      
+      // Procesar cada fila
+      for (let i = 1; i < data.length; i++) {
+        const row = data[i];
+        
+        const lob = String(row[lobIndex] || '').trim();
+        const llave = String(row[llaveIndex] || '').trim();
+        const bono = parseFloat(row[bonoIndex]) || 0;
+        const fecha = row[fechaIndex];
+        
+        if (!lob || !llave || bono <= 0) continue;
+        
+        // Extraer KPI de la llave
+        let kpiName = llave;
+        const lobIndexPos = kpiName.indexOf(lob);
+        if (lobIndexPos !== -1) {
+          kpiName = kpiName.substring(lobIndexPos + lob.length).trim();
+        }
+        
+        if (!kpiName) continue;
+        
+        registrosProcesados++;
+        
+        // Determinar categoría
+        let categoria = 'bonusStructure';
+        
+        const kpiLower = kpiName.toLowerCase();
+        if (kpiLower.includes('aht') || 
+            kpiLower.includes('fcr') ||
+            kpiLower.includes('csat')) {
+          categoria = 'keys';
+        } else if (kpiLower.includes('adicional')) {
+          categoria = 'additionalIncentives';
+        } else if (kpiLower.includes('penalizacion')) {
+          categoria = 'decreasedKPIs';
+        }
+        
+        // Crear clave única por KPI y LOB
+        const key = `${kpiName}|${lob}`;
+        
+        // Inicializar o actualizar máximo
+        if (!maximos[key]) {
+          maximos[key] = {
+            kpi: kpiName,
+            lob: lob,
+            categoria: categoria,
+            maxBono: bono,
+            mesMaximo: nombreMes,
+            fechaMaximo: fecha,
+            totalBonos: bono,
+            conteo: 1
+          };
+        } else {
+          maximos[key].totalBonos += bono;
+          maximos[key].conteo++;
+          
+          if (bono > maximos[key].maxBono) {
+            maximos[key].maxBono = bono;
+            maximos[key].mesMaximo = nombreMes;
+            maximos[key].fechaMaximo = fecha;
+          }
+        }
+      }
+      
+      Logger.log(`✅ ${sheetName}: ${registrosProcesados} registros procesados`);
+    });
+    
+    Logger.log(`\n📊 Total de KPIs únicos encontrados: ${Object.keys(maximos).length}`);
+    
+    // Convertir a array y calcular promedios
+    const resultado = Object.values(maximos).map(record => ({
+      kpi: record.kpi,
+      lob: record.lob,
+      categoria: record.categoria,
+      maxBono: record.maxBono,
+      mesMaximo: record.mesMaximo,
+      fechaMaximo: formatearFecha(record.fechaMaximo),
+      promedio: record.totalBonos / record.conteo
+    }));
+    
+    // Ordenar por bono máximo descendente
+    resultado.sort((a, b) => b.maxBono - a.maxBono);
+    
+    Logger.log(`\n✅ Histórico generado: ${resultado.length} registros únicos`);
+    
+    if (resultado.length > 0) {
+      Logger.log('📊 Primeros 3 registros:');
+      resultado.slice(0, 3).forEach((r, i) => {
+        Logger.log(`  ${i+1}. ${r.kpi} (${r.lob}) - $${r.maxBono}`);
+      });
+    }
+    
+    return resultado;
+    
+  } catch (error) {
+    Logger.log(`❌ Error en obtenerHistoricoMaximos: ${error.message}`);
+    Logger.log(`Stack: ${error.stack}`);
+    return [];
+  }
+}
+
+/**
+ * Formatea una fecha para display
+ */
+function formatearFecha(fecha) {
+  if (!fecha) return '-';
+  
+  if (fecha instanceof Date) {
+    return Utilities.formatDate(fecha, Session.getScriptTimeZone(), 'dd/MM/yyyy');
+  }
+  
+  return String(fecha);
+}
+
+
+// AGREGAR DESPUÉS DE la función obtenerKPIsPorLob (después de la línea ~450):
+
+/**
+ * Obtiene TODOS los KPIs disponibles en un mes (de todas las LOBs)
+ */
+function obtenerTodosLosKPIsPorMes(mes) {
+  try {
+    const ss = SpreadsheetApp.openById('1PtYuAb5C2kIoX8sE7dOvt1nVS-aLamZLOJQUSbTBBCw');
+    const sheetName = 'CDM_' + mes;
+    const sheet = ss.getSheetByName(sheetName);
+    
+    if (!sheet) {
+      Logger.log(`⚠️ No existe la hoja ${sheetName}`);
+      return [];
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    
+    const lobIndex = headers.indexOf('LOB');
+    const llaveIndex = headers.indexOf('Llave');
+    
+    if (lobIndex === -1 || llaveIndex === -1) {
+      Logger.log('❌ No se encontraron columnas necesarias');
+      return [];
+    }
+    
+    const kpisMap = new Map();
+    
+    Logger.log(`🔍 Buscando TODOS los KPIs en ${sheetName}`);
+    
+    for (let row = 1; row < data.length; row++) {
+      const lob = String(data[row][lobIndex]).trim();
+      const llave = String(data[row][llaveIndex]).trim();
+      
+      if (!llave || !lob) continue;
+      
+      // Extraer KPI
+      let kpiName = llave;
+      const lobIndex2 = kpiName.indexOf(lob);
+      if (lobIndex2 !== -1) {
+        kpiName = kpiName.substring(lobIndex2 + lob.length).trim();
+      }
+      
+      if (!kpiName) continue;
+      
+      // Determinar categoría
+      let categoria = 'bonusStructure';
+      
+      const kpiLower = kpiName.toLowerCase();
+      if (kpiLower.includes('aht') || kpiLower.includes('fcr') ||
+          kpiLower.includes('csat') || kpiLower.includes('nps')) {
+        categoria = 'keys';
+      } else if (kpiLower.includes('adicional') || kpiLower.includes('extra')) {
+        categoria = 'additionalIncentives';
+      } else if (kpiLower.includes('penalizacion') || kpiLower.includes('reduccion')) {
+        categoria = 'decreasedKPIs';
+      }
+      
+      // Usar "LOB - KPI" como clave única
+      const claveUnica = `${lob} - ${kpiName}`;
+      kpisMap.set(claveUnica, {
+        nombre: kpiName,
+        lob: lob,
+        categoria: categoria
+      });
+    }
+    
+    const kpis = Array.from(kpisMap.values());
+    Logger.log(`✅ Encontrados ${kpis.length} KPIs únicos en total`);
+    
+    return kpis;
+    
+  } catch (error) {
+    Logger.log(`❌ Error en obtenerTodosLosKPIsPorMes: ${error.message}`);
+    return [];
+  }
+}

@@ -1,0 +1,2642 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audit Dashboard - Sistema de Auditoría</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --secondary: #3498db;
+            --success: #27ae60;
+            --danger: #e74c3c;
+            --warning: #f39c12;
+            --info: #17a2b8;
+            --light: #ecf0f1;
+            --dark: #2c3e50;
+            --purple: #9b59b6;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        
+        /* HEADER */
+        .header {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 25px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .header:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 30px rgba(0,0,0,0.2);
+        }
+        
+        .header h1 {
+            color: var(--primary);
+            font-size: 2.2rem;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .header-subtitle {
+            color: #7f8c8d;
+            font-size: 1rem;
+        }
+        
+        /* USER CARD */
+        .user-card {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .user-card h3 {
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+            border-bottom: 2px solid rgba(255,255,255,0.3);
+            padding-bottom: 10px;
+        }
+        
+        .user-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .user-info-item {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .user-info-label {
+            font-size: 0.85rem;
+            opacity: 0.8;
+            margin-bottom: 5px;
+        }
+        
+        .user-info-value {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        
+        /* STATS CARDS */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            transition: transform 0.3s ease;
+            border-left: 4px solid var(--secondary);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--secondary);
+        }
+        
+        .stat-card.success { border-left-color: var(--success); }
+        .stat-card.success::before { background: var(--success); }
+        .stat-card.warning { border-left-color: var(--warning); }
+        .stat-card.warning::before { background: var(--warning); }
+        .stat-card.danger { border-left-color: var(--danger); }
+        .stat-card.danger::before { background: var(--danger); }
+        .stat-card.info { border-left-color: var(--info); }
+        .stat-card.info::before { background: var(--info); }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+        
+        .stat-icon {
+            font-size: 2.5rem;
+            margin-bottom: 15px;
+        }
+        
+        .stat-label {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+        
+        .stat-value {
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+        
+        /* TABS */
+        .tab-button {
+            padding: 15px 30px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+            color: #7f8c8d;
+        }
+
+        .tab-button:hover {
+            color: var(--primary);
+            background: rgba(52, 152, 219, 0.05);
+        }
+
+        .tab-button.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeOut {
+            from { opacity: 1; transform: scale(1); }
+            to { opacity: 0; transform: scale(0.95); }
+        }
+        
+        /* FILTERS */
+        .filters-section {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .filters-title {
+            color: var(--primary);
+            font-size: 1.3rem;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .filters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .filter-label {
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 8px;
+            font-size: 0.95rem;
+        }
+        
+        input[type="text"],
+        input[type="date"],
+        select {
+            padding: 12px 15px;
+            border: 2px solid #dfe6e9;
+            border-radius: 8px;
+            font-size: 1rem;
+            background: white;
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+        
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--secondary);
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        }
+        
+        /* BUTTONS */
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--secondary) 0%, #2980b9 100%);
+            color: white;
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, var(--success) 0%, #229954 100%);
+            color: white;
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, var(--danger) 0%, #c0392b 100%);
+            color: white;
+        }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, var(--warning) 0%, #e67e22 100%);
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);
+            color: white;
+        }
+
+        .btn-info {
+            background: linear-gradient(135deg, var(--info) 0%, #138496 100%);
+            color: white;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        /* TIMELINE */
+        .timeline-container {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .timeline-item {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 25px;
+            position: relative;
+            padding-left: 40px;
+        }
+        
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: 15px;
+            top: 30px;
+            width: 2px;
+            height: calc(100% + 25px);
+            background: #dfe6e9;
+        }
+        
+        .timeline-item:last-child::before {
+            display: none;
+        }
+        
+        .timeline-icon {
+            position: absolute;
+            left: 0;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            background: white;
+            box-shadow: 0 0 0 4px #dfe6e9;
+            z-index: 2;
+        }
+        
+        .timeline-icon.aprobacion { background: var(--success); color: white; }
+        .timeline-icon.disputa { background: var(--warning); color: white; }
+        .timeline-icon.traslado { background: var(--info); color: white; }
+        .timeline-icon.prorrateo { background: var(--purple); color: white; }
+        
+        .timeline-content {
+            flex: 1;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid var(--secondary);
+            transition: all 0.3s ease;
+        }
+        
+        .timeline-content:hover {
+            background: #e8f4f8;
+            transform: translateX(5px);
+        }
+        
+        .timeline-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        
+        .timeline-title {
+            font-weight: 600;
+            color: var(--primary);
+            font-size: 1.05rem;
+        }
+        
+        .timeline-time {
+            color: #7f8c8d;
+            font-size: 0.85rem;
+        }
+        
+        .timeline-details {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        
+        .timeline-user {
+            margin-top: 8px;
+            font-size: 0.85rem;
+            color: #95a5a6;
+        }
+        
+        /* TABLE */
+        .table-container {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            margin-bottom: 25px;
+        }
+        
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #ecf0f1;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .table-title {
+            color: var(--primary);
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+        
+        .table-scroll {
+            overflow-x: auto;
+            max-height: 600px;
+            overflow-y: auto;
+            border: 1px solid #ecf0f1;
+            border-radius: 8px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+            min-width: 1000px;
+        }
+        
+        th {
+            background: var(--primary);
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            border: 1px solid #34495e;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        td {
+            padding: 12px;
+            border: 1px solid #dfe6e9;
+        }
+        
+        tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        
+        tr:hover {
+            background: #e8f4f8;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        
+        .badge-success { background: #d4edda; color: #155724; }
+        .badge-warning { background: #fff3cd; color: #856404; }
+        .badge-danger { background: #f8d7da; color: #721c24; }
+        .badge-info { background: #d1ecf1; color: #0c5460; }
+        .badge-secondary { background: #e2e3e5; color: #383d41; }
+        
+        /* CHARTS */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+            gap: 25px;
+            margin-bottom: 25px;
+        }
+        
+        .chart-card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+        
+        .chart-title {
+            color: var(--primary);
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #ecf0f1;
+        }
+        
+        /* PAGINATION */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .pagination button {
+            padding: 8px 16px;
+            font-size: 0.9rem;
+        }
+        
+        .pagination .page-info {
+            color: #7f8c8d;
+            font-weight: 600;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--secondary);
+            font-size: 1.3rem;
+        }
+        
+        /* TOAST NOTIFICATIONS */
+        #toastContainer {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+        }
+
+        .toast {
+            padding: 15px 20px;
+            margin: 10px 0;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+        }
+        
+        .toast.show {
+            transform: translateX(0);
+        }
+        
+        .toast.success { background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%); }
+        .toast.error { background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); }
+        .toast.warning { background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%); }
+        .toast.info { background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); }
+        
+        /* RESPONSIVE */
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            .filters-grid {
+                grid-template-columns: 1fr;
+            }
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+            .table-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+    </style>
+
+
+</head>
+<body>
+
+<!-- Toast Container -->
+<div id="toastContainer"></div>
+
+<div class="container">
+    <!-- HEADER -->
+    <div class="header">
+        <h1>🔍 Dashboard de Auditoría</h1>
+        <p class="header-subtitle">Sistema de Trazabilidad y Control de Operaciones</p>
+    </div>
+    
+    <!-- USER INFO -->
+<div class="user-card">
+    <h3>👤 Información del Usuario</h3>
+    <div class="user-info-grid">
+        <div class="user-info-item">
+            <span class="user-info-label">Nombre</span>
+            <span class="user-info-value" id="nombreUsuario">Cargando...</span>
+        </div>
+        <div class="user-info-item">
+            <span class="user-info-label">Correo</span>
+            <span class="user-info-value" id="correoUsuario">---</span>
+        </div>
+        <div class="user-info-item">
+            <span class="user-info-label">Roll Base</span>
+            <span class="user-info-value" id="rolUsuario">---</span>
+        </div>
+        <div class="user-info-item">
+            <span class="user-info-label">Última Actualización</span>
+            <span class="user-info-value" id="ultimaActualizacion">---</span>
+        </div>
+    </div>
+    
+    <!-- ⭐ SELECT PARA CAMBIAR TIPO DE ACCESO -->
+    <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #ecf0f1;">
+        <label style="display: block; font-weight: 600; margin-bottom: 10px; color: #2c3e50;">
+            🔄 Cambiar Vista:
+        </label>
+        <select id="selectTipoAcceso" 
+                onchange="cambiarTipoAccesoYRedirigir()"
+                style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 1rem; cursor: pointer; background: white;">
+            <option value="">-- Selecciona una vista --</option>
+            <option value="OM">📊 OM Dashboard</option>
+            <option value="Audit">🔍 Auditoría</option>
+            <option value="Registro">📝 Registro</option>
+        </select>
+        <small style="display: block; margin-top: 8px; color: #7f8c8d;">
+            💡 Cambia entre diferentes vistas sin perder tus permisos base
+        </small>
+    </div>
+</div>
+    
+    <!-- STATS -->
+    <div class="stats-grid">
+        <div class="stat-card success">
+            <div class="stat-icon">✅</div>
+            <div class="stat-label">Aprobaciones</div>
+            <div class="stat-value" id="totalAprobaciones">0</div>
+        </div>
+        <div class="stat-card warning" style="cursor:pointer;" onclick="switchTab('disputas')">
+            <div class="stat-icon">⚠️</div>
+            <div class="stat-label">Disputas</div>
+            <div class="stat-value" id="totalDisputas">0</div>
+        </div>
+        <div class="stat-card info">
+            <div class="stat-icon">🔄</div>
+            <div class="stat-label">Traslados</div>
+            <div class="stat-value" id="totalTraslados">0</div>
+        </div>
+        <div class="stat-card danger">
+            <div class="stat-icon">📊</div>
+            <div class="stat-label">Total Operaciones</div>
+            <div class="stat-value" id="totalOperaciones">0</div>
+        </div>
+    </div>
+    
+    <!-- TABS NAVIGATION -->
+    <div style="display:flex;gap:10px;margin:30px 0;border-bottom:2px solid #ecf0f1;">
+        <button class="tab-button active" onclick="switchTab('audit')">
+            📊 Auditoría General
+        </button>
+        <button class="tab-button" onclick="switchTab('disputas')">
+            ⚠️ Gestión de Disputas
+        </button>
+    </div>
+    
+    <!-- ========================================
+         TAB 1: AUDITORÍA GENERAL
+         ======================================== -->
+    <div id="tab-audit" class="tab-content active">
+        
+        <!-- FILTERS -->
+        <div class="filters-section">
+            <h3 class="filters-title">🔍 Filtros de Auditoría</h3>
+            <div class="filters-grid">
+                <div class="filter-group">
+                    <label class="filter-label">📅 Fecha Desde</label>
+                    <input type="date" id="fechaDesde">
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">📅 Fecha Hasta</label>
+                    <input type="date" id="fechaHasta">
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">👤 Usuario</label>
+                    <select id="filtroUsuario">
+                        <option value="">Todos los usuarios</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">🎯 Tipo de Acción</label>
+                    <select id="filtroTipoAccion">
+                        <option value="">Todas las acciones</option>
+                        <option value="Aprobación">✅ Aprobación</option>
+                        <option value="Disputa">⚠️ Disputa</option>
+                        <option value="Traslado">🔄 Traslado</option>
+                        <option value="Prorrateo">📊 Prorrateo</option>
+                        <option value="Cambio Rol">🔐 Cambio de Rol</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">🏢 LOB</label>
+                    <select id="filtroLob">
+                        <option value="">Todas las LOBs</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">🔍 Buscar BMS/Nombre</label>
+                    <input type="text" id="busquedaRapida" placeholder="BMS ID o Nombre...">
+                </div>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;">
+                <button class="btn-primary" onclick="aplicarFiltros()">🔍 Aplicar Filtros</button>
+                <button class="btn-secondary" onclick="limpiarFiltros()">🗑️ Limpiar</button>
+                <button class="btn-success" onclick="exportarAudit()">📥 Exportar Excel</button>
+                <button class="btn-warning" onclick="actualizarDatos()">🔄 Actualizar</button>
+                <button class="btn-info" onclick="diagnosticarConexion()">🔧 Diagnosticar</button>
+            </div>
+        </div>
+        
+        <!-- CHARTS -->
+        <div class="charts-grid">
+            <div class="chart-card">
+                <h3 class="chart-title">📊 Operaciones por Tipo</h3>
+                <canvas id="chartTipoAccion"></canvas>
+            </div>
+            <div class="chart-card">
+                <h3 class="chart-title">📈 Actividad por Día</h3>
+                <canvas id="chartActividad"></canvas>
+            </div>
+        </div>
+        
+        <!-- TIMELINE -->
+        <div class="timeline-container">
+            <h3 style="color:var(--primary);margin-bottom:20px;font-size:1.3rem;">⏱️ Timeline Reciente</h3>
+            <div id="timeline-content">
+                <div class="loading">Cargando actividad reciente...</div>
+            </div>
+        </div>
+        
+        <!-- TABLE -->
+        <div class="table-container">
+            <div class="table-header">
+                <h3 class="table-title">📋 Registro Completo de Auditoría</h3>
+                <div style="color:#7f8c8d;">
+                    Total: <strong id="totalRegistros">0</strong> registros
+                </div>
+            </div>
+            <div class="table-scroll">
+                <table id="auditTable">
+                    <thead>
+                        <tr>
+                            <th>📅 Timestamp</th>
+                            <th>🎯 Acción</th>
+                            <th>👤 Usuario</th>
+                            <th>🏢 LOB</th>
+                            <th>🆔 BMS ID</th>
+                            <th>👤 Nombre Agente</th>
+                            <th>💰 Monto</th>
+                            <th>📆 Mes CDM</th>
+                            <th>📝 Detalles</th>
+                        </tr>
+                    </thead>
+                    <tbody id="auditTableBody">
+                        <tr>
+                            <td colspan="9" style="text-align:center;padding:40px;">
+                                <div class="loading">Cargando datos de auditoría...</div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- PAGINATION -->
+            <div class="pagination">
+                <button class="btn-primary" onclick="cambiarPagina(-1)">← Anterior</button>
+                <span class="page-info">Página <strong id="paginaActual">1</strong> de <strong id="totalPaginas">1</strong></span>
+                <button class="btn-primary" onclick="cambiarPagina(1)">Siguiente →</button>
+            </div>
+        </div>
+        
+    </div>
+    
+    <!-- ========================================
+         TAB 2: GESTIÓN DE DISPUTAS
+         ======================================== -->
+    <div id="tab-disputas" class="tab-content" style="display:none;">
+        
+        <!-- FILTERS DISPUTAS -->
+        <div class="filters-section">
+            <h3 class="filters-title">⚠️ Gestión de Disputas</h3>
+            <div class="filters-grid">
+                <div class="filter-group">
+                    <label class="filter-label">📊 Estado</label>
+                    <select id="filtroEstadoDisputa" onchange="filtrarDisputas()">
+                        <option value="">Todos</option>
+                        <option value="Pendiente">🟡 Pendiente</option>
+                        <option value="En Proceso">🔵 En Proceso</option>
+                        <option value="Aprobada">🟢 Aprobada</option>
+                        <option value="Rechazada">🔴 Rechazada</option>
+                        <option value="Más Información">🟣 Más Información</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">🏢 LOB</label>
+                    <select id="filtroLobDisputa" onchange="filtrarDisputas()">
+                        <option value="">Todas las LOBs</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">📅 Fecha Desde</label>
+                    <input type="date" id="fechaDesdeDisputa" onchange="filtrarDisputas()">
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">📅 Fecha Hasta</label>
+                    <input type="date" id="fechaHastaDisputa" onchange="filtrarDisputas()">
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">🔍 Buscar</label>
+                    <input type="text" id="busquedaDisputa" placeholder="BMS o Nombre...">
+                </div>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;">
+                <button class="btn-warning" onclick="cargarDisputas()">🔄 Actualizar</button>
+                <button class="btn-success" onclick="exportarDisputas()">📥 Exportar Excel</button>
+                <button class="btn-secondary" onclick="limpiarFiltrosDisputas()">🗑️ Limpiar Filtros</button>
+            </div>
+        </div>
+        
+        <!-- STATS DISPUTAS -->
+        <div class="stats-grid" style="margin-top:30px;">
+            <div class="stat-card warning">
+                <div class="stat-icon">🟡</div>
+                <div class="stat-label">Pendientes</div>
+                <div class="stat-value" id="disputasPendientes">0</div>
+            </div>
+            <div class="stat-card info">
+                <div class="stat-icon">🔵</div>
+                <div class="stat-label">En Proceso</div>
+                <div class="stat-value" id="disputasEnProceso">0</div>
+            </div>
+            <div class="stat-card success">
+                <div class="stat-icon">🟢</div>
+                <div class="stat-label">Aprobadas</div>
+                <div class="stat-value" id="disputasAprobadas">0</div>
+            </div>
+            <div class="stat-card danger">
+                <div class="stat-icon">🔴</div>
+                <div class="stat-label">Rechazadas</div>
+                <div class="stat-value" id="disputasRechazadas">0</div>
+            </div>
+        </div>
+        
+        <!-- TABLE DISPUTAS -->
+        <div class="table-container" style="margin-top:30px;">
+            <div class="table-header">
+                <h3 class="table-title">📋 Disputas Registradas</h3>
+                <div style="color:#7f8c8d;">
+                    Total: <strong id="totalDisputasTabla">0</strong> disputas
+                </div>
+            </div>
+            <div class="table-scroll">
+                <table id="tablaDisputas">
+                    <thead>
+                        <tr>
+                            <th>📅 Fecha</th>
+                            <th>🆔 BMS</th>
+                            <th>👤 Nombre</th>
+                            <th>🏢 LOB</th>
+                            <th>💰 Monto</th>
+                            <th>📝 Comentario</th>
+                            <th>📊 Estado</th>
+                            <th>⚙️ Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyDisputas">
+                        <tr>
+                            <td colspan="8" style="text-align:center;padding:40px;">
+                                <div class="loading">Cargando disputas...</div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- PAGINATION DISPUTAS -->
+            <div class="pagination">
+                <button class="btn-primary" onclick="cambiarPaginaDisputas(-1)">← Anterior</button>
+                <span class="page-info">Página <strong id="paginaActualDisputas">1</strong> de <strong id="totalPaginasDisputas">1</strong></span>
+                <button class="btn-primary" onclick="cambiarPaginaDisputas(1)">Siguiente →</button>
+            </div>
+        </div>
+        
+    </div>
+    
+</div>
+
+
+
+
+<script>
+// ========================================
+// DASHBOARD DE AUDITORÍA + GESTIÓN DE DISPUTAS
+// ========================================
+
+// Variables globales
+let datosAudit = [];
+let datosFiltrados = [];
+let datosDisputas = [];
+let disputasFiltradas = [];
+let paginaActual = 1;
+let paginaActualDisputas = 1;
+const registrosPorPagina = 50;
+let chartTipoAccion = null;
+let chartActividad = null;
+
+// ========================================
+// INICIALIZACIÓN
+// ========================================
+window.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Iniciando Dashboard de Auditoría...');
+    configurarFechasPorDefecto();
+    cargarDatosIniciales();
+    
+    // Configurar búsqueda en tiempo real
+    const busquedaInput = document.getElementById('busquedaRapida');
+    if (busquedaInput) {
+        busquedaInput.addEventListener('input', debounce(aplicarFiltros, 300));
+    }
+    
+    const busquedaDisputa = document.getElementById('busquedaDisputa');
+    if (busquedaDisputa) {
+        busquedaDisputa.addEventListener('input', debounce(filtrarDisputas, 300));
+    }
+});
+
+function configurarFechasPorDefecto() {
+    const hoy = new Date();
+    const hace30Dias = new Date();
+    hace30Dias.setDate(hoy.getDate() - 30);
+    
+    const fechaDesde = document.getElementById('fechaDesde');
+    const fechaHasta = document.getElementById('fechaHasta');
+    const fechaDesdeDisputa = document.getElementById('fechaDesdeDisputa');
+    const fechaHastaDisputa = document.getElementById('fechaHastaDisputa');
+    
+    if (fechaDesde) fechaDesde.valueAsDate = hace30Dias;
+    if (fechaHasta) fechaHasta.valueAsDate = hoy;
+    if (fechaDesdeDisputa) fechaDesdeDisputa.valueAsDate = hace30Dias;
+    if (fechaHastaDisputa) fechaHastaDisputa.valueAsDate = hoy;
+}
+
+function cargarDatosIniciales() {
+    console.log('🚀 Iniciando carga de datos...');
+    
+    mostrarCargando(true);
+    mostrarToast('⏳ Cargando datos de auditoría...', 'info');
+    
+    google.script.run
+        .withSuccessHandler(procesarRespuestaExitosa)
+        .withFailureHandler(procesarRespuestaError)
+        .obtenerDatosAuditSeguro();
+}
+
+
+function procesarRespuestaExitosa(response) {
+    console.log('✅ Respuesta recibida del servidor');
+    console.log('Response completo:', response);
+    
+    try {
+        if (response === undefined || response === null) {
+            throw new Error('La función del servidor no retornó ningún valor');
+        }
+        
+        if (typeof response !== 'object') {
+            throw new Error('Respuesta inválida del servidor (tipo: ' + typeof response + ')');
+        }
+        
+        if (response.error) {
+            throw new Error('Error del servidor: ' + response.error);
+        }
+        
+        console.log('✅ Validación de response exitosa');
+        
+        // Cargar información del usuario
+        cargarInfoUsuario(response.usuario);
+        
+        // ⭐ GUARDAR LOBS PERMITIDAS EN VARIABLE GLOBAL
+        window.lobsPermitidasGlobal = response.lobsPermitidas || [];
+        console.log('📋 LOBs permitidas guardadas:', window.lobsPermitidasGlobal);
+        
+        // Guardar permiso disputas
+        window.permisoDisputasGlobal = response.permisoDisputas;
+        console.log('🔐 Permiso disputas guardado:', window.permisoDisputasGlobal);
+        
+        // Verificar y controlar acceso a tab disputas
+        verificarYControlarAccesoDisputas(response.permisoDisputas);
+        
+        // Cargar datos de auditoría
+        datosAudit = Array.isArray(response.auditData) ? response.auditData : [];
+        datosFiltrados = [...datosAudit];
+        
+        // Separar disputas
+        datosDisputas = datosAudit.filter(d => d.tipoAccion === 'Disputa');
+        disputasFiltradas = [...datosDisputas];
+        
+        console.log(`📊 ${datosAudit.length} registros totales (${datosDisputas.length} disputas)`);
+        
+        // Actualizar última actualización
+        actualizarUltimaActualizacion();
+        
+        // Inicializar dashboard
+        inicializarDashboard();
+        
+        // Mostrar mensaje de éxito
+        if (datosAudit.length === 0) {
+            mostrarToast('📋 No hay registros en Audit todavía', 'warning');
+            mostrarMensajeVacio();
+        } else {
+            mostrarToast(`✅ ${datosAudit.length} registros cargados exitosamente`, 'success');
+        }
+        
+    } catch (error) {
+        console.error('❌ Error procesando respuesta:', error);
+        mostrarError('Error al procesar los datos: ' + error.message);
+    } finally {
+        mostrarCargando(false);
+    }
+}
+
+/**
+ * Verifica permisos y controla acceso al tab de disputas
+ */
+function verificarYControlarAccesoDisputas(permisoDisputas) {
+    // ⭐ YA NO OCULTAMOS EL TAB - TODOS PUEDEN VERLO
+    const tabDisputasBtn = document.querySelector('[onclick*="disputas"]');
+    
+    // El tab siempre es visible
+    if (tabDisputasBtn) {
+        tabDisputasBtn.style.display = 'block';
+    }
+    
+    if (!permisoDisputas || !permisoDisputas.permitido) {
+        // ❌ SIN PERMISO: Modo SOLO LECTURA
+        console.log('🔒 Modo SOLO LECTURA para Gestión de Disputas');
+        console.log('📋 Mensaje:', permisoDisputas?.mensaje || 'Sin permisos');
+        
+        // ⭐ Guardar que está en modo solo lectura
+        window.modoSoloLecturaDisputas = true;
+    } else {
+        // ✅ CON PERMISO: Puede responder
+        console.log(`✅ Puede responder disputas (Rol Base: ${permisoDisputas.rol})`);
+        window.modoSoloLecturaDisputas = false;
+    }
+}
+
+function procesarRespuestaError(error) {
+    console.error('❌ Error en llamada al servidor:', error);
+    
+    const mensajeError = error.message || error.toString() || 'Error desconocido';
+    
+    cargarInfoUsuario({
+        nombre: 'Error al cargar',
+        correo: 'N/A',
+        rol: 'Auditor'
+    });
+    
+    actualizarUltimaActualizacion();
+    mostrarError(mensajeError);
+    mostrarCargando(false);
+    
+    const tbody = document.getElementById('auditTableBody');
+    if (tbody) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" style="text-align:center;padding:40px;">
+                    <div style="color:#e74c3c;font-size:1.2rem;margin-bottom:10px;">
+                        ❌ Error al cargar datos
+                    </div>
+                    <div style="color:#7f8c8d;font-size:0.9rem;">
+                        ${mensajeError}
+                    </div>
+                    <button onclick="cargarDatosIniciales()" 
+                            style="margin-top:20px;padding:10px 20px;background:#3498db;color:white;border:none;border-radius:4px;cursor:pointer;">
+                        🔄 Reintentar
+                    </button>
+                </td>
+            </tr>
+        `;
+    }
+}
+
+function cargarInfoUsuario(usuario) {
+    const elementos = {
+        nombreUsuario: usuario?.nombre || 'Usuario',
+        correoUsuario: usuario?.correo || 'N/A',
+        rolUsuario: usuario?.rol || 'Auditor'
+    };
+    
+    Object.entries(elementos).forEach(([id, valor]) => {
+        const elemento = document.getElementById(id);
+        if (elemento) {
+            elemento.textContent = valor;
+        }
+    });
+}
+
+function actualizarUltimaActualizacion() {
+    const elemento = document.getElementById('ultimaActualizacion');
+    if (elemento) {
+        elemento.textContent = new Date().toLocaleString('es-CO');
+    }
+}
+
+function inicializarDashboard() {
+    actualizarEstadisticas();
+    actualizarEstadisticasDisputas();
+    cargarFiltrosDinamicos();
+    aplicarFiltros();
+    generarGraficos();
+    generarTimeline();
+}
+
+function mostrarCargando(mostrar) {
+    const elementos = document.querySelectorAll('.loading');
+    elementos.forEach(elemento => {
+        elemento.style.display = mostrar ? 'block' : 'none';
+    });
+}
+
+function mostrarError(mensaje) {
+    console.error('Error:', mensaje);
+    mostrarToast('❌ ' + mensaje, 'error');
+}
+
+function mostrarMensajeVacio() {
+    const tbody = document.getElementById('auditTableBody');
+    if (tbody) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" style="text-align:center;padding:40px;">
+                    <div style="color:#95a5a6;font-size:1.2rem;margin-bottom:10px;">
+                        📋 No hay registros en Audit
+                    </div>
+                    <div style="color:#7f8c8d;font-size:0.9rem;">
+                        Los registros de aprobaciones aparecerán aquí automáticamente
+                    </div>
+                </td>
+            </tr>
+        `;
+    }
+}
+
+// ========================================
+// TOAST NOTIFICATIONS
+// ========================================
+function mostrarToast(mensaje, tipo = 'info') {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `toast ${tipo}`;
+    toast.textContent = mensaje;
+    
+    container.appendChild(toast);
+    
+    setTimeout(() => toast.classList.add('show'), 100);
+    
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        }, 300);
+    }, 5000);
+}
+
+// ========================================
+// UTILIDADES
+// ========================================
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// ========================================
+// TABS
+// ========================================
+function switchTab(tabName) {
+    console.log('🔄 Cambiando a tab:', tabName);
+    
+    // ⭐ YA NO BLOQUEAMOS EL ACCESO - SOLO MOSTRAMOS MENSAJE
+    if (tabName === 'disputas') {
+        const permisoDisputas = window.permisoDisputasGlobal;
+        
+        if (!permisoDisputas || !permisoDisputas.permitido) {
+            // Mostrar toast informativo
+            mostrarToast('ℹ️ Estás en modo SOLO LECTURA. Solo puedes visualizar las disputas.', 'info');
+        }
+    }
+    
+    // Ocultar todos los tabs
+    document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.remove('active');
+        tab.style.display = 'none';
+    });
+    
+    document.querySelectorAll('.tab-button').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    // Mostrar tab seleccionado
+    const tabContent = document.getElementById('tab-' + tabName);
+    if (tabContent) {
+        tabContent.classList.add('active');
+        tabContent.style.display = 'block';
+    }
+    
+    if (event && event.target) {
+        event.target.classList.add('active');
+    } else {
+        const btn = document.querySelector(`[onclick*="switchTab('${tabName}')"]`);
+        if (btn) btn.classList.add('active');
+    }
+    
+    // Cargar datos según tab
+    if (tabName === 'disputas') {
+        renderizarTablaDisputas(disputasFiltradas);
+        cargarFiltrosDisputas();
+        
+        // ⭐ MOSTRAR BANNER DE SOLO LECTURA SI APLICA
+        mostrarBannerSoloLectura();
+    }
+}
+
+// ========================================
+// ESTADÍSTICAS
+// ========================================
+function actualizarEstadisticas() {
+    const stats = {
+        aprobaciones: datosAudit.filter(d => d.tipoAccion === 'Aprobación').length,
+        disputas: datosAudit.filter(d => d.tipoAccion === 'Disputa').length,
+        traslados: datosAudit.filter(d => d.tipoAccion === 'Traslado').length,
+        total: datosAudit.length
+    };
+    
+    const elementos = {
+        totalAprobaciones: stats.aprobaciones,
+        totalDisputas: stats.disputas,
+        totalTraslados: stats.traslados,
+        totalOperaciones: stats.total
+    };
+    
+    Object.entries(elementos).forEach(([id, valor]) => {
+        const elemento = document.getElementById(id);
+        if (elemento) {
+            elemento.textContent = valor;
+        }
+    });
+}
+
+function actualizarEstadisticasDisputas() {
+    const pendientes = datosDisputas.filter(d => d.estado === 'Pendiente').length;
+    const enProceso = datosDisputas.filter(d => d.estado.includes('En Proceso')).length;
+    const aprobadas = datosDisputas.filter(d => d.estado.includes('Aprobada')).length;
+    const rechazadas = datosDisputas.filter(d => d.estado.includes('Rechazada')).length;
+    
+    const elementos = {
+        disputasPendientes: pendientes,
+        disputasEnProceso: enProceso,
+        disputasAprobadas: aprobadas,
+        disputasRechazadas: rechazadas
+    };
+    
+    Object.entries(elementos).forEach(([id, valor]) => {
+        const elemento = document.getElementById(id);
+        if (elemento) {
+            elemento.textContent = valor;
+        }
+    });
+}
+
+function cargarFiltrosDinamicos() {
+    // Usuarios únicos
+    const usuarios = [...new Set(datosAudit.map(d => d.usuario).filter(Boolean))].sort();
+    cargarSelectOptions('filtroUsuario', usuarios);
+    
+    // ⭐ CORREGIDO: Usar LOBs permitidas del backend, NO de datosAudit
+    let lobs;
+    
+    if (window.lobsPermitidasGlobal && window.lobsPermitidasGlobal.length > 0) {
+        // ✅ Usar las LOBs asignadas al usuario
+        lobs = window.lobsPermitidasGlobal.sort();
+        console.log(`📋 Cargando ${lobs.length} LOBs permitidas en filtro:`, lobs);
+    } else {
+        // Fallback: extraer de datos (por si acaso)
+        lobs = [...new Set(datosAudit.map(d => d.lob).filter(Boolean))].sort();
+        console.log(`⚠️ Fallback: Usando LOBs de datosAudit:`, lobs);
+    }
+    
+    cargarSelectOptions('filtroLob', lobs);
+}
+function cargarSelectOptions(selectId, opciones) {
+    const select = document.getElementById(selectId);
+    if (!select) return;
+    
+    while (select.options.length > 1) {
+        select.remove(1);
+    }
+    
+    opciones.forEach(opcion => {
+        const opt = document.createElement('option');
+        opt.value = opcion;
+        opt.textContent = opcion;
+        select.appendChild(opt);
+    });
+}
+
+// ========================================
+// FILTROS AUDIT
+// ========================================
+function aplicarFiltros() {
+    try {
+        const filtros = obtenerValoresFiltros();
+        
+        datosFiltrados = datosAudit.filter(d => cumpleFiltros(d, filtros));
+        
+        paginaActual = 1;
+        renderizarTabla();
+        generarGraficos();
+        generarTimeline();
+        
+        console.log(`🔍 Filtros aplicados: ${datosFiltrados.length} de ${datosAudit.length} registros`);
+        
+    } catch (error) {
+        console.error('Error al aplicar filtros:', error);
+        mostrarError('Error al aplicar filtros');
+    }
+}
+
+function obtenerValoresFiltros() {
+    const fechaDesde = document.getElementById('fechaDesde')?.value;
+    const fechaHasta = document.getElementById('fechaHasta')?.value;
+    
+    return {
+        fechaDesde: fechaDesde ? new Date(fechaDesde) : null,
+        fechaHasta: fechaHasta ? new Date(fechaHasta
+
+
+        + 'T23:59:59') : null,
+        usuario: document.getElementById('filtroUsuario')?.value || '',
+        tipoAccion: document.getElementById('filtroTipoAccion')?.value || '',
+        lob: document.getElementById('filtroLob')?.value || '',
+        busqueda: document.getElementById('busquedaRapida')?.value?.toLowerCase() || ''
+    };
+}
+
+function cumpleFiltros(dato, filtros) {
+    const fechaRegistro = new Date(dato.timestamp);
+    
+    const cumpleFecha = (!filtros.fechaDesde || fechaRegistro >= filtros.fechaDesde) && 
+                       (!filtros.fechaHasta || fechaRegistro <= filtros.fechaHasta);
+    
+    const cumpleUsuario = !filtros.usuario || dato.usuario === filtros.usuario;
+    const cumpleTipo = !filtros.tipoAccion || dato.tipoAccion === filtros.tipoAccion;
+    const cumpleLob = !filtros.lob || dato.lob === filtros.lob;
+    const cumpleBusqueda = !filtros.busqueda || 
+                          (dato.bmsId && dato.bmsId.toString().toLowerCase().includes(filtros.busqueda)) ||
+                          (dato.nombreAgente && dato.nombreAgente.toLowerCase().includes(filtros.busqueda));
+    
+    return cumpleFecha && cumpleUsuario && cumpleTipo && cumpleLob && cumpleBusqueda;
+}
+
+function limpiarFiltros() {
+    const filtros = ['filtroUsuario', 'filtroTipoAccion', 'filtroLob', 'busquedaRapida'];
+    filtros.forEach(id => {
+        const elemento = document.getElementById(id);
+        if (elemento) elemento.value = '';
+    });
+    
+    configurarFechasPorDefecto();
+    aplicarFiltros();
+    mostrarToast('🗑️ Filtros limpiados', 'info');
+}
+
+
+function mostrarBannerSoloLectura() {
+    const tabDisputas = document.getElementById('tab-disputas');
+    
+    if (!tabDisputas) return;
+    
+    // Remover banner anterior si existe
+    const bannerAnterior = document.getElementById('banner-solo-lectura');
+    if (bannerAnterior) {
+        bannerAnterior.remove();
+    }
+    
+    // Si NO está en modo solo lectura, no mostrar banner
+    if (!window.modoSoloLecturaDisputas) return;
+    
+    // Crear banner de solo lectura
+    const banner = document.createElement('div');
+    banner.id = 'banner-solo-lectura';
+    banner.style.cssText = `
+        background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+        color: white;
+        padding: 15px 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        font-size: 0.95rem;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        box-shadow: 0 4px 12px rgba(243, 156, 18, 0.3);
+    `;
+    
+    banner.innerHTML = `
+        <div style="font-size: 1.8rem;">🔒</div>
+        <div>
+            <strong>Modo Solo Lectura</strong><br>
+            <span style="opacity: 0.9;">Solo Reporting Analyst y Audit pueden responder disputas. Puedes visualizar toda la información.</span>
+        </div>
+    `;
+    
+    // Insertar banner al inicio del tab
+    const filtersSection = tabDisputas.querySelector('.filters-section');
+    if (filtersSection) {
+        tabDisputas.insertBefore(banner, filtersSection);
+    } else {
+        tabDisputas.insertBefore(banner, tabDisputas.firstChild);
+    }
+}
+
+// ========================================
+// TABLA AUDIT CON PAGINACIÓN
+// ========================================
+function renderizarTabla() {
+    const tbody = document.getElementById('auditTableBody');
+    if (!tbody) return;
+    
+    const inicio = (paginaActual - 1) * registrosPorPagina;
+    const fin = inicio + registrosPorPagina;
+    const registrosPagina = datosFiltrados.slice(inicio, fin);
+    
+    if (registrosPagina.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" style="text-align:center;padding:40px;color:#7f8c8d;">
+                    No hay registros que coincidan con los filtros aplicados
+                </td>
+            </tr>
+        `;
+        actualizarInfoPaginacion(0);
+        return;
+    }
+    
+    tbody.innerHTML = registrosPagina.map(d => crearFilaTabla(d)).join('');
+    actualizarInfoPaginacion(datosFiltrados.length);
+}
+
+function crearFilaTabla(dato) {
+    const monto = dato.monto 
+        ? `$${Number(dato.monto).toLocaleString('es-CO', {minimumFractionDigits: 2})}` 
+        : '-';
+    
+    const datosEscapados = JSON.stringify(dato)
+        .replace(/'/g, "&#39;")
+        .replace(/"/g, "&quot;");
+    
+    return `
+        <tr>
+            <td>${formatearFecha(dato.timestamp)}</td>
+            <td><span class="badge ${getBadgeClass(dato.tipoAccion)}">${dato.tipoAccion}</span></td>
+            <td>${dato.usuario || '-'}</td>
+            <td>${dato.lob || '-'}</td>
+            <td><strong>${dato.bmsId || '-'}</strong></td>
+            <td>${dato.nombreAgente || '-'}</td>
+            <td style="text-align:right;font-weight:600;color:var(--success);">${monto}</td>
+            <td>${dato.mesCDM || '-'}</td>
+            <td>
+                <button class="btn-primary" 
+                        style="padding:6px 12px;font-size:0.85rem;" 
+                        onclick='verDetalles(${datosEscapados})'>
+                    👁️ Ver
+                </button>
+            </td>
+        </tr>
+    `;
+}
+
+function formatearFecha(fecha) {
+    try {
+        return new Date(fecha).toLocaleString('es-CO');
+    } catch (e) {
+        return 'Fecha inválida';
+    }
+}
+
+function getBadgeClass(tipoAccion) {
+    const classes = {
+        'Aprobación': 'badge-success',
+        'Disputa': 'badge-warning',
+        'Traslado': 'badge-info',
+        'Prorrateo': 'badge-secondary',
+        'Cambio Rol': 'badge-danger'
+    };
+    return classes[tipoAccion] || 'badge-secondary';
+}
+
+function actualizarInfoPaginacion(totalRegistros) {
+    const totalPaginas = Math.ceil(totalRegistros / registrosPorPagina);
+    
+    const elementos = {
+        paginaActual: paginaActual,
+        totalPaginas: totalPaginas || 1,
+        totalRegistros: totalRegistros
+    };
+    
+    Object.entries(elementos).forEach(([id, valor]) => {
+        const elemento = document.getElementById(id);
+        if (elemento) {
+            elemento.textContent = valor;
+        }
+    });
+}
+
+function cambiarPagina(direccion) {
+    const totalPaginas = Math.ceil(datosFiltrados.length / registrosPorPagina);
+    const nuevaPagina = paginaActual + direccion;
+    
+    if (nuevaPagina >= 1 && nuevaPagina <= totalPaginas) {
+        paginaActual = nuevaPagina;
+        renderizarTabla();
+        
+        const tablaContainer = document.querySelector('.table-container');
+        if (tablaContainer) {
+            tablaContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+}
+
+// ========================================
+// VER DETALLES (CORREGIDO: Director y Supervisor)
+// ========================================
+function verDetalles(datos) {
+    const detalles = generarTextoDetalles(datos);
+    
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+    `;
+    
+    modal.innerHTML = `
+        <div style="background:white;padding:30px;border-radius:12px;max-width:600px;max-height:80vh;overflow-y:auto;position:relative;">
+            <button onclick="this.parentElement.parentElement.remove()" 
+                    style="position:absolute;top:10px;right:10px;background:#e74c3c;color:white;border:none;border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:1.2rem;">×</button>
+            <pre style="font-family:inherit;white-space:pre-wrap;word-wrap:break-word;">${detalles}</pre>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            modal.remove();
+        }
+    });
+}
+
+function generarTextoDetalles(datos) {
+
+    let texto = `
+═══════════════════════════════════════
+📋 DETALLES COMPLETOS DE LA OPERACIÓN
+═══════════════════════════════════════
+
+📅 Timestamp: ${formatearFecha(datos.timestamp)}
+🎯 Tipo de Acción: ${datos.tipoAccion}
+👤 Usuario: ${datos.usuario}
+📧 Correo: ${datos.correo || 'N/A'}
+
+═══════════════════════════════════════
+DATOS DEL AGENTE
+═══════════════════════════════════════
+
+🆔 BMS ID: ${datos.bmsId || 'N/A'}
+👤 Nombre: ${datos.nombreAgente || 'N/A'}
+🏢 LOB: ${datos.lob || 'N/A'}
+👔 Role: ${datos.role || 'N/A'}
+👨‍💼 Supervisor: ${datos.supervisor || 'N/A'}
+🎯 ACCM: ${datos.accm || 'N/A'}
+📊 OM: ${datos.om || 'N/A'}
+🏛️ Director: ${datos.director || 'N/A'}
+📆 Mes CDM: ${datos.mesCDM || 'N/A'}
+📅 Fecha KPI: ${datos.fechaKPI || 'N/A'}
+
+═══════════════════════════════════════
+INFORMACIÓN FINANCIERA
+═══════════════════════════════════════
+
+💰 Monto: ${datos.monto ? '$' + Number(datos.monto).toLocaleString('es-CO', {minimumFractionDigits: 2}) : 'N/A'}
+`;
+    
+    if (datos.detalles) {
+        texto += `\n📝 Detalles: ${datos.detalles}`;
+    }
+    
+    if (datos.lobDestino) {
+        texto += `\n🎯 LOB Destino: ${datos.lobDestino}`;
+    }
+    
+    if (datos.montoOriginal) {
+        texto += `\n💰 Monto Original: $${Number(datos.montoOriginal).toLocaleString('es-CO', {minimumFractionDigits: 2})}`;
+    }
+    
+    if (datos.horas) {
+        texto += `\n⏱️ Horas Trabajadas: ${datos.horas}h`;
+    }
+    
+    if (datos.estado) {
+        texto += `\n\n📌 Estado: ${datos.estado}`;
+    }
+    
+    return texto;
+}
+
+// ========================================
+// GRÁFICOS
+// ========================================
+function generarGraficos() {
+    if (datosFiltrados.length === 0) {
+        destruirGraficos();
+        return;
+    }
+    
+    generarGraficoTipoAccion();
+    generarGraficoActividad();
+}
+
+function destruirGraficos() {
+    if (chartTipoAccion) {
+        chartTipoAccion.destroy();
+        chartTipoAccion = null;
+    }
+    if (chartActividad) {
+        chartActividad.destroy();
+        chartActividad = null;
+    }
+}
+
+function generarGraficoTipoAccion() {
+    const ctx = document.getElementById('chartTipoAccion');
+    if (!ctx) return;
+    
+    const contadores = {};
+    datosFiltrados.forEach(d => {
+        contadores[d.tipoAccion] = (contadores[d.tipoAccion] || 0) + 1;
+    });
+    
+    const labels = Object.keys(contadores);
+    const data = Object.values(contadores);
+    
+    const colores = {
+        'Aprobación': '#27ae60',
+        'Disputa': '#f39c12',
+        'Traslado': '#3498db',
+        'Prorrateo': '#9b59b6',
+        'Cambio Rol': '#e74c3c'
+    };
+    
+    const backgroundColors = labels.map(l => colores[l] || '#95a5a6');
+    
+    if (chartTipoAccion) chartTipoAccion.destroy();
+    
+    chartTipoAccion = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: data,
+                backgroundColor: backgroundColors,
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const porcentaje = ((context.parsed / total) * 100).toFixed(1);
+                            return `${context.label}: ${context.parsed} (${porcentaje}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function generarGraficoActividad() {
+    const ctx = document.getElementById('chartActividad');
+    if (!ctx) return;
+    
+    const actividadPorDia = {};
+    datosFiltrados.forEach(d => {
+        const fecha = new Date(d.timestamp).toLocaleDateString('es-CO');
+        actividadPorDia[fecha] = (actividadPorDia[fecha] || 0) + 1;
+    });
+    
+    const fechasOrdenadas = Object.keys(actividadPorDia).sort((a, b) => {
+        return new Date(a.split('/').reverse().join('-')) - new Date(b.split('/').reverse().join('-'));
+    });
+    
+    const labels = fechasOrdenadas;
+    const data = fechasOrdenadas.map(f => actividadPorDia[f]);
+    
+    if (chartActividad) chartActividad.destroy();
+    
+    chartActividad = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Operaciones por día',
+                data: data,
+                borderColor: '#3498db',
+                backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                borderWidth: 3,
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            }
+        }
+    });
+}
+
+// ========================================
+// TIMELINE
+// ========================================
+function generarTimeline() {
+    const container = document.getElementById('timeline-content');
+    if (!container) return;
+    
+    const registrosRecientes = datosFiltrados.slice(0, 10);
+    
+    if (registrosRecientes.length === 0) {
+        container.innerHTML = '<div style="text-align:center;color:#7f8c8d;padding:20px;">No hay actividad reciente</div>';
+        return;
+    }
+    
+    const iconos = {
+        'Aprobación': '✅',
+        'Disputa': '⚠️',
+        'Traslado': '🔄',
+        'Prorrateo': '📊',
+        'Cambio Rol': '🔐'
+    };
+    
+    container.innerHTML = registrosRecientes.map(d => `
+        <div class="timeline-item">
+            <div class="timeline-icon ${d.tipoAccion.toLowerCase().replace(' ', '-')}">
+                ${iconos[d.tipoAccion] || '📌'}
+            </div>
+            <div class="timeline-content">
+                <div class="timeline-header">
+                    <div class="timeline-title">${d.tipoAccion}</div>
+                    <div class="timeline-time">${formatearTiempoRelativo(d.timestamp)}</div>
+                </div>
+                <div class="timeline-details">
+                    <strong>${d.nombreAgente || 'N/A'}</strong> ${generarDescripcion(d)}
+                    ${d.monto ? '<br>💰 Monto: <strong>$' + Number(d.monto).toLocaleString('es-CO', {minimumFractionDigits: 2}) + '</strong>' : ''}
+                </div>
+                <div class="timeline-user">
+                    👤 Por: ${d.usuario} | 🏢 ${d.lob || 'N/A'}
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function generarDescripcion(d) {
+    const descripciones = {
+        'Aprobación': `fue aprobado en <strong>${d.lob}</strong> para el mes de <strong>${d.mesCDM}</strong>`,
+        'Disputa': `presentó una disputa en <strong>${d.lob}</strong>`,
+        'Traslado': `fue trasladado a <strong>${d.lobDestino || 'otra LOB'}</strong>`,
+        'Prorrateo': `recibió prorrateo en <strong>${d.lob}</strong>`,
+        'Cambio Rol': `cambió de rol a <strong>${d.estadoNuevo}</strong>`
+    };
+    
+    return descripciones[d.tipoAccion] || `tuvo una operación en <strong>${d.lob}</strong>`;
+}
+
+function formatearTiempoRelativo(timestamp) {
+    const ahora = new Date();
+    const fecha = new Date(timestamp);
+    const diferencia = ahora - fecha;
+    
+    const minutos = Math.floor(diferencia / 60000);
+    const horas = Math.floor(diferencia / 3600000);
+    const dias = Math.floor(diferencia / 86400000);
+    
+    if (minutos < 1) return 'Ahora mismo';
+    if (minutos < 60) return `Hace ${minutos} min`;
+    if (horas < 24) return `Hace ${horas} hora${horas > 1 ? 's' : ''}`;
+    if (dias < 30) return `Hace ${dias} día${dias > 1 ? 's' : ''}`;
+    return fecha.toLocaleDateString('es-CO');
+}
+
+// ========================================
+// EXPORTAR AUDIT
+// ========================================
+function exportarAudit() {
+    if (datosFiltrados.length === 0) {
+        mostrarToast('⚠️ No hay datos para exportar', 'warning');
+        return;
+    }
+    
+    try {
+        const datosExcel = datosFiltrados.map(d => ({
+            'Timestamp': formatearFecha(d.timestamp),
+            'Tipo Acción': d.tipoAccion,
+            'Usuario': d.usuario,
+            'Correo': d.correo || '',
+            'LOB': d.lob || '',
+            'BMS ID': d.bmsId || '',
+            'Nombre Agente': d.nombreAgente || '',
+            'Monto': d.monto || 0,
+            'Mes CDM': d.mesCDM || '',
+            'Fecha KPI': d.fechaKPI || '',
+            'Role': d.role || '',
+            'Supervisor': d.supervisor || '',
+            'ACCM': d.accm || '',
+            'OM': d.om || '',
+            'Director': d.director || '',
+            'Estado': d.estado || '',
+            'Detalles': d.detalles || ''
+        }));
+        
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(datosExcel);
+        
+        ws['!cols'] = [
+            {wch: 20}, {wch: 15}, {wch: 25}, {wch: 30},
+            {wch: 15}, {wch: 10}, {wch: 30}, {wch: 15},
+            {wch: 12}, {wch: 12}, {wch: 15}, {wch: 20}, 
+            {wch: 20}, {wch: 20}, {wch: 20}, {wch: 15}, {wch: 50}
+        ];
+        
+        XLSX.utils.book_append_sheet(wb, ws, 'Audit');
+        
+        const nombreArchivo = `Audit_${new Date().toISOString().slice(0, 10)}.xlsx`;
+        XLSX.writeFile(wb, nombreArchivo);
+        
+        mostrarToast(`✅ Archivo exportado: ${nombreArchivo}`, 'success');
+        
+    } catch (error) {
+        console.error('Error al exportar:', error);
+        mostrarError('Error al exportar datos: ' + error.message);
+    }
+}
+
+// ========================================
+// ACTUALIZAR DATOS
+// ========================================
+function actualizarDatos() {
+    const btn = event?.target;
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Actualizando...';
+    }
+    
+    mostrarToast('🔄 Actualizando datos...', 'info');
+    cargarDatosIniciales();
+    
+    setTimeout(() => {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '🔄 Actualizar';
+        }
+    }, 2000);
+}
+
+// ========================================
+// DIAGNÓSTICO
+// ========================================
+function diagnosticarConexion() {
+    console.log('🔧 Ejecutando diagnóstico...');
+    mostrarToast('🔧 Ejecutando diagnóstico de conexión...', 'info');
+    
+    google.script.run
+        .withSuccessHandler(function(response) {
+            console.log('✅ Diagnóstico exitoso:', response);
+            
+            let mensaje = '✅ DIAGNÓSTICO COMPLETADO\n\n';
+            if (response.status === 'success') {
+                mensaje += `👤 Usuario: ${response.usuario?.nombre || 'N/A'}\n`;
+                mensaje += `📊 Registros: ${response.registros_cargados || 0}\n`;
+                mensaje += `📋 Hojas: ${response.hojas_disponibles?.join(', ') || 'N/A'}\n`;
+                mensaje += `🕐 Timestamp: ${response.timestamp || 'N/A'}\n`;
+                mensaje += `💡 Mensaje: ${response.mensaje || 'N/A'}`;
+            } else {
+                mensaje += `❌ ERROR: ${response.error || 'Error desconocido'}`;
+            }
+            
+            alert(mensaje);
+        })
+        .withFailureHandler(function(error) {
+            console.error('❌ Error en diagnóstico:', error);
+            alert('❌ ERROR DE CONEXIÓN\n\n' + error.message + '\n\nVerifica que:\n1. El ID del spreadsheet sea correcto\n2. Tengas permisos de lectura\n3. Las hojas existan');
+        })
+        .diagnosticarConexion();
+}
+
+// ========================================
+// ========================================
+// GESTIÓN DE DISPUTAS
+// ========================================
+// ========================================
+
+function cargarDisputas() {
+    console.log('📋 Cargando disputas...');
+    mostrarToast('⏳ Cargando disputas...', 'info');
+    
+    google.script.run
+        .withSuccessHandler(function(disputas) {
+            console.log(`✅ ${disputas.length} disputas recibidas`);
+            
+            datosDisputas = disputas;
+            disputasFiltradas = [...disputas];
+            
+            renderizarTablaDisputas(disputasFiltradas);
+            cargarFiltrosDisputas();
+            actualizarEstadisticasDisputas();
+            
+            mostrarToast(`✅ ${disputas.length} disputas cargadas`, 'success');
+        })
+        .withFailureHandler(function(error) {
+            console.error('❌ Error:', error);
+            mostrarToast('❌ Error al cargar disputas', 'error');
+        })
+        .obtenerDatosDisputas();
+}
+
+function renderizarTablaDisputas(disputas) {
+    const tbody = document.getElementById('tbodyDisputas');
+    
+    if (!tbody) return;
+    
+    if (!disputas || disputas.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="8" style="text-align:center;padding:40px;color:#7f8c8d;">
+                    No hay disputas registradas
+                </td>
+            </tr>
+        `;
+        actualizarInfoPaginacionDisputas(0);
+        return;
+    }
+    
+    const inicio = (paginaActualDisputas - 1) * registrosPorPagina;
+    const fin = inicio + registrosPorPagina;
+    const disputasPagina = disputas.slice(inicio, fin);
+    
+    tbody.innerHTML = disputasPagina.map(d => crearFilaDisputa(d)).join('');
+    actualizarInfoPaginacionDisputas(disputas.length);
+    
+    const totalElement = document.getElementById('totalDisputasTabla');
+    if (totalElement) {
+        totalElement.textContent = disputas.length;
+    }
+}
+
+function crearFilaDisputa(disputa) {
+    const colorEstado = obtenerColorEstado(disputa.estado);
+    
+    const disputaJSON = JSON.stringify(disputa)
+        .replace(/'/g, "&#39;")
+        .replace(/"/g, "&quot;");
+    
+    // ⭐ VERIFICAR SI TIENE PERMISO PARA RESPONDER
+    const puedeResponder = !window.modoSoloLecturaDisputas;
+    
+    let botonHTML;
+    if (puedeResponder) {
+        // ✅ Usuario puede responder
+        botonHTML = `
+            <button class="btn-primary" 
+                    style="padding:6px 12px;font-size:0.85rem;"
+                    onclick='abrirModalRespuesta(${disputaJSON})'>
+                💬 Responder
+            </button>
+        `;
+    } else {
+        // 🔒 Usuario solo puede ver
+        botonHTML = `
+            <button class="btn-secondary" 
+                    style="padding:6px 12px;font-size:0.85rem;cursor:not-allowed;opacity:0.5;"
+                    disabled
+                    title="Solo Reporting Analyst y Audit pueden responder">
+                🔒 Solo Lectura
+            </button>
+        `;
+    }
+    
+    return `
+        <tr>
+            <td>${formatearFecha(disputa.timestamp)}</td>
+            <td><strong>${disputa.bmsId}</strong></td>
+            <td>${disputa.nombreAgente}</td>
+            <td>${disputa.lob}</td>
+            <td style="text-align:right;font-weight:600;">
+                $${Number(disputa.monto).toLocaleString('es-CO', {minimumFractionDigits: 2})}
+            </td>
+            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${disputa.detalles}">
+                ${disputa.detalles}
+            </td>
+            <td>
+                <span style="padding:6px 12px;border-radius:12px;font-size:0.85rem;font-weight:600;background:${colorEstado};color:white;display:inline-block;">
+                    ${disputa.estado}
+                </span>
+            </td>
+            <td>
+                ${botonHTML}
+            </td>
+        </tr>
+    `;
+}
+
+function obtenerColorEstado(estado) {
+    const colores = {
+        'Pendiente': '#f39c12',
+        '⏳ En Proceso': '#3498db',
+        '✅ Aprobada': '#27ae60',
+        '❌ Rechazada': '#e74c3c',
+        '📋 Más Información': '#9b59b6'
+    };
+    
+    // Buscar coincidencia parcial
+    for (const key in colores) {
+        if (estado.includes(key) || estado.includes(key.replace(/[⏳✅❌📋]/g, '').trim())) {
+            return colores[key];
+        }
+    }
+    
+    return '#95a5a6';
+}
+
+function filtrarDisputas() {
+    const estadoFiltro = document.getElementById('filtroEstadoDisputa')?.value || '';
+    const lobFiltro = document.getElementById('filtroLobDisputa')?.value || '';
+    const fechaDesde = document.getElementById('fechaDesdeDisputa')?.value;
+    const fechaHasta = document.getElementById('fechaHastaDisputa')?.value;
+    const busqueda = document.getElementById('busquedaDisputa')?.value?.toLowerCase() || '';
+    
+    const fechaDesdeObj = fechaDesde ? new Date(fechaDesde) : null;
+    const fechaHastaObj = fechaHasta ? new Date(fechaHasta + 'T23:59:59') : null;
+    
+    disputasFiltradas = datosDisputas.filter(d => {
+        const fechaRegistro = new Date(d.timestamp);
+        
+        const cumpleEstado = !estadoFiltro || d.estado.includes(estadoFiltro);
+        const cumpleLob = !lobFiltro || d.lob === lobFiltro;
+        const cumpleFecha = (!fechaDesdeObj || fechaRegistro >= fechaDesdeObj) &&
+                           (!fechaHastaObj || fechaRegistro <= fechaHastaObj);
+        const cumpleBusqueda = !busqueda ||
+                              (d.bmsId && d.bmsId.toString().toLowerCase().includes(busqueda)) ||
+                              (d.nombreAgente && d.nombreAgente.toLowerCase().includes(busqueda));
+        
+        return cumpleEstado && cumpleLob && cumpleFecha && cumpleBusqueda;
+    });
+    
+    paginaActualDisputas = 1;
+    renderizarTablaDisputas(disputasFiltradas);
+}
+
+function cargarFiltrosDisputas() {
+    // ⭐ CORREGIDO: Usar LOBs permitidas, NO extraer de datosDisputas
+    let lobs;
+    
+    if (window.lobsPermitidasGlobal && window.lobsPermitidasGlobal.length > 0) {
+        lobs = window.lobsPermitidasGlobal.sort();
+        console.log(`📋 Cargando ${lobs.length} LOBs permitidas en filtro de disputas:`, lobs);
+    } else {
+        // Fallback
+        lobs = [...new Set(datosDisputas.map(d => d.lob))].sort();
+        console.log(`⚠️ Fallback: Usando LOBs de datosDisputas:`, lobs);
+    }
+    
+    const select = document.getElementById('filtroLobDisputa');
+    
+    if (select) {
+        select.innerHTML = '<option value="">Todas las LOBs</option>';
+        lobs.forEach(lob => {
+            const opt = document.createElement('option');
+            opt.value = lob;
+            opt.textContent = lob;
+            select.appendChild(opt);
+        });
+    }
+}
+
+function limpiarFiltrosDisputas() {
+    document.getElementById('filtroEstadoDisputa').value = '';
+    document.getElementById('filtroLobDisputa').value = '';
+    document.getElementById('fechaDesdeDisputa').value = '';
+    document.getElementById('fechaHastaDisputa').value = '';
+    document.getElementById('busquedaDisputa').value = '';
+    
+    filtrarDisputas();
+    mostrarToast('🗑️ Filtros limpiados', 'info');
+}
+
+function actualizarInfoPaginacionDisputas(totalRegistros) {
+    const totalPaginas = Math.ceil(totalRegistros / registrosPorPagina);
+    
+    const elementos = {
+        paginaActualDisputas: paginaActualDisputas,
+        totalPaginasDisputas: totalPaginas || 1
+    };
+    
+    Object.entries(elementos).forEach(([id, valor]) => {
+        const elemento = document.getElementById(id);
+        if (elemento) {
+            elemento.textContent = valor;
+        }
+    });
+}
+
+// ========================================
+// GESTIÓN DE DISPUTAS - CONTINUACIÓN
+// ========================================
+
+function cambiarPaginaDisputas(direccion) {
+    const totalPaginas = Math.ceil(disputasFiltradas.length / registrosPorPagina);
+    const nuevaPagina = paginaActualDisputas + direccion;
+    
+    if (nuevaPagina >= 1 && nuevaPagina <= totalPaginas) {
+        paginaActualDisputas = nuevaPagina;
+        renderizarTablaDisputas(disputasFiltradas);
+        
+        const tablaContainer = document.querySelector('.table-container');
+        if (tablaContainer) {
+            tablaContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+}
+
+// ========================================
+// MODAL DE RESPUESTA A DISPUTA
+// ========================================
+
+function abrirModalRespuesta(disputa) {
+    console.log('📝 Abriendo modal para disputa:', disputa);
+    
+    const modal = document.createElement('div');
+    modal.id = 'modalRespuestaDisputa';
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+        animation: fadeIn 0.3s ease;
+    `;
+    
+    modal.innerHTML = `
+        <div style="background:white;width:90%;max-width:800px;max-height:90vh;overflow-y:auto;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,0.3);position:relative;">
+            
+            <!-- HEADER -->
+            <div style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;padding:20px;border-radius:12px 12px 0 0;position:sticky;top:0;z-index:10;">
+                <button onclick="cerrarModalRespuesta()" 
+                        style="position:absolute;top:15px;right:15px;background:rgba(255,255,255,0.2);color:white;border:none;border-radius:50%;width:35px;height:35px;cursor:pointer;font-size:1.5rem;line-height:1;transition:all 0.3s;">×</button>
+                <h2 style="margin:0;font-size:1.5rem;font-weight:600;">💬 Responder Disputa</h2>
+                <p style="margin:5px 0 0 0;opacity:0.9;font-size:0.9rem;">BMS ID: <strong>${disputa.bmsId}</strong> | ${disputa.nombreAgente}</p>
+            </div>
+            
+            <!-- CONTENIDO -->
+            <div style="padding:30px;">
+                
+                <!-- INFORMACIÓN DE LA DISPUTA -->
+                <div style="background:#f8f9fa;border-left:4px solid #f39c12;padding:20px;border-radius:8px;margin-bottom:25px;">
+                    <h3 style="margin:0 0 15px 0;color:#2c3e50;font-size:1.1rem;">📋 Información de la Disputa</h3>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;font-size:0.9rem;">
+                        <div>
+                            <strong>👤 Agente:</strong> ${disputa.nombreAgente}<br>
+                            <strong>🏢 LOB:</strong> ${disputa.lob}<br>
+                            <strong>📅 Fecha KPI:</strong> ${disputa.fechaKPI || 'N/A'}
+                        </div>
+                        <div>
+                            <strong>💰 Monto:</strong> $${Number(disputa.monto).toLocaleString('es-CO', {minimumFractionDigits: 2})}<br>
+                            <strong>📊 Estado:</strong> <span style="color:#f39c12;font-weight:600;">${disputa.estado}</span><br>
+                            <strong>📧 Usuario:</strong> ${disputa.usuario}
+                        </div>
+                    </div>
+                    <div style="margin-top:15px;padding-top:15px;border-top:1px solid #ddd;">
+                        <strong>💬 Comentario del agente:</strong><br>
+                        <div style="background:white;padding:12px;border-radius:6px;margin-top:8px;font-style:italic;color:#555;">
+                            "${disputa.detalles || 'Sin comentario'}"
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- FORMULARIO DE RESPUESTA -->
+                <form id="formRespuestaDisputa" onsubmit="enviarRespuestaDisputa(event, ${JSON.stringify(disputa).replace(/"/g, '&quot;')})">
+                    
+                    <!-- DECISIÓN -->
+                    <div style="margin-bottom:20px;">
+                        <label style="display:block;font-weight:600;margin-bottom:8px;color:#2c3e50;">
+                            🎯 Decisión <span style="color:red;">*</span>
+                        </label>
+                        <select name="decision" required 
+                                style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px;font-size:1rem;transition:all 0.3s;"
+                                onchange="actualizarCamposDecision(this.value)">
+                            <option value="">-- Selecciona una opción --</option>
+                            <option value="APROBADA">✅ Aprobar Disputa</option>
+                            <option value="RECHAZADA">❌ Rechazar Disputa</option>
+                            <option value="MAS_INFO">📋 Solicitar Más Información</option>
+                            <option value="EN_PROCESO">⏳ Marcar En Proceso</option>
+                        </select>
+                    </div>
+                    
+                    <!-- MONTO AJUSTADO (solo si se aprueba) -->
+                    <div id="divMontoAjustado" style="margin-bottom:20px;display:none;">
+                        <label style="display:block;font-weight:600;margin-bottom:8px;color:#2c3e50;">
+                            💰 Monto Ajustado <span style="color:red;">*</span>
+                        </label>
+                        <input type="number" 
+                               name="montoAjustado" 
+                               step="0.01" 
+                               placeholder="Ingresa el nuevo monto"
+                               style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px;font-size:1rem;">
+                        <small style="color:#7f8c8d;display:block;margin-top:5px;">
+                            💡 Este será el monto final que se registrará en Audit
+                        </small>
+                    </div>
+                    
+                    <!-- RESPUESTA -->
+                    <div style="margin-bottom:20px;">
+                        <label style="display:block;font-weight:600;margin-bottom:8px;color:#2c3e50;">
+                            💬 Respuesta al Agente <span style="color:red;">*</span>
+                        </label>
+                        <textarea name="respuesta" 
+                                  required 
+                                  rows="4" 
+                                  placeholder="Explica tu decisión al agente..."
+                                  style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px;font-size:1rem;resize:vertical;"></textarea>
+                    </div>
+                    
+                    <!-- COMENTARIO INTERNO -->
+                    <div style="margin-bottom:25px;">
+                        <label style="display:block;font-weight:600;margin-bottom:8px;color:#2c3e50;">
+                            📝 Comentario Interno (Opcional)
+                        </label>
+                        <textarea name="comentarioInterno" 
+                                  rows="3" 
+                                  placeholder="Notas internas que no verá el agente..."
+                                  style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px;font-size:0.95rem;resize:vertical;"></textarea>
+                        <small style="color:#7f8c8d;display:block;margin-top:5px;">
+                            🔒 Este comentario es solo para auditoría interna
+                        </small>
+                    </div>
+                    
+                    <!-- BOTONES -->
+                    <div style="display:flex;gap:15px;justify-content:flex-end;padding-top:20px;border-top:2px solid #e0e0e0;">
+                        <button type="button" 
+                                onclick="cerrarModalRespuesta()"
+                                style="padding:12px 30px;background:#95a5a6;color:white;border:none;border-radius:8px;cursor:pointer;font-size:1rem;font-weight:600;transition:all 0.3s;">
+                            ❌ Cancelar
+                        </button>
+                        <button type="submit"
+                                style="padding:12px 30px;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;border:none;border-radius:8px;cursor:pointer;font-size:1rem;font-weight:600;transition:all 0.3s;box-shadow:0 4px 15px rgba(102, 126, 234, 0.4);">
+                            ✅ Enviar Respuesta
+                        </button>
+                    </div>
+                    
+                </form>
+                
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Cerrar al hacer clic fuera del modal
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            cerrarModalRespuesta();
+        }
+    });
+}
+
+function cerrarModalRespuesta() {
+    const modal = document.getElementById('modalRespuestaDisputa');
+    if (modal) {
+        modal.style.animation = 'fadeOut 0.3s ease';
+        setTimeout(() => {
+            if (modal.parentNode) {
+                modal.parentNode.removeChild(modal);
+            }
+        }, 300);
+    }
+}
+
+function actualizarCamposDecision(decision) {
+    const divMonto = document.getElementById('divMontoAjustado');
+    const inputMonto = document.querySelector('[name="montoAjustado"]');
+    
+    if (decision === 'APROBADA') {
+        divMonto.style.display = 'block';
+        inputMonto.required = true;
+    } else {
+        divMonto.style.display = 'none';
+        inputMonto.required = false;
+        inputMonto.value = '';
+    }
+}
+
+function enviarRespuestaDisputa(event, disputa) {
+    event.preventDefault();
+    
+    const form = event.target;
+    const formData = new FormData(form);
+    
+    const decision = formData.get('decision');
+    const respuesta = formData.get('respuesta');
+    const montoAjustado = formData.get('montoAjustado');
+    const comentarioInterno = formData.get('comentarioInterno');
+    
+    // Validaciones
+    if (!decision || !respuesta) {
+        mostrarToast('⚠️ Completa los campos obligatorios', 'warning');
+        return;
+    }
+    
+    if (decision === 'APROBADA' && !montoAjustado) {
+        mostrarToast('⚠️ Debes ingresar el monto ajustado', 'warning');
+        return;
+    }
+    
+    // Confirmar acción
+    const mensajesConfirmacion = {
+        'APROBADA': '¿Confirmas APROBAR esta disputa? Se ajustará el bono en Audit.',
+        'RECHAZADA': '¿Confirmas RECHAZAR esta disputa?',
+        'MAS_INFO': '¿Confirmas solicitar más información al agente?',
+        'EN_PROCESO': '¿Confirmas marcar esta disputa como EN PROCESO?'
+    };
+    
+    if (!confirm(mensajesConfirmacion[decision] || '¿Confirmas esta acción?')) {
+        return;
+    }
+    
+    // Preparar datos
+    const datosRespuesta = {
+        fila: disputa.fila,
+        bmsId: disputa.bmsId,
+        nombre: disputa.nombreAgente,
+        lob: disputa.lob,
+        fechaDisputa: disputa.timestamp,
+        estadoOriginal: disputa.estado,
+        decision: decision,
+        respuesta: respuesta,
+        montoAjustado: montoAjustado ? parseFloat(montoAjustado) : null,
+        comentarioInterno: comentarioInterno || ''
+    };
+    
+    // Deshabilitar botón
+    const btnSubmit = form.querySelector('button[type="submit"]');
+    btnSubmit.disabled = true;
+    btnSubmit.innerHTML = '⏳ Procesando...';
+    
+    mostrarToast('⏳ Procesando respuesta...', 'info');
+    
+    // Enviar al backend
+    google.script.run
+        .withSuccessHandler(function(response) {
+            console.log('✅ Respuesta procesada:', response);
+            
+            if (response.success) {
+                mostrarToast(`✅ ${response.mensaje}`, 'success');
+                cerrarModalRespuesta();
+                
+                // Recargar disputas
+                cargarDatosIniciales();
+            } else {
+                mostrarToast(`❌ Error: ${response.error}`, 'error');
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = '✅ Enviar Respuesta';
+            }
+        })
+        .withFailureHandler(function(error) {
+            console.error('❌ Error:', error);
+            mostrarToast('❌ Error al procesar la respuesta', 'error');
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = '✅ Enviar Respuesta';
+        })
+        .responderDisputa(datosRespuesta);
+}
+
+// ========================================
+// EXPORTAR DISPUTAS
+// ========================================
+
+function exportarDisputas() {
+    if (disputasFiltradas.length === 0) {
+        mostrarToast('⚠️ No hay disputas para exportar', 'warning');
+        return;
+    }
+    
+    try {
+        const datosExcel = disputasFiltradas.map(d => ({
+            'Timestamp': formatearFecha(d.timestamp),
+            'BMS ID': d.bmsId || '',
+            'Nombre': d.nombreAgente || '',
+            'LOB': d.lob || '',
+            'Monto': d.monto || 0,
+            'Fecha KPI': d.fechaKPI || '',
+            'Comentario': d.detalles || '',
+            'Estado': d.estado || '',
+            'Usuario': d.usuario || '',
+            'Correo': d.correo || ''
+        }));
+        
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(datosExcel);
+        
+        ws['!cols'] = [
+            {wch: 20}, {wch: 10}, {wch: 30}, {wch: 15},
+            {wch: 15}, {wch: 12}, {wch: 50}, {wch: 20},
+            {wch: 25}, {wch: 30}
+        ];
+        
+        XLSX.utils.book_append_sheet(wb, ws, 'Disputas');
+        
+        const nombreArchivo = `Disputas_${new Date().toISOString().slice(0, 10)}.xlsx`;
+        XLSX.writeFile(wb, nombreArchivo);
+        
+        mostrarToast(`✅ Archivo exportado: ${nombreArchivo}`, 'success');
+        
+    } catch (error) {
+        console.error('Error al exportar:', error);
+        mostrarError('Error al exportar disputas: ' + error.message);
+    }
+}
+
+// ========================================
+// ACTUALIZAR DISPUTAS
+// ========================================
+
+function actualizarDisputas() {
+    const btn = event?.target;
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Actualizando...';
+    }
+    
+    mostrarToast('🔄 Actualizando disputas...', 'info');
+    cargarDatosIniciales();
+    
+    setTimeout(() => {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '🔄 Actualizar';
+        }
+    }, 2000);
+}
+
+// ========================================
+// ANIMACIONES CSS (agregar al <style>)
+// ========================================
+
+
+
+
+// Inyectar estilos si no existen
+if (!document.getElementById('estilos-animaciones')) {
+    const style = document.createElement('style');
+    style.id = 'estilos-animaciones';
+    style.textContent = estilosAnimaciones;
+    document.head.appendChild(style);
+}
+
+// ========================================
+// FUNCIONES DE UTILIDAD ADICIONALES
+// ========================================
+
+function copiarAlPortapapeles(texto) {
+    navigator.clipboard.writeText(texto).then(() => {
+        mostrarToast('✅ Copiado al portapapeles', 'success');
+    }).catch(err => {
+        console.error('Error al copiar:', err);
+        mostrarToast('❌ Error al copiar', 'error');
+    });
+}
+
+function descargarJSON(data, nombreArchivo) {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = nombreArchivo;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    mostrarToast(`✅ Descargado: ${nombreArchivo}`, 'success');
+}
+
+console.log('✅ Dashboard de Auditoría - Código completo cargado');
+
+
+
+// ========================================
+// CAMBIO DE TIPO DE ACCESO (VISTA)
+// ========================================
+/**
+ * Carga el tipo de acceso actual al iniciar
+ */
+function cargarTipoAccesoActual() {
+    google.script.run
+        .withSuccessHandler(function(tipoAcceso) {
+            const select = document.getElementById('selectTipoAcceso');
+            if (select && tipoAcceso) {
+                select.value = tipoAcceso;
+                console.log('✅ Tipo de acceso actual:', tipoAcceso);
+            }
+        })
+        .withFailureHandler(function(error) {
+            console.log('❌ Error al obtener tipo de acceso:', error);
+        })
+        .obtenerTipoAccesoActual();
+}
+/**
+ * Cambia el tipo de acceso y redirige a la página correspondiente
+ */
+function cambiarTipoAccesoYRedirigir() {
+    const select = document.getElementById('selectTipoAcceso');
+    const nuevoTipoAcceso = select.value;
+    
+    if (!nuevoTipoAcceso) {
+        return;
+    }
+    
+    if (!confirm(`¿Cambiar vista a ${nuevoTipoAcceso}?`)) {
+        // Revertir selección
+        cargarTipoAccesoActual();
+        return;
+    }
+    
+    mostrarToast('⏳ Cambiando vista...', 'info');
+    
+    const emailUsuario = document.getElementById('correoUsuario').textContent;
+    
+    google.script.run
+        .withSuccessHandler(function(response) {
+            if (response.success) {
+                mostrarToast(`✅ ${response.mensaje}`, 'success');
+                
+                // Redirigir a la nueva vista
+                setTimeout(() => {
+                    window.location.href = `${window.location.origin}${window.location.pathname}?page=${nuevoTipoAcceso}`;
+                }, 1000);
+            } else {
+                mostrarToast(`❌ ${response.error}`, 'error');
+                cargarTipoAccesoActual();
+            }
+        })
+        .withFailureHandler(function(error) {
+            mostrarToast('❌ Error al cambiar vista', 'error');
+            console.log('Error:', error);
+            cargarTipoAccesoActual();
+        })
+        .cambiarTipoAcceso(emailUsuario, nuevoTipoAcceso);
+}
+// ⭐ Cargar tipo de acceso al iniciar
+window.addEventListener('DOMContentLoaded', function() {
+    cargarTipoAccesoActual();
+});
+
+
+
+</script>
+
+</body>
+
+
+</html>
