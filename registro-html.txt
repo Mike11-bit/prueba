@@ -412,8 +412,25 @@
     </div>
 
     <div class="navbar">
-        <a href="#">📊 Sistema de Gestión de Métricas</a>
-        <div style="color: white; font-size: 0.9rem;">v2.5.0 (PVE Support)</div>
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <a href="#" style="font-size: 1.3rem;">📊 Sistema de Gestión de Métricas</a>
+            <span
+                style="background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 4px; font-size: 0.8rem;">v2.5.0
+                (PVE Support)</span>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:8px;">
+            <select id="tipoAccesoSelect" class="tipo-acceso-select"
+                style="padding:6px 10px;border:1px solid #ddd;border-radius:4px;font-size:0.9rem;cursor:pointer;">
+                <option value="Registro">📝 Registro</option>
+                <option value="Audit">🔍 Audit</option>
+                <option value="OM">⚙️ OM</option>
+            </select>
+            <button onclick="cambiarTipoAccesoUsuario()" class="btn-cambiar-acceso"
+                style="padding:6px 16px;background:#3498db;color:white;border:none;border-radius:4px;cursor:pointer;font-size:0.9rem;font-weight:600;transition:all 0.3s ease;">
+                🔄 Cambiar
+            </button>
+        </div>
     </div>
 
     <div class="container">
@@ -2558,6 +2575,103 @@
         function actualizarLimites() { /* Ya manejado */ }
         function aplicarFiltrosSimulacion() { /* Pendiente */ }
         function limpiarFiltros() { /* Pendiente */ }
+
+
+        // ============================================================
+        // 🧭 NAVEGACIÓN
+        // ============================================================
+        function navegarAModulo() {
+            const modulo = document.getElementById('navModuloSelect').value;
+            if (!modulo) {
+                mostrarToast('⚠️ Seleccione un módulo primero', 'warning');
+                return;
+            }
+
+            mostrarLoading('Redirigiendo...');
+
+            google.script.run
+                .withSuccessHandler(function (url) {
+                    if (url) {
+                        const separator = url.includes('?') ? '&' : '?';
+                        window.top.location.href = url + separator + 'page=' + modulo;
+                    } else {
+                        ocultarLoading();
+                        mostrarToast('❌ Error al obtener URL', 'danger');
+                    }
+                })
+                .withFailureHandler(function (err) {
+                    ocultarLoading();
+                    mostrarToast('❌ Error de red: ' + err, 'danger');
+                })
+                .getUrl();
+        }
+        // ============================================================
+        // 🔄 CAMBIAR TIPO DE ACCESO
+        // ============================================================
+        function cambiarTipoAccesoUsuario() {
+            const select = document.getElementById('tipoAccesoSelect');
+            const statusSpan = document.getElementById('tipoAccesoStatus');
+
+            if (!select) {
+                console.error('❌ No se encontró el select de tipo de acceso');
+                mostrarToast('❌ Error: No se encontró el selector', 'danger');
+                return;
+            }
+
+            const tipoAcceso = select.value;
+            console.log('🔄 Cambiando tipo de acceso a:', tipoAcceso);
+
+            // Validar selección
+            if (!tipoAcceso || tipoAcceso === '') {
+                mostrarToast('⚠️ Por favor selecciona un tipo de acceso', 'warning');
+                return;
+            }
+
+            // Deshabilitar botón temporalmente
+            const boton = event.target;
+            if (boton && boton.tagName === 'BUTTON') {
+                boton.disabled = true;
+                boton.textContent = '⏳ Procesando...';
+            }
+
+            // Usar correo del usuario actual
+            const email = datosUsuario.correo || (document.getElementById('correoUsuario') ? document.getElementById('correoUsuario').textContent : '');
+
+            mostrarLoading(`Cambiando acceso a ${tipoAcceso}...`);
+
+            google.script.run
+                .withSuccessHandler(function (response) {
+                    ocultarLoading();
+
+                    if (response.success) {
+                        mostrarToast('✅ Tipo de acceso cambiado a: ' + tipoAcceso + '. Recargando...', 'success');
+
+                        setTimeout(function () {
+                            // Recargar para aplicar cambios
+                            google.script.run.withSuccessHandler(function (url) {
+                                if (url) window.top.location.href = url + '?page=' + tipoAcceso;
+                                else window.top.location.reload();
+                            }).getUrl();
+                        }, 1500);
+
+                    } else {
+                        mostrarToast('❌ Error: ' + response.error, 'danger');
+                        if (boton && boton.tagName === 'BUTTON') {
+                            boton.disabled = false;
+                            boton.textContent = '🔄 Cambiar';
+                        }
+                    }
+                })
+                .withFailureHandler(function (error) {
+                    ocultarLoading();
+                    if (boton && boton.tagName === 'BUTTON') {
+                        boton.disabled = false;
+                        boton.textContent = '🔄 Cambiar';
+                    }
+                    mostrarToast('❌ Error de conexión: ' + error.message, 'danger');
+                })
+                .cambiarTipoAcceso(email, tipoAcceso);
+        }
     </script>
 </body>
 
