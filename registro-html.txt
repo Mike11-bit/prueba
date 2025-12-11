@@ -1298,6 +1298,43 @@
             'Registro': { keys: 2, bonus: 4, additional: 3, decreased: 2 },
             'Registro_pisos': { keys: 6, bonus: 25, additional: 3, decreased: 4 }
         };
+        // ==========================================
+        // 🚀 CLIENT-SIDE CACHE & OPTIMIZATIONS
+        // ==========================================
+        const ClientCache = {
+            storage: window.sessionStorage,
+
+            get: function (key) {
+                const item = this.storage.getItem(key);
+                if (!item) return null;
+                try {
+                    const record = JSON.parse(item);
+                    if (new Date().getTime() > record.expiration) {
+                        this.storage.removeItem(key);
+                        return null;
+                    }
+                    console.log(`⚡ Cache Hit: ${key}`);
+                    return record.value;
+                } catch (e) { return null; }
+            },
+
+            set: function (key, value, minutes) {
+                const record = {
+                    value: value,
+                    expiration: new Date().getTime() + (minutes * 60 * 1000)
+                };
+                try {
+                    this.storage.setItem(key, JSON.stringify(record));
+                } catch (e) { console.error('Cache Full'); }
+            },
+
+            clear: function (prefix) {
+                Object.keys(this.storage).forEach(k => {
+                    if (k.startsWith(prefix)) this.storage.removeItem(k);
+                });
+            }
+        };
+
         window.simulacionMasivaActual = null; // Para exportación
 
         // Inicialización
@@ -1319,41 +1356,57 @@
             document.getElementById('tab-' + tab).classList.add('active');
         }
 
-        // Carga de Datos
+        // Carga de Datos (Optimizado con Cache)
         function cargarDatosIniciales() {
             mostrarLoading('Cargando datos del usuario...');
+
+            // Intentar cargar de caché local primero (5 min TTL para datos iniciales)
+            const cacheKey = 'init_data_user';
+            const cachedData = ClientCache.get(cacheKey);
+
+            if (cachedData) {
+                procesarDatosIniciales(cachedData);
+                return;
+            }
+
             google.script.run
                 .withSuccessHandler(function (response) {
-                    ocultarLoading();
                     if (response.success) {
-                        datosUsuario = response.usuario;
-                        lobsDisponibles = response.lobs;
-
-                        document.getElementById('nombreUsuario').textContent = datosUsuario.nombre;
-                        document.getElementById('correoUsuario').textContent = datosUsuario.correo;
-                        document.getElementById('rolUsuario').textContent = datosUsuario.rol;
-
-                        // Cargar LOBs en Registro
-                        const selectLob = document.getElementById('selectLob');
-                        selectLob.innerHTML = '<option value="">-- Seleccione LOB --</option>';
-                        lobsDisponibles.forEach(lob => selectLob.appendChild(new Option(lob, lob)));
-
-                        // Cargar LOBs en Simulación
-                        cargarLobsRegistradasEnSimulacion();
-
-                        // Cargar KPIs
-                        cargarKPIsDisponibles();
-
-                        // 🔥 CONFIGURAR UI SEGÚN ROL
-                        configurarUISegunRol();
-
-                        document.getElementById('mensajeCarga').style.display = 'none';
-                        document.getElementById('formRegistroContainer').style.display = 'block';
+                        ClientCache.set(cacheKey, response, 5); // Guardar en caché 5 min
+                        procesarDatosIniciales(response);
                     } else {
+                        ocultarLoading();
                         mostrarToast('❌ ' + response.error, 'danger');
                     }
                 })
                 .obtenerDatosParaFormularioRegistro();
+        }
+
+        function procesarDatosIniciales(response) {
+            ocultarLoading();
+            datosUsuario = response.usuario;
+            lobsDisponibles = response.lobs;
+
+            document.getElementById('nombreUsuario').textContent = datosUsuario.nombre;
+            document.getElementById('correoUsuario').textContent = datosUsuario.correo;
+            document.getElementById('rolUsuario').textContent = datosUsuario.rol;
+
+            // Cargar LOBs en Registro
+            const selectLob = document.getElementById('selectLob');
+            selectLob.innerHTML = '<option value="">-- Seleccione LOB --</option>';
+            lobsDisponibles.forEach(lob => selectLob.appendChild(new Option(lob, lob)));
+
+            // Cargar LOBs en Simulación
+            cargarLobsRegistradasEnSimulacion();
+
+            // Cargar KPIs
+            cargarKPIsDisponibles();
+
+            // 🔥 CONFIGURAR UI SEGÚN ROL
+            configurarUISegunRol();
+
+            document.getElementById('mensajeCarga').style.display = 'none';
+            document.getElementById('formRegistroContainer').style.display = 'block';
         }
 
         // 🔥 NUEVA: Configurar UI según rol
@@ -1413,8 +1466,11 @@
                 document.getElementById('mesTexto').textContent = mes;
                 document.getElementById('mesInfo').style.display = 'block';
 
-                // Cargar Config Previa
-                google.script.run.withSuccessHandler(function (config) {
+                // 1. Cargar Config Previa (Cache key: conf_LOB)
+                const cacheKeyConfig = `conf_${lob.replace(/\s+/g, '_')}`;
+                const cachedConfig = ClientCache.get(cacheKeyConfig);
+
+                const procesarConfig = (config) => {
                     if (config.encontrado) {
                         document.getElementById('salario').value = config.salario;
                         document.getElementById('porcentajeBono').value = config.porcentaje;
@@ -1431,17 +1487,44 @@
                         document.getElementById('porcentajeBono').value = '';
                         document.getElementById('pvePresupuesto').value = '';
                     }
-                }).obtenerSalarioPorLob(lob);
+                };
 
-                // Cargar Responsables y HC
-                google.script.run.withSuccessHandler(function (resp) {
-                    document.getElementById('accm').value = resp.accm || '';
-                    document.getElementById('om').value = (datosUsuario.rol === 'OM') ? datosUsuario.nombre : (resp.om || '');
-                }).obtenerResponsablesPorLob(lob);
+                if (cachedConfig) {
+                    procesarConfig(cachedConfig);
+                } else {
+                    google.script.run.withSuccessHandler(function (config) {
+                        ClientCache.set(cacheKeyConfig, config, 10); // Cache 10 min
+                        procesarConfig(config);
+                    }).obtenerSalarioPorLob(lob);
+                }
 
-                google.script.run.withSuccessHandler(function (count) {
-                    document.getElementById('totalAgentes').textContent = count;
-                }).contarAgentesPorLob(lob);
+                // 2. Cargar Responsables (Cache key: resp_LOB)
+                const cacheKeyResp = `resp_${lob.replace(/\s+/g, '_')}`;
+                const cachedResp = ClientCache.get(cacheKeyResp);
+
+                if (cachedResp) {
+                    document.getElementById('accm').value = cachedResp.accm || '';
+                    document.getElementById('om').value = (datosUsuario.rol === 'OM') ? datosUsuario.nombre : (cachedResp.om || '');
+                } else {
+                    google.script.run.withSuccessHandler(function (resp) {
+                        ClientCache.set(cacheKeyResp, resp, 60); // Cache 1 hora
+                        document.getElementById('accm').value = resp.accm || '';
+                        document.getElementById('om').value = (datosUsuario.rol === 'OM') ? datosUsuario.nombre : (resp.om || '');
+                    }).obtenerResponsablesPorLob(lob);
+                }
+
+                // 3. Cargar HC (Cache key: hc_LOB)
+                const cacheKeyHC = `hc_${lob.replace(/\s+/g, '_')}`;
+                const cachedHC = ClientCache.get(cacheKeyHC);
+
+                if (cachedHC) {
+                    document.getElementById('totalAgentes').textContent = cachedHC;
+                } else {
+                    google.script.run.withSuccessHandler(function (count) {
+                        ClientCache.set(cacheKeyHC, count, 60); // Cache 1 hora
+                        document.getElementById('totalAgentes').textContent = count;
+                    }).contarAgentesPorLob(lob);
+                }
 
                 mostrarSeccionesConBotones();
             });
@@ -1678,7 +1761,7 @@
                     ocultarLoading();
                     mostrarToast('❌ Error: ' + err, 'danger');
                 })
-                .obtenerLobsPorRegion(region);
+                .obtenerLobsRegistradasPorRegion(region);
         }
 
         // Mantener compatibilidad con el nombre antiguo
@@ -2187,18 +2270,7 @@
                 destinatarios: destinatariosFinales,
                 asunto: asunto,
                 mensaje: mensaje,
-                simulacion: {
-                    lobsProcesadas: data.lobsProcesadas,
-                    totalAgentes: data.resumen?.totalAgentes || 0,
-                    inversionTotal: data.resumen?.inversionTotal || 0,
-                    region: data.region || data.om || 'N/A',
-                    resultados: data.resultados.map(r => ({
-                        lob: r.lob,
-                        hc: r.hc,
-                        totalLOB: r.totalLOB,
-                        eficiencia: r.eficiencia
-                    }))
-                }
+                simulacion: window.simulacionMasivaActual
             };
 
             google.script.run
