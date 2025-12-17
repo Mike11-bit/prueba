@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<!--
+=====================================================
+Index.html - Dashboard de Métricas
+=====================================================
+Descripción: Frontend del dashboard que muestra métricas
+agrupadas por WOW (semana), MOM (mes), DOD (día), además
+de un ranking de agentes y análisis de mejores tiempos.
+
+Pestañas:
+- WOW: Métricas agrupadas por semana
+- MOM: Métricas agrupadas por mes
+- DOD: Métricas agrupadas por día
+- OTROS: Ranking de agentes (carga con botón)
+- ANÁLISIS: Mejores días y horas (carga con botón)
+
+Librerías:
+- Chart.js: Para gráficos de barras y líneas combinados
+=====================================================
+-->
+<html>
+
+<head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Métricas</title>
+    <!-- Librería Chart.js para gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        /* ============================================
+           ESTILOS GLOBALES
+           ============================================ */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        /* Contenedor principal */
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        /* ============================================
+           HEADER
+           ============================================ */
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        /* ============================================
+           SECCIÓN DE FILTROS
+           ============================================ */
+        .filters-section {
+            background: #f8f9fa;
+            padding: 25px;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .filters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .filter-group label {
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #333;
+            font-size: 0.9em;
+        }
+
+        .filter-group select {
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1em;
+        }
+
+        .filters-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        /* ============================================
+           BOTONES
+           ============================================ */
+        .btn {
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .btn-clear {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .btn-apply {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        /* ============================================
+           TARJETAS DE MÉTRICAS
+           ============================================ */
+        .metrics-section {
+            padding: 25px;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .metric-card {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .metric-card h3 {
+            font-size: 2.5em;
+            font-weight: 700;
+        }
+
+        /* ============================================
+           PESTAÑAS (TABS)
+           ============================================ */
+        .tabs {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 2px solid #ddd;
+            overflow-x: auto;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 15px 20px;
+            text-align: center;
+            cursor: pointer;
+            background: #f8f9fa;
+            border: none;
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            min-width: 140px;
+        }
+
+        .tab.active {
+            background: white;
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 30px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* ============================================
+           ACORDEONES (DETAILS/SUMMARY)
+           ============================================ */
+        details {
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: white;
+        }
+
+        summary {
+            background: #f1f2f6;
+            padding: 15px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 1.1em;
+            list-style: none;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        summary::-webkit-details-marker {
+            display: none;
+        }
+
+        summary:after {
+            content: '+';
+            font-size: 1.5em;
+            color: #667eea;
+        }
+
+        details[open] summary:after {
+            content: '−';
+        }
+
+        .details-content {
+            padding: 20px;
+        }
+
+        /* ============================================
+           GRÁFICOS
+           ============================================ */
+        .chart-wrapper {
+            position: relative;
+            height: 500px;
+            width: 100%;
+            margin-bottom: 30px;
+        }
+
+        /* ============================================
+           TABLAS
+           ============================================ */
+        .table-container {
+            overflow-x: auto;
+            margin-top: 20px;
+        }
+
+        table {
+            border-collapse: collapse;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            width: 100%;
+        }
+
+        thead {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        th,
+        td {
+            padding: 12px 15px;
+            border: 1px solid #e0e0e0;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        td:first-child {
+            font-weight: 700;
+            background: #f8f9fa;
+            color: #667eea;
+            text-align: left;
+            position: sticky;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* ============================================
+           LOADING OVERLAY
+           ============================================ */
+        #global-loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.9);
+            z-index: 9999;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px;
+        }
+
+        @keyframes spin {
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* ============================================
+           BOTONES DE CARGA BAJO DEMANDA
+           ============================================ */
+        .load-section {
+            text-align: center;
+            padding: 50px 20px;
+        }
+
+        .load-section h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .load-section p {
+            color: #666;
+            margin-bottom: 25px;
+        }
+
+        .btn-load {
+            background: linear-gradient(135deg, #27ae60, #2ecc71);
+            color: white;
+            font-size: 1.2em;
+            padding: 15px 40px;
+            border-radius: 10px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-load:hover {
+            transform: scale(1.05);
+            box-shadow: 0 10px 30px rgba(39, 174, 96, 0.4);
+        }
+
+        .btn-load:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .inline-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #fff;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+
+        /* ============================================
+           TARJETAS DE ANÁLISIS
+           ============================================ */
+        .analysis-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        .analysis-card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            border-top: 5px solid #667eea;
+        }
+
+        .analysis-card.day {
+            border-top-color: #27ae60;
+        }
+
+        .analysis-card.hour {
+            border-top-color: #f39c12;
+        }
+
+        .analysis-card.combo {
+            border-top-color: #9b59b6;
+        }
+
+        .analysis-icon {
+            font-size: 3em;
+            margin-bottom: 15px;
+        }
+
+        .analysis-label {
+            color: #666;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+
+        .analysis-value {
+            font-size: 2em;
+            font-weight: 700;
+            color: #2c3e50;
+        }
+
+        .analysis-count {
+            color: #667eea;
+            font-size: 1.1em;
+            font-weight: 600;
+            margin-top: 5px;
+        }
+
+        /* Tablas de detalle */
+        .detail-table {
+            margin-top: 30px;
+        }
+
+        .detail-table h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- ============================================
+         OVERLAY DE CARGA
+         ============================================ -->
+    <div id="global-loading">
+        <div class="spinner"></div>
+        <h2 style="color:#667eea">Cargando...</h2>
+    </div>
+
+    <!-- ============================================
+         CONTENEDOR PRINCIPAL
+         ============================================ -->
+    <div class="container">
+        <!-- HEADER -->
+        <div class="header">
+            <h1>📊 Dashboard de Métricas</h1>
+            <p>Análisis WOW, MOM, DOD + Ranking + Tiempos</p>
+        </div>
+
+        <!-- SECCIÓN DE FILTROS -->
+        <div class="filters-section">
+            <div class="filters-grid">
+                <div class="filter-group">
+                    <label>Month (T)</label>
+                    <select id="filterBegin">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Country (I)</label>
+                    <select id="filterI">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Stage (K)</label>
+                    <select id="filterK">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Outreach Type (L)</label>
+                    <select id="filterOutreachType">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Status (N)</label>
+                    <select id="filterStatus">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Supervisor (V)</label>
+                    <select id="filterSupervisor">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Agent (W)</label>
+                    <select id="filterAgent">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Case Owner (J)</label>
+                    <select id="filterCaseOwner">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+            </div>
+            <div class="filters-actions">
+                <button class="btn btn-clear" onclick="limpiarFiltros()">🧹 Limpiar</button>
+                <button class="btn btn-apply" onclick="aplicarFiltros()">🔍 Aplicar</button>
+            </div>
+        </div>
+
+        <!-- TARJETAS DE MÉTRICAS -->
+        <div class="metrics-section">
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <h3 id="metricFT">-</h3>
+                    <p>FT Cases</p>
+                </div>
+                <div class="metric-card">
+                    <h3 id="metricCases">-</h3>
+                    <p>Total Cases</p>
+                </div>
+                <div class="metric-card">
+                    <h3 id="metricCT">-</h3>
+                    <p>CT Average</p>
+                </div>
+                <div class="metric-card">
+                    <h3 id="metricCR">-</h3>
+                    <p>CR Average</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- NAVEGACIÓN POR PESTAÑAS -->
+        <div class="tabs">
+            <button class="tab active" onclick="cambiarTab('wow')">WOW</button>
+            <button class="tab" onclick="cambiarTab('mom')">MOM</button>
+            <button class="tab" onclick="cambiarTab('dod')">DOD</button>
+            <button class="tab" onclick="cambiarTab('ranking')">🏆 OTROS</button>
+            <button class="tab" onclick="cambiarTab('analisis')">📈 ANÁLISIS</button>
+        </div>
+
+        <!-- CONTENIDO DE CADA PESTAÑA -->
+        <div id="wow" class="tab-content active"></div>
+        <div id="mom" class="tab-content"></div>
+        <div id="dod" class="tab-content"></div>
+        <div id="ranking" class="tab-content"></div>
+        <div id="analisis" class="tab-content"></div>
+    </div>
+
+    <!-- ============================================
+         JAVASCRIPT
+         ============================================ -->
+    <script>
+        // ============================================
+        // VARIABLES GLOBALES
+        // ============================================
+        var charts = {};           // Almacena instancias de Chart.js
+        var dashboardData = null;  // Datos principales (WOW, MOM, DOD)
+        var rankingData = null;    // Datos de ranking (cargados con botón)
+        var analisisData = null;   // Datos de análisis (cargados con botón)
+
+        // ============================================
+        // INICIALIZACIÓN
+        // ============================================
+        /**
+         * Se ejecuta cuando la página termina de cargar
+         * Carga los filtros y luego aplica filtros para mostrar datos
+         */
+        window.onload = function () {
+            cargarFiltros();
+            aplicarFiltros();
+        };
+
+        // ============================================
+        // FUNCIONES DE FILTROS
+        // ============================================
+        /**
+         * Carga los valores únicos en cada selector de filtro
+         */
+        function cargarFiltros() {
+            // Mapeo de columna a ID del elemento select
+            var map = {
+                'T': 'filterBegin',
+                'I': 'filterI',
+                'K': 'filterK',
+                'L': 'filterOutreachType',
+                'N': 'filterStatus',
+                'V': 'filterSupervisor',
+                'W': 'filterAgent',
+                'J': 'filterCaseOwner'
+            };
+
+            // Cargar cada filtro de forma asíncrona
+            for (var col in map) {
+                (function (c, id) {
+                    google.script.run.withSuccessHandler(function (arr) {
+                        var s = document.getElementById(id);
+                        if (!s) return;
+                        // Eliminar opciones anteriores excepto "Todos"
+                        while (s.options.length > 1) s.remove(1);
+                        // Agregar nuevas opciones
+                        arr.forEach(function (v) {
+                            var o = document.createElement('option');
+                            o.value = v;
+                            o.text = v;
+                            s.appendChild(o);
+                        });
+                    }).obtenerValoresUnicos(c);
+                })(col, map[col]);
+            }
+        }
+
+        /**
+         * Limpia todos los filtros y recarga los datos
+         */
+        function limpiarFiltros() {
+            document.querySelectorAll('.filters-grid select').forEach(s => s.value = "");
+            rankingData = null;
+            analisisData = null;
+            aplicarFiltros();
+        }
+
+        /**
+         * Recopila los valores de todos los filtros
+         * @returns {Object} Objeto con todos los filtros
+         */
+        function getFiltros() {
+            return {
+                colI: document.getElementById('filterI').value,
+                colK: document.getElementById('filterK').value,
+                outreachType: document.getElementById('filterOutreachType').value,
+                supervisor: document.getElementById('filterSupervisor').value,
+                agent: document.getElementById('filterAgent').value,
+                caseOwner: document.getElementById('filterCaseOwner').value,
+                status: document.getElementById('filterStatus').value,
+                begin: document.getElementById('filterBegin').value
+            };
+        }
+
+        /**
+         * Aplica los filtros y carga los datos principales del dashboard
+         */
+        function aplicarFiltros() {
+            // Mostrar overlay de carga
+            document.getElementById('global-loading').style.display = 'flex';
+            // Resetear datos de carga bajo demanda
+            rankingData = null;
+            analisisData = null;
+
+            // Llamar al backend
+            google.script.run
+                .withSuccessHandler(function (data) {
+                    document.getElementById('global-loading').style.display = 'none';
+                    if (data && data.status === 'error') {
+                        alert('Error: ' + data.message);
+                    } else {
+                        dashboardData = data;
+                        renderDashboard();
+                    }
+                })
+                .withFailureHandler(function (err) {
+                    document.getElementById('global-loading').style.display = 'none';
+                    alert('Error: ' + err);
+                })
+                .obtenerDashboardCompleto(getFiltros());
+        }
+
+        // ============================================
+        // FUNCIONES DE RENDERIZADO
+        // ============================================
+        /**
+         * Actualiza las tarjetas de métricas y renderiza la pestaña activa
+         */
+        function renderDashboard() {
+            if (!dashboardData) return;
+
+            // Actualizar tarjetas de métricas
+            var m = dashboardData.metrics;
+            document.getElementById('metricFT').innerText = m.ft;
+            document.getElementById('metricCases').innerText = m.cases;
+            document.getElementById('metricCT').innerText = (m.ct * 100).toFixed(2) + '%';
+            document.getElementById('metricCR').innerText = (m.cr * 100).toFixed(2) + '%';
+
+            // Renderizar pestaña activa
+            renderCurrentTab();
+        }
+
+        /**
+         * Renderiza el contenido de la pestaña actualmente seleccionada
+         */
+        function renderCurrentTab() {
+            var activeTabEl = document.querySelector('.tab.active');
+            if (!activeTabEl) return;
+
+            // Obtener ID de la pestaña activa
+            var id = activeTabEl.getAttribute('onclick').match(/'([^']+)'/)[1];
+            var container = document.getElementById(id);
+            container.innerHTML = '';
+
+            if (!dashboardData) return;
+
+            // Renderizar según la pestaña
+            if (id === 'ranking') {
+                renderRankingTab(container);
+            } else if (id === 'analisis') {
+                renderAnalisisTab(container);
+            } else {
+                // WOW, MOM, DOD
+                if (!dashboardData[id]) return;
+                renderMainView(id, dashboardData[id].main, container);
+                renderBreakdownAccordion(dashboardData.wow.breakdown, container);
+            }
+        }
+
+        // ============================================
+        // PESTAÑA RANKING (OTROS)
+        // ============================================
+        /**
+         * Renderiza la pestaña de ranking con botón de carga
+         */
+        function renderRankingTab(container) {
+            if (rankingData) {
+                renderRankingTable(rankingData, container);
+                return;
+            }
+            container.innerHTML = `
+                <div class="load-section">
+                    <h2>🏆 Ranking de Agentes</h2>
+                    <p>Este análisis se carga por separado para que el dashboard principal sea más rápido.</p>
+                    <button class="btn-load" id="btnRanking" onclick="cargarRanking()">📊 Cargar Ranking</button>
+                </div>`;
+        }
+
+        /**
+         * Carga los datos del ranking desde el backend
+         */
+        function cargarRanking() {
+            var btn = document.getElementById('btnRanking');
+            btn.disabled = true;
+            btn.innerHTML = 'Cargando...<span class="inline-spinner"></span>';
+
+            google.script.run
+                .withSuccessHandler(function (data) {
+                    if (data && data.status === 'error') {
+                        alert('Error: ' + data.message);
+                        btn.disabled = false;
+                        btn.innerHTML = '📊 Cargar Ranking';
+                    } else {
+                        rankingData = data.ranking;
+                        renderCurrentTab();
+                    }
+                })
+                .withFailureHandler(function (err) {
+                    alert('Error: ' + err);
+                    btn.disabled = false;
+                    btn.innerHTML = '📊 Cargar Ranking';
+                })
+                .obtenerRanking(getFiltros());
+        }
+
+        /**
+         * Renderiza la tabla de ranking de agentes
+         */
+        function renderRankingTable(data, container) {
+            if (!data || data.length === 0) {
+                container.innerHTML = '<p style="text-align:center;padding:50px;color:#666;">No hay datos.</p>';
+                return;
+            }
+
+            // Ordenar por FT Cases (mayor a menor)
+            data.sort((a, b) => b.ft - a.ft);
+
+            var html = '<h2 style="color:#667eea;text-align:center;margin-bottom:25px;">🏆 Top Performers</h2>';
+            html += '<div class="table-container"><table><thead><tr><th>Rank</th><th>Agente</th><th>FT ⭐</th><th>Cases</th><th>CT%</th><th>CR%</th></tr></thead><tbody>';
+
+            data.forEach((d, i) => {
+                var r = i + 1;
+                var m = r === 1 ? '🥇' : r === 2 ? '🥈' : r === 3 ? '🥉' : '';
+                var s = r <= 3 ? 'background:#fff9db;font-weight:bold;' : '';
+                html += `<tr style="${s}"><td>${r} ${m}</td><td style="text-align:left;">${d.label}</td><td style="color:#667eea;font-weight:bold;">${d.ft}</td><td>${d.cases}</td><td>${(d.ct * 100).toFixed(2)}%</td><td>${(d.cr * 100).toFixed(2)}%</td></tr>`;
+            });
+
+            html += '</tbody></table></div>';
+            container.innerHTML = html;
+        }
+
+        // ============================================
+        // PESTAÑA ANÁLISIS
+        // ============================================
+        /**
+         * Renderiza la pestaña de análisis con botón de carga
+         */
+        function renderAnalisisTab(container) {
+            if (analisisData) {
+                renderAnalisisDetalle(analisisData, container);
+                return;
+            }
+            container.innerHTML = `
+                <div class="load-section">
+                    <h2>📈 Análisis de Tiempos</h2>
+                    <p>Analiza el mejor día, hora y momento basado en columnas AA y AG.</p>
+                    <button class="btn-load" id="btnAnalisis" onclick="cargarAnalisis()">⏰ Cargar Análisis</button>
+                </div>`;
+        }
+
+        /**
+         * Carga los datos de análisis desde el backend
+         */
+        function cargarAnalisis() {
+            var btn = document.getElementById('btnAnalisis');
+            btn.disabled = true;
+            btn.innerHTML = 'Cargando...<span class="inline-spinner"></span>';
+
+            google.script.run
+                .withSuccessHandler(function (data) {
+                    if (data && data.status === 'error') {
+                        alert('Error: ' + data.message);
+                        btn.disabled = false;
+                        btn.innerHTML = '⏰ Cargar Análisis';
+                    } else {
+                        analisisData = data.timeAnalysis;
+                        renderCurrentTab();
+                    }
+                })
+                .withFailureHandler(function (err) {
+                    alert('Error: ' + err);
+                    btn.disabled = false;
+                    btn.innerHTML = '⏰ Cargar Análisis';
+                })
+                .obtenerAnalisisTiempos(getFiltros());
+        }
+
+        /**
+         * Renderiza el detalle del análisis de tiempos
+         */
+        function renderAnalisisDetalle(ta, container) {
+            var html = '<h2 style="color:#667eea;text-align:center;margin-bottom:25px;">📈 Análisis de Mejores Tiempos</h2>';
+
+            // Tarjetas resumen
+            html += '<div class="analysis-grid">';
+            html += `<div class="analysis-card day"><div class="analysis-icon">📅</div><div class="analysis-label">Mejor Día</div><div class="analysis-value">${ta.bestDay.label}</div><div class="analysis-count">${ta.bestDay.count} casos</div></div>`;
+            html += `<div class="analysis-card hour"><div class="analysis-icon">⏰</div><div class="analysis-label">Mejor Hora</div><div class="analysis-value">${ta.bestHour.label}</div><div class="analysis-count">${ta.bestHour.count} casos</div></div>`;
+            html += `<div class="analysis-card combo"><div class="analysis-icon">🎯</div><div class="analysis-label">Mejor Momento</div><div class="analysis-value">${ta.bestTime.label}</div><div class="analysis-count">${ta.bestTime.count} casos</div></div>`;
+            html += '</div>';
+
+            // Tabla de distribución por día
+            if (ta.allDays && ta.allDays.length > 0) {
+                html += '<div class="detail-table"><h3>📅 Distribución por Día</h3><div class="table-container"><table><thead><tr><th>Día</th><th>Casos</th></tr></thead><tbody>';
+                ta.allDays.forEach(d => {
+                    html += `<tr><td style="text-align:left;">${d.label}</td><td>${d.count}</td></tr>`;
+                });
+                html += '</tbody></table></div></div>';
+            }
+
+            // Tabla de distribución por hora
+            if (ta.allHours && ta.allHours.length > 0) {
+                html += '<div class="detail-table"><h3>⏰ Distribución por Hora</h3><div class="table-container"><table><thead><tr><th>Hora</th><th>Casos</th></tr></thead><tbody>';
+                ta.allHours.forEach(h => {
+                    html += `<tr><td>${h.label}</td><td>${h.count}</td></tr>`;
+                });
+                html += '</tbody></table></div></div>';
+            }
+
+            container.innerHTML = html;
+        }
+
+        // ============================================
+        // VISTA PRINCIPAL (WOW, MOM, DOD)
+        // ============================================
+        /**
+         * Renderiza la vista principal con gráfico y tabla
+         */
+        function renderMainView(type, data, container) {
+            if (!data || data.length === 0) {
+                container.innerHTML += '<p style="text-align:center;">No hay datos.</p>';
+                return;
+            }
+
+            // Crear acordeón para gráfico y tabla
+            var det = document.createElement('details');
+            det.open = true;
+            var sum = document.createElement('summary');
+            sum.textContent = '📈 Gráfico & Tabla';
+            det.appendChild(sum);
+
+            var con = document.createElement('div');
+            con.className = 'details-content';
+            var cid = 'chart-' + type;
+            con.innerHTML = '<div class="chart-wrapper"><canvas id="' + cid + '"></canvas></div>';
+            renderHorizontalTable('Principal', data, con);
+            det.appendChild(con);
+            container.appendChild(det);
+
+            // Renderizar gráfico después de que el DOM esté listo
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    renderComboChart(cid, data);
+                });
+            });
+        }
+
+        /**
+         * Renderiza el acordeón de desgloses
+         */
+        function renderBreakdownAccordion(bd, container) {
+            var det = document.createElement('details');
+            var sum = document.createElement('summary');
+            sum.textContent = '📋 Desglose';
+            det.appendChild(sum);
+
+            var con = document.createElement('div');
+            con.className = 'details-content';
+
+            // Crear tabla para cada desglose
+            [
+                { key: 'I', title: 'Country' },
+                { key: 'K', title: 'Stage' },
+                { key: 'L', title: 'Outreach Type' },
+                { key: 'N', title: 'Status' }
+            ].forEach(it => {
+                var d = document.createElement('div');
+                d.style.marginBottom = '25px';
+                renderHorizontalTable('Columna ' + it.key + ' - ' + it.title, bd[it.key], d);
+                con.appendChild(d);
+            });
+
+            det.appendChild(con);
+            container.appendChild(det);
+        }
+
+        /**
+         * Renderiza una tabla horizontal (métricas como filas)
+         */
+        function renderHorizontalTable(title, data, container) {
+            if (!data || data.length === 0) {
+                container.innerHTML = '<p>No hay datos para: ' + title + '</p>';
+                return;
+            }
+
+            var h4 = document.createElement('h4');
+            h4.textContent = title;
+            h4.style.color = '#667eea';
+            h4.style.marginBottom = '8px';
+            container.appendChild(h4);
+
+            var div = document.createElement('div');
+            div.className = 'table-container';
+
+            // Crear tabla
+            var html = '<table><thead><tr><th>Metric</th>';
+            data.forEach(d => html += '<th>' + d.label + '</th>');
+            html += '</tr></thead><tbody>';
+
+            // Filas de métricas
+            [
+                { l: 'FT Cases', k: 'ft', f: v => v },
+                { l: 'Total Cases', k: 'cases', f: v => v },
+                { l: 'CT %', k: 'ct', f: v => (v * 100).toFixed(2) + '%' },
+                { l: 'CR %', k: 'cr', f: v => (v * 100).toFixed(2) + '%' }
+            ].forEach(r => {
+                html += '<tr><td><strong>' + r.l + '</strong></td>';
+                data.forEach(d => html += '<td>' + r.f(d[r.k]) + '</td>');
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+            div.innerHTML = html;
+            container.appendChild(div);
+        }
+
+        /**
+         * Renderiza un gráfico combinado (barras + líneas)
+         */
+        function renderComboChart(id, data) {
+            var c = document.getElementById(id);
+            if (!c) return;
+            var ctx = c.getContext('2d');
+
+            // Destruir gráfico anterior si existe
+            if (charts[id]) charts[id].destroy();
+
+            // Crear nuevo gráfico
+            charts[id] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.map(d => d.label),
+                    datasets: [
+                        // Barras para casos
+                        { label: 'FT Cases', data: data.map(d => d.ft), backgroundColor: 'rgba(102,126,234,0.7)', yAxisID: 'y' },
+                        { label: 'Total Cases', data: data.map(d => d.cases), backgroundColor: 'rgba(118,75,162,0.7)', yAxisID: 'y' },
+                        // Líneas para porcentajes
+                        { type: 'line', label: 'CT %', data: data.map(d => d.ct * 100), borderColor: '#ff9f43', borderWidth: 3, yAxisID: 'y1' },
+                        { type: 'line', label: 'CR %', data: data.map(d => d.cr * 100), borderColor: '#eb3b5a', borderWidth: 3, yAxisID: 'y1' }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { type: 'linear', position: 'left', title: { display: true, text: 'Cases' } },
+                        y1: { type: 'linear', position: 'right', title: { display: true, text: '%' }, grid: { drawOnChartArea: false }, ticks: { callback: v => v + '%' } }
+                    }
+                }
+            });
+        }
+
+        /**
+         * Cambia la pestaña activa
+         */
+        function cambiarTab(type) {
+            // Remover clase active de todas las pestañas
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+            // Activar pestaña seleccionada
+            var btn = document.querySelector(`button[onclick="cambiarTab('${type}')"]`);
+            if (btn) btn.classList.add('active');
+            document.getElementById(type).classList.add('active');
+
+            // Renderizar contenido
+            renderCurrentTab();
+        }
+    </script>
+</body>
+
+</html>

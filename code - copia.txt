@@ -1,0 +1,392 @@
+/**
+ * =====================================================
+ * Backend_Metricas.js - Google Apps Script
+ * =====================================================
+ * Dashboard de Métricas - Script de Backend
+ * 
+ * Descripción: Este script procesa datos de la hoja "Data",
+ * calcula métricas (FT Cases, Total Cases, CT%, CR%) y
+ * las agrupa por semana, mes y día.
+ * 
+ * Funciones principales:
+ * - obtenerDashboardCompleto: Carga principal (WOW, MOM, DOD)
+ * - obtenerRanking: Ranking de agentes (carga con botón)
+ * - obtenerAnalisisTiempos: Análisis de mejores días/horas
+ * 
+ * Columnas utilizadas:
+ * - A (0): Case Number
+ * - G (6): Date Assigned
+ * - I (8): Country
+ * - J (9): Case Owner
+ * - K (10): Stage
+ * - L (11): Outreach Type
+ * - N (13): Status
+ * - S (18): Week
+ * - T (19): Month
+ * - V (21): Supervisor
+ * - W (22): Agent
+ * - AA (26): Fecha del Viaje
+ * - AE (30): FT (1 o 0)
+ * - AG (32): Hora del Viaje
+ * - AH (33): CR
+ * - AI (34): CT
+ * =====================================================
+ */
+
+/**
+ * Punto de entrada de la Web App (GET Request)
+ * Esta función se ejecuta cuando el usuario accede a la URL del despliegue
+ * @returns {HtmlOutput} Página HTML del dashboard
+ */
+function doGet() {
+  return HtmlService.createHtmlOutputFromFile('Index')
+    .setTitle('1RJaSR1hT_TfJ836e6k84Swx9TRUskRpcG7isknQQDOw')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+/**
+ * Obtiene valores únicos de una columna para llenar los filtros dropdown
+ * @param {string} columna - Letra de la columna (I, J, K, L, N, T, V, W)
+ * @returns {Array} Lista de valores únicos ordenados
+ */
+function obtenerValoresUnicos(columna) {
+  try {
+    // Obtener referencia a la hoja "Data"
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('Data');
+    if (!sheet) return [];
+
+    // Mapear letra de columna a índice numérico (base 1 para getRange)
+    var columnIndex;
+    switch (columna) {
+      case 'I': columnIndex = 9; break;   // Country
+      case 'J': columnIndex = 10; break;  // Case Owner
+      case 'K': columnIndex = 11; break;  // Stage
+      case 'L': columnIndex = 12; break;  // Outreach Type
+      case 'N': columnIndex = 14; break;  // Status
+      case 'T': columnIndex = 20; break;  // Month
+      case 'V': columnIndex = 22; break;  // Supervisor
+      case 'W': columnIndex = 23; break;  // Agent
+      default: return [];
+    }
+
+    // Leer todos los valores de la columna
+    var ultimaFila = sheet.getLastRow();
+    var datos = sheet.getRange(2, columnIndex, ultimaFila - 1, 1).getValues();
+
+    // Usar Set para eliminar duplicados eficientemente
+    var valores = [];
+    var valoresSet = new Set();
+    for (var i = 0; i < datos.length; i++) {
+      var valor = datos[i][0];
+      // Formatear fechas a string estándar
+      if (valor instanceof Date) {
+        valor = Utilities.formatDate(valor, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      }
+      // Agregar solo valores únicos no vacíos
+      if (valor && valor.toString().trim() !== '' && !valoresSet.has(valor)) {
+        valoresSet.add(valor);
+        valores.push(valor);
+      }
+    }
+
+    // Ordenar alfabéticamente
+    valores.sort();
+    return valores;
+  } catch (e) {
+    Logger.log("Error en obtenerValoresUnicos: " + e);
+    return [];
+  }
+}
+
+/**
+ * FUNCIÓN PRINCIPAL: Obtiene datos para WOW, MOM, DOD
+ * Esta función NO incluye Ranking ni Análisis para que cargue más rápido
+ * @param {Object} filtros - Objeto con los filtros seleccionados
+ * @returns {Object} Datos del dashboard (métricas, WOW, MOM, DOD)
+ */
+function obtenerDashboardCompleto(filtros) {
+  try {
+    // Obtener referencia a la hoja "Data"
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('Data');
+    if (!sheet) return { status: 'error', message: 'Hoja Data no encontrada' };
+
+    // Leer TODOS los datos en una sola operación (optimización)
+    var ultimaFila = sheet.getLastRow();
+    var datos = sheet.getRange(2, 1, ultimaFila - 1, sheet.getLastColumn()).getValues();
+
+    // Aplicar filtros en memoria
+    var datosFiltrados = datos.filter(function (fila) {
+      return cumpleFiltrosGenerales(fila, filtros);
+    });
+
+    // Calcular métricas globales para las tarjetas superiores
+    var metrics = calcularKPIs(datosFiltrados);
+
+    // Agrupar datos por diferentes períodos
+    var wowData = agruparDatos(datosFiltrados, 18, true);  // Columna S (Week)
+    var momData = agruparDatos(datosFiltrados, 19, true);  // Columna T (Month)
+    var dodData = agruparDatos(datosFiltrados, 6, true);   // Columna G (Date)
+
+    // Retornar objeto con todos los datos
+    return {
+      status: 'success',
+      metrics: metrics,
+      wow: { main: wowData, breakdown: generarDesgloses(datosFiltrados) },
+      mom: { main: momData, breakdown: generarDesgloses(datosFiltrados) },
+      dod: { main: dodData, breakdown: generarDesgloses(datosFiltrados) }
+    };
+  } catch (e) {
+    return { status: 'error', message: e.toString() };
+  }
+}
+
+/**
+ * FUNCIÓN SEPARADA: Obtiene el ranking de agentes
+ * Se carga solo cuando el usuario hace clic en el botón
+ * @param {Object} filtros - Filtros actuales
+ * @returns {Object} Ranking de agentes ordenado por FT Cases
+ */
+function obtenerRanking(filtros) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('Data');
+    if (!sheet) return { status: 'error', message: 'Hoja Data no encontrada' };
+
+    var ultimaFila = sheet.getLastRow();
+    var datos = sheet.getRange(2, 1, ultimaFila - 1, sheet.getLastColumn()).getValues();
+
+    var datosFiltrados = datos.filter(function (fila) {
+      return cumpleFiltrosGenerales(fila, filtros);
+    });
+
+    // Agrupar por columna W (Agent) - índice 22
+    return { status: 'success', ranking: agruparDatos(datosFiltrados, 22, false) };
+  } catch (e) {
+    return { status: 'error', message: e.toString() };
+  }
+}
+
+/**
+ * FUNCIÓN SEPARADA: Análisis de mejores tiempos
+ * Analiza columnas AA (Fecha) y AG (Hora) para encontrar mejores momentos
+ * @param {Object} filtros - Filtros actuales
+ * @returns {Object} Mejores días, horas y combinaciones
+ */
+function obtenerAnalisisTiempos(filtros) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('Data');
+    if (!sheet) return { status: 'error', message: 'Hoja Data no encontrada' };
+
+    var ultimaFila = sheet.getLastRow();
+    var datos = sheet.getRange(2, 1, ultimaFila - 1, sheet.getLastColumn()).getValues();
+
+    var datosFiltrados = datos.filter(function (fila) {
+      return cumpleFiltrosGenerales(fila, filtros);
+    });
+
+    return { status: 'success', timeAnalysis: analizarMejoresTiempos(datosFiltrados) };
+  } catch (e) {
+    return { status: 'error', message: e.toString() };
+  }
+}
+
+/**
+ * Analiza los mejores días y horas usando columnas AA y AG
+ * @param {Array} datos - Datos filtrados
+ * @returns {Object} Mejor día, hora, combinación y listas completas
+ */
+function analizarMejoresTiempos(datos) {
+  var dias = {};       // Conteo por día de la semana
+  var horas = {};      // Conteo por hora
+  var diaHora = {};    // Conteo por combinación día+hora
+  var diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+
+  datos.forEach(function (fila) {
+    if (!fila[0]) return;
+
+    // Columna AA (índice 26) - Fecha del Viaje
+    var fechaRaw = fila[26];
+    var diaNombre = 'N/A';
+
+    // Convertir fecha a nombre del día
+    if (fechaRaw instanceof Date) {
+      diaNombre = diasSemana[fechaRaw.getDay()];
+    } else if (typeof fechaRaw === 'string' && fechaRaw.trim() !== '') {
+      var d = new Date(fechaRaw);
+      if (!isNaN(d.getTime())) {
+        diaNombre = diasSemana[d.getDay()];
+      }
+    }
+
+    if (diaNombre !== 'N/A') {
+      dias[diaNombre] = (dias[diaNombre] || 0) + 1;
+
+      // Columna AG (índice 32) - Hora del Viaje
+      var horaRaw = fila[32];
+      var horaNum = -1;
+
+      // Convertir diferentes formatos de hora a número 0-23
+      if (horaRaw instanceof Date) {
+        horaNum = horaRaw.getHours();
+      } else if (typeof horaRaw === 'number') {
+        if (horaRaw >= 0 && horaRaw < 1) {
+          // Formato Excel: fracción de día (0.5 = 12:00)
+          horaNum = Math.floor(horaRaw * 24);
+        } else if (horaRaw >= 0 && horaRaw <= 23) {
+          horaNum = Math.floor(horaRaw);
+        }
+      } else if (typeof horaRaw === 'string' && horaRaw.includes(':')) {
+        horaNum = parseInt(horaRaw.split(':')[0]);
+      }
+
+      // Formatear hora: 0 = "00:00", 12 = "12:00", etc.
+      if (horaNum >= 0 && horaNum <= 23) {
+        var horaStr = (horaNum < 10 ? '0' + horaNum : horaNum) + ':00';
+        horas[horaStr] = (horas[horaStr] || 0) + 1;
+        var keyDH = diaNombre + ' ' + horaStr;
+        diaHora[keyDH] = (diaHora[keyDH] || 0) + 1;
+      }
+    }
+  });
+
+  // Función auxiliar para encontrar el máximo
+  function getMax(obj) {
+    var maxKey = '-'; var maxVal = 0;
+    for (var k in obj) { if (obj[k] > maxVal) { maxVal = obj[k]; maxKey = k; } }
+    return { label: maxKey, count: maxVal };
+  }
+
+  // Función auxiliar para convertir objeto a array ordenado
+  function toArray(obj) {
+    return Object.keys(obj).map(function (k) { return { label: k, count: obj[k] }; })
+      .sort(function (a, b) { return b.count - a.count; });
+  }
+
+  return {
+    bestDay: getMax(dias),      // Día con más casos
+    bestHour: getMax(horas),    // Hora con más casos
+    bestTime: getMax(diaHora),  // Combinación día+hora con más casos
+    allDays: toArray(dias),     // Todos los días ordenados
+    allHours: toArray(horas)    // Todas las horas ordenadas
+  };
+}
+
+/**
+ * Genera los desgloses por columnas I, K, L, N
+ * @param {Array} datosFiltrados - Datos ya filtrados
+ * @returns {Object} Desgloses por cada columna
+ */
+function generarDesgloses(datosFiltrados) {
+  return {
+    I: agruparDatos(datosFiltrados, 8, false),   // Country
+    K: agruparDatos(datosFiltrados, 10, false),  // Stage
+    L: agruparDatos(datosFiltrados, 11, false),  // Outreach Type
+    N: agruparDatos(datosFiltrados, 13, false)   // Status
+  };
+}
+
+/**
+ * Calcula los KPIs globales para las tarjetas superiores
+ * @param {Array} datos - Datos filtrados
+ * @returns {Object} FT, Cases, CT promedio, CR promedio
+ */
+function calcularKPIs(datos) {
+  var ftCases = 0, countCases = 0, sumAI = 0, countAI = 0, sumAH = 0, countAH = 0;
+
+  for (var i = 0; i < datos.length; i++) {
+    var fila = datos[i];
+    // Solo procesar filas con Case Number válido
+    if (fila[0] && fila[0].toString().trim() !== '') {
+      countCases++;
+      // FT Cases: Columna AE (índice 30) = 1
+      if (fila[30] == 1 || fila[30] == '1') ftCases++;
+      // CT: Columna AI (índice 34)
+      if (fila[34] !== null && fila[34] !== '' && !isNaN(fila[34])) { sumAI += Number(fila[34]); countAI++; }
+      // CR: Columna AH (índice 33)
+      if (fila[33] !== null && fila[33] !== '' && !isNaN(fila[33])) { sumAH += Number(fila[33]); countAH++; }
+    }
+  }
+
+  return {
+    ft: ftCases,
+    cases: countCases,
+    ct: countAI > 0 ? sumAI / countAI : 0,
+    cr: countAH > 0 ? sumAH / countAH : 0
+  };
+}
+
+/**
+ * Agrupa datos por una columna específica y calcula métricas por grupo
+ * @param {Array} datos - Datos a agrupar
+ * @param {number} indiceAgrupacion - Índice de la columna para agrupar
+ * @param {boolean} esFecha - Si true, formatea como fecha
+ * @returns {Array} Array de grupos con métricas
+ */
+function agruparDatos(datos, indiceAgrupacion, esFecha) {
+  var grupos = {};
+
+  datos.forEach(function (fila) {
+    if (!fila[0]) return;
+
+    // Obtener clave de agrupación
+    var llave = fila[indiceAgrupacion];
+    if (esFecha && llave instanceof Date) {
+      llave = Utilities.formatDate(llave, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    }
+    var keyStr = (llave && llave.toString().trim() !== '') ? llave.toString() : 'N/A';
+
+    // Inicializar grupo si no existe
+    if (!grupos[keyStr]) {
+      grupos[keyStr] = { label: keyStr, ft: 0, cases: 0, ctSum: 0, ctCount: 0, crSum: 0, crCount: 0 };
+    }
+
+    // Acumular métricas del grupo
+    var g = grupos[keyStr];
+    g.cases++;
+    if (fila[30] == 1 || fila[30] == '1') g.ft++;
+    if (fila[34] !== null && fila[34] !== '' && !isNaN(fila[34])) { g.ctSum += Number(fila[34]); g.ctCount++; }
+    if (fila[33] !== null && fila[33] !== '' && !isNaN(fila[33])) { g.crSum += Number(fila[33]); g.crCount++; }
+  });
+
+  // Convertir a array y calcular promedios
+  return Object.keys(grupos).map(function (k) {
+    var g = grupos[k];
+    return {
+      label: g.label,
+      ft: g.ft,
+      cases: g.cases,
+      ct: g.ctCount > 0 ? g.ctSum / g.ctCount : 0,
+      cr: g.crCount > 0 ? g.crSum / g.crCount : 0
+    };
+  }).sort(function (a, b) { return a.label > b.label ? 1 : -1; });
+}
+
+/**
+ * Verifica si una fila cumple con todos los filtros seleccionados
+ * @param {Array} fila - Fila de datos
+ * @param {Object} filtros - Objeto con los filtros
+ * @returns {boolean} true si la fila pasa todos los filtros
+ */
+function cumpleFiltrosGenerales(fila, filtros) {
+  // Verificar cada filtro - retorna false si no coincide
+  if (filtros.outreachType && filtros.outreachType !== '' && fila[11] != filtros.outreachType) return false;
+  if (filtros.caseOwner && filtros.caseOwner !== '' && fila[9] != filtros.caseOwner) return false;
+  if (filtros.status && filtros.status !== '' && fila[13] != filtros.status) return false;
+
+  // Filtro de mes con manejo de fechas
+  if (filtros.begin && filtros.begin !== '') {
+    var valT = fila[19];
+    if (valT instanceof Date) valT = Utilities.formatDate(valT, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    if (valT != filtros.begin) return false;
+  }
+
+  if (filtros.supervisor && filtros.supervisor !== '' && fila[21] != filtros.supervisor) return false;
+  if (filtros.agent && filtros.agent !== '' && fila[22] != filtros.agent) return false;
+  if (filtros.colI && filtros.colI !== '' && fila[8] != filtros.colI) return false;
+  if (filtros.colK && filtros.colK !== '' && fila[10] != filtros.colK) return false;
+
+  return true; // Pasa todos los filtros
+}
