@@ -1,0 +1,470 @@
+/**
+ * =====================================================
+ * Backend_Metricas.js - Google Apps Script
+ * =====================================================
+ * Dashboard de Métricas - Script de Backend
+ * 
+ * Descripción: Este script procesa datos de la hoja "Data",
+ * calcula métricas (FT Cases, Total Cases, CT%, CR%) y
+ * las agrupa por semana, mes y día.
+ * 
+ * Funciones principales:
+ * - obtenerDashboardCompleto: Carga principal (WOW, MOM, DOD)
+ * - obtenerRanking: Ranking de agentes (carga con botón)
+ * - obtenerAnalisisTiempos: Análisis de mejores días/horas
+ * 
+ * Columnas utilizadas:
+ * - A (0): Case Number
+ * - G (6): Date Assigned
+ * - I (8): Country
+ * - J (9): Case Owner
+ * - K (10): Stage
+ * - L (11): Outreach Type
+ * - N (13): Status
+ * - S (18): Week
+ * - T (19): Month
+ * - V (21): Supervisor
+ * - W (22): Agent
+ * - AA (26): Fecha del Viaje
+ * - AE (30): FT (1 o 0)
+ * - AG (32): Hora del Viaje
+ * - AH (33): CR
+ * - AI (34): CT
+ * =====================================================
+ */
+
+// NOMBRE DEL ARCHIVO DE CACHÉ EN DRIVE
+var CACHE_FILENAME = "dashboard_cache_metrics_v2.json";
+// ID DE LA CARPETA DONDE SE GUARDARÁ EL JSON
+var CACHE_FOLDER_ID = "1SrPxDlsXxd-ohwiYh1QSaQx8R60kdji3";
+
+/**
+ * Punto de entrada de la Web App (GET Request)
+ * Se optimiza leyendo el caché de Drive si existe, para una velocidad extrema.
+ */
+function doGet() {
+  var template = HtmlService.createTemplateFromFile('Index');
+  var payload = null;
+
+  try {
+    // 1. INTENTAR LEER DESDE CACHÉ (DRIVE) EN CARPETA ESPECÍFICA
+    var folder = DriveApp.getFolderById(CACHE_FOLDER_ID);
+    var files = folder.getFilesByName(CACHE_FILENAME);
+
+    if (files.hasNext()) {
+      var file = files.next();
+      var jsonContent = file.getBlob().getDataAsString();
+      payload = JSON.parse(jsonContent);
+      // Agregar flag para que el frontend sepa que es dato cached
+      payload.source = "DRIVE CACHE (FOLDER)";
+      Logger.log("Datos cargados desde caché de Drive");
+    }
+  } catch (e) {
+    Logger.log("Error leyendo caché de Drive: " + e);
+  }
+
+  // 2. FALLBACK: Si no hay caché, calcular en vivo (más lento)
+  if (!payload) {
+    Logger.log("No se encontró caché, calculando en vivo...");
+    payload = obtenerDashboardEnVivo();
+  }
+
+  // Pasar el payload a la plantilla
+  template.payload = JSON.stringify(payload);
+
+  return template.evaluate()
+    .setTitle('Dashboard Optimizado (Drive Cache)')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+/**
+ * FUNCIÓN TRIGGER: Actualiza el caché con DATOS CRUDOS en la carpeta específica.
+ * Ejecutar esto manualmente primero, y luego programar un activador por tiempo 
+ * (ej. cada 1 hora) para mantener los datos frescos.
+ */
+function actualizarCacheDrive() {
+  try {
+    Logger.log("Iniciando actualización de caché...");
+    
+    // 1. Obtener Filtros (Valores únicos)
+    var filtrosInit = {};
+    ['T', 'I', 'K', 'L', 'N', 'V', 'W', 'J'].forEach(function (col) {
+      filtrosInit[col] = obtenerValoresUnicos(col);
+    });
+
+    // 2. Obtener Datos Crudos
+    var rawData = obtenerDatosCrudos();
+    Logger.log("Datos crudos obtenidos: " + rawData.length + " filas");
+
+    var payload = {
+      filters: filtrosInit,
+      rawData: rawData,
+      timestamp: new Date().toString(),
+      source: "DRIVE CACHE (RAW)"
+    };
+
+    var jsonString = JSON.stringify(payload);
+    Logger.log("JSON generado, tamaño: " + (jsonString.length / 1024).toFixed(2) + " KB");
+
+    // ===== GUARDAR EN CARPETA ESPECÍFICA =====
+    var folder = DriveApp.getFolderById(CACHE_FOLDER_ID);
+    var files = folder.getFilesByName(CACHE_FILENAME);
+
+    if (files.hasNext()) {
+      // Actualizar archivo existente EN LA CARPETA
+      var file = files.next();
+      file.setContent(jsonString);
+      Logger.log("✅ Caché RAW actualizado en carpeta: " + folder.getName());
+      Logger.log("   Archivo ID: " + file.getId());
+    } else {
+      // Crear nuevo archivo EN LA CARPETA
+      var newFile = folder.createFile(CACHE_FILENAME, jsonString, MimeType.PLAIN_TEXT);
+      Logger.log("✅ Nuevo archivo de caché RAW creado en carpeta ID: " + CACHE_FOLDER_ID);
+      Logger.log("   Archivo ID: " + newFile.getId());
+    }
+    
+    Logger.log("✅ Caché actualizado exitosamente. Total filas: " + rawData.length);
+
+  } catch (e) {
+    Logger.log("❌ Error al actualizar caché: " + e.toString());
+    Logger.log("   Stack: " + e.stack);
+  }
+}
+
+/**
+ * Obtiene valores únicos de una columna para llenar los filtros dropdown
+ * @param {string} columna - Letra de la columna (I, J, K, L, N, T, V, W)
+ * @returns {Array} Lista de valores únicos ordenados
+ */
+function obtenerValoresUnicos(columna) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('Data');
+    if (!sheet) return [];
+
+    var columnIndex;
+    switch (columna) {
+      case 'I': columnIndex = 9; break;   // Country
+      case 'J': columnIndex = 10; break;  // Case Owner
+      case 'K': columnIndex = 11; break;  // Stage
+      case 'L': columnIndex = 12; break;  // Outreach Type
+      case 'N': columnIndex = 14; break;  // Status
+      case 'T': columnIndex = 20; break;  // Month
+      case 'V': columnIndex = 22; break;  // Supervisor
+      case 'W': columnIndex = 23; break;  // Agent
+      default: return [];
+    }
+
+    var ultimaFila = sheet.getLastRow();
+    var datos = sheet.getRange(2, columnIndex, ultimaFila - 1, 1).getValues();
+
+    var valores = [];
+    var valoresSet = new Set();
+    for (var i = 0; i < datos.length; i++) {
+      var valor = datos[i][0];
+      if (valor instanceof Date) {
+        valor = Utilities.formatDate(valor, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      }
+      if (valor && valor.toString().trim() !== '' && !valoresSet.has(valor)) {
+        valoresSet.add(valor);
+        valores.push(valor);
+      }
+    }
+
+    valores.sort();
+    return valores;
+  } catch (e) {
+    Logger.log("Error en obtenerValoresUnicos: " + e);
+    return [];
+  }
+}
+
+// Mapeo de índices de columnas (Base 0 para Arrays de JavaScript)
+var COLS = {
+  CASE: 0, DATE: 6, COUNTRY: 8, OWNER: 9, STAGE: 10, OUTREACH: 11, STATUS: 13,
+  WEEK: 18, MONTH: 19, SUP: 21, AGENT: 22, TRIP_DATE: 26, FT: 30, TRIP_HOUR: 32, CR: 33, CT: 34
+};
+
+/**
+ * Obtiene TODOS los datos crudos de la hoja para procesamiento en el cliente.
+ */
+function obtenerDatosCrudos() {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('Data');
+    if (!sheet) return [];
+
+    var ultimaFila = sheet.getLastRow();
+    var range = sheet.getRange(2, 1, ultimaFila - 1, sheet.getLastColumn());
+    var values = range.getValues();
+
+    return values.map(function (row) {
+      return [
+        row[COLS.CASE],
+        formatearFecha(row[COLS.DATE]),
+        row[COLS.COUNTRY],
+        row[COLS.OWNER],
+        row[COLS.STAGE],
+        row[COLS.OUTREACH],
+        row[COLS.STATUS],
+        row[COLS.WEEK],
+        formatearFecha(row[COLS.MONTH]),
+        row[COLS.SUP],
+        row[COLS.AGENT],
+        formatearFecha(row[COLS.TRIP_DATE]),
+        row[COLS.FT],
+        row[COLS.TRIP_HOUR],
+        row[COLS.CR],
+        row[COLS.CT]
+      ];
+    });
+  } catch (e) {
+    Logger.log("Error obteniendo datos crudos: " + e);
+    return [];
+  }
+}
+
+function formatearFecha(date) {
+  if (date instanceof Date) {
+    return Utilities.formatDate(date, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  }
+  return date;
+}
+
+/**
+ * Fallback para doGet si no hay caché (Cálculo en vivo de datos crudos)
+ */
+function obtenerDashboardEnVivo() {
+  var filtrosInit = {};
+  ['T', 'I', 'K', 'L', 'N', 'V', 'W', 'J'].forEach(function (col) {
+    filtrosInit[col] = obtenerValoresUnicos(col);
+  });
+  return {
+    filters: filtrosInit,
+    rawData: obtenerDatosCrudos(),
+    source: "LIVE RAW"
+  };
+}
+
+/**
+ * FUNCIÓN PRINCIPAL: Obtiene datos para WOW, MOM, DOD
+ */
+function obtenerDashboardCompleto(filtros) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('Data');
+    if (!sheet) return { status: 'error', message: 'Hoja Data no encontrada' };
+
+    var ultimaFila = sheet.getLastRow();
+    var datos = sheet.getRange(2, 1, ultimaFila - 1, sheet.getLastColumn()).getValues();
+
+    var datosFiltrados = datos.filter(function (fila) {
+      return cumpleFiltrosGenerales(fila, filtros);
+    });
+
+    var metrics = calcularKPIs(datosFiltrados);
+    var wowData = agruparDatos(datosFiltrados, 18, true);
+    var momData = agruparDatos(datosFiltrados, 19, true);
+    var dodData = agruparDatos(datosFiltrados, 6, true);
+
+    return {
+      status: 'success',
+      metrics: metrics,
+      wow: { main: wowData, breakdown: generarDesgloses(datosFiltrados) },
+      mom: { main: momData, breakdown: generarDesgloses(datosFiltrados) },
+      dod: { main: dodData, breakdown: generarDesgloses(datosFiltrados) }
+    };
+  } catch (e) {
+    return { status: 'error', message: e.toString() };
+  }
+}
+
+function obtenerRanking(filtros) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('Data');
+    if (!sheet) return { status: 'error', message: 'Hoja Data no encontrada' };
+
+    var ultimaFila = sheet.getLastRow();
+    var datos = sheet.getRange(2, 1, ultimaFila - 1, sheet.getLastColumn()).getValues();
+
+    var datosFiltrados = datos.filter(function (fila) {
+      return cumpleFiltrosGenerales(fila, filtros);
+    });
+
+    return { status: 'success', ranking: agruparDatos(datosFiltrados, 22, false) };
+  } catch (e) {
+    return { status: 'error', message: e.toString() };
+  }
+}
+
+function obtenerAnalisisTiempos(filtros) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('Data');
+    if (!sheet) return { status: 'error', message: 'Hoja Data no encontrada' };
+
+    var ultimaFila = sheet.getLastRow();
+    var datos = sheet.getRange(2, 1, ultimaFila - 1, sheet.getLastColumn()).getValues();
+
+    var datosFiltrados = datos.filter(function (fila) {
+      return cumpleFiltrosGenerales(fila, filtros);
+    });
+
+    return { status: 'success', timeAnalysis: analizarMejoresTiempos(datosFiltrados) };
+  } catch (e) {
+    return { status: 'error', message: e.toString() };
+  }
+}
+
+function analizarMejoresTiempos(datos) {
+  var dias = {};
+  var horas = {};
+  var diaHora = {};
+  var diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+
+  datos.forEach(function (fila) {
+    if (!fila[0]) return;
+
+    var fechaRaw = fila[26];
+    var diaNombre = 'N/A';
+
+    if (fechaRaw instanceof Date) {
+      diaNombre = diasSemana[fechaRaw.getDay()];
+    } else if (typeof fechaRaw === 'string' && fechaRaw.trim() !== '') {
+      var d = new Date(fechaRaw);
+      if (!isNaN(d.getTime())) {
+        diaNombre = diasSemana[d.getDay()];
+      }
+    }
+
+    if (diaNombre !== 'N/A') {
+      dias[diaNombre] = (dias[diaNombre] || 0) + 1;
+
+      var horaRaw = fila[32];
+      var horaNum = -1;
+
+      if (horaRaw instanceof Date) {
+        horaNum = horaRaw.getHours();
+      } else if (typeof horaRaw === 'number') {
+        if (horaRaw >= 0 && horaRaw < 1) {
+          horaNum = Math.floor(horaRaw * 24);
+        } else if (horaRaw >= 0 && horaRaw <= 23) {
+          horaNum = Math.floor(horaRaw);
+        }
+      } else if (typeof horaRaw === 'string' && horaRaw.includes(':')) {
+        horaNum = parseInt(horaRaw.split(':')[0]);
+      }
+
+      if (horaNum >= 0 && horaNum <= 23) {
+        var horaStr = (horaNum < 10 ? '0' + horaNum : horaNum) + ':00';
+        horas[horaStr] = (horas[horaStr] || 0) + 1;
+        var keyDH = diaNombre + ' ' + horaStr;
+        diaHora[keyDH] = (diaHora[keyDH] || 0) + 1;
+      }
+    }
+  });
+
+  function getMax(obj) {
+    var maxKey = '-'; var maxVal = 0;
+    for (var k in obj) { if (obj[k] > maxVal) { maxVal = obj[k]; maxKey = k; } }
+    return { label: maxKey, count: maxVal };
+  }
+
+  function toArray(obj) {
+    return Object.keys(obj).map(function (k) { return { label: k, count: obj[k] }; })
+      .sort(function (a, b) { return b.count - a.count; });
+  }
+
+  return {
+    bestDay: getMax(dias),
+    bestHour: getMax(horas),
+    bestTime: getMax(diaHora),
+    allDays: toArray(dias),
+    allHours: toArray(horas)
+  };
+}
+
+function generarDesgloses(datosFiltrados) {
+  return {
+    I: agruparDatos(datosFiltrados, 8, false),
+    K: agruparDatos(datosFiltrados, 10, false),
+    L: agruparDatos(datosFiltrados, 11, false),
+    N: agruparDatos(datosFiltrados, 13, false)
+  };
+}
+
+function calcularKPIs(datos) {
+  var ftCases = 0, countCases = 0, sumAI = 0, countAI = 0, sumAH = 0, countAH = 0;
+
+  for (var i = 0; i < datos.length; i++) {
+    var fila = datos[i];
+    if (fila[0] && fila[0].toString().trim() !== '') {
+      countCases++;
+      if (fila[30] == 1 || fila[30] == '1') ftCases++;
+      if (fila[34] !== null && fila[34] !== '' && !isNaN(fila[34])) { sumAI += Number(fila[34]); countAI++; }
+      if (fila[33] !== null && fila[33] !== '' && !isNaN(fila[33])) { sumAH += Number(fila[33]); countAH++; }
+    }
+  }
+
+  return {
+    ft: ftCases,
+    cases: countCases,
+    ct: countAI > 0 ? sumAI / countAI : 0,
+    cr: countAH > 0 ? sumAH / countAH : 0
+  };
+}
+
+function agruparDatos(datos, indiceAgrupacion, esFecha) {
+  var grupos = {};
+
+  datos.forEach(function (fila) {
+    if (!fila[0]) return;
+
+    var llave = fila[indiceAgrupacion];
+    if (esFecha && llave instanceof Date) {
+      llave = Utilities.formatDate(llave, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    }
+    var keyStr = (llave && llave.toString().trim() !== '') ? llave.toString() : 'N/A';
+
+    if (!grupos[keyStr]) {
+      grupos[keyStr] = { label: keyStr, ft: 0, cases: 0, ctSum: 0, ctCount: 0, crSum: 0, crCount: 0 };
+    }
+
+    var g = grupos[keyStr];
+    g.cases++;
+    if (fila[30] == 1 || fila[30] == '1') g.ft++;
+    if (fila[34] !== null && fila[34] !== '' && !isNaN(fila[34])) { g.ctSum += Number(fila[34]); g.ctCount++; }
+    if (fila[33] !== null && fila[33] !== '' && !isNaN(fila[33])) { g.crSum += Number(fila[33]); g.crCount++; }
+  });
+
+  return Object.keys(grupos).map(function (k) {
+    var g = grupos[k];
+    return {
+      label: g.label,
+      ft: g.ft,
+      cases: g.cases,
+      ct: g.ctCount > 0 ? g.ctSum / g.ctCount : 0,
+      cr: g.crCount > 0 ? g.crSum / g.crCount : 0
+    };
+  }).sort(function (a, b) { return a.label > b.label ? 1 : -1; });
+}
+
+function cumpleFiltrosGenerales(fila, filtros) {
+  if (filtros.outreachType && filtros.outreachType !== '' && fila[11] != filtros.outreachType) return false;
+  if (filtros.caseOwner && filtros.caseOwner !== '' && fila[9] != filtros.caseOwner) return false;
+  if (filtros.status && filtros.status !== '' && fila[13] != filtros.status) return false;
+
+  if (filtros.begin && filtros.begin !== '') {
+    var valT = fila[19];
+    if (valT instanceof Date) valT = Utilities.formatDate(valT, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    if (valT != filtros.begin) return false;
+  }
+
+  if (filtros.supervisor && filtros.supervisor !== '' && fila[21] != filtros.supervisor) return false;
+  if (filtros.agent && filtros.agent !== '' && fila[22] != filtros.agent) return false;
+  if (filtros.colI && filtros.colI !== '' && fila[8] != filtros.colI) return false;
+  if (filtros.colK && filtros.colK !== '' && fila[10] != filtros.colK) return false;
+
+  return true;
+}
