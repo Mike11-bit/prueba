@@ -1,0 +1,440 @@
+/**
+ * =====================================================
+ * Backend_Metricas.js - Google Apps Script
+ * =====================================================
+ * Dashboard de Métricas - Script de Backend
+ * 
+ * Descripción: Este script procesa datos de la hoja "Data",
+ * calcula métricas (FT Cases, Total Cases, CT%, CR%) y
+ * las agrupa por semana, mes y día.
+ * 
+ * Funciones principales:
+ * - obtenerDashboardCompleto: Carga principal (WOW, MOM, DOD)
+ * - obtenerRanking: Ranking de agentes (carga con botón)
+ * - obtenerAnalisisTiempos: Análisis de mejores días/horas
+ * 
+ * Columnas utilizadas:
+ * - A (0): Case Number
+ * - G (6): Date Assigned
+ * - I (8): Country
+ * - J (9): Case Owner
+ * - K (10): Stage
+ * - L (11): Outreach Type
+ * - N (13): Status
+ * - S (18): Week
+ * - T (19): Month
+ * - V (21): Supervisor
+ * - W (22): Agent
+ * - AA (26): Fecha del Viaje
+ * - AE (30): FT (1 o 0)
+ * - AG (32): Hora del Viaje
+ * - AH (33): CR
+ * - AI (34): CT
+ * =====================================================
+ */
+
+
+/**
+ * =====================================================
+ * Backend_Metricas.js - Google Apps Script (OPTIMIZADO)
+ * =====================================================
+ * Dashboard de Métricas - Script de Backend
+ * 
+ * MEJORAS:
+ * - Carga en un solo paso (Single Pass) de filtros.
+ * - Gestión robusta de carpetas en Drive.
+ * - Optimización de velocidad para datasets grandes.
+ * =====================================================
+ */
+
+// NOMBRE DEL ARCHIVO DE CACHÉ EN DRIVE
+var CACHE_FILENAME = "dashboard_cache_metrics_v2.json";
+// ID DE LA CARPETA DONDE SE GUARDARÁ EL JSON
+var CACHE_FOLDER_ID = "1SrPxDlsXxd-ohwiYh1QSaQx8R60kdji3";
+
+/**
+ * Punto de entrada de la Web App (GET Request)
+ */
+function doGet() {
+  var payload = null;
+
+  try {
+    // 1. INTENTAR LEER DESDE CACHÉ (DRIVE)
+    var folder;
+    try {
+      folder = DriveApp.getFolderById(CACHE_FOLDER_ID);
+    } catch (e) {
+      folder = DriveApp.getRootFolder();
+    }
+
+    var files = folder.getFilesByName(CACHE_FILENAME);
+    if (files.hasNext()) {
+      var file = files.next();
+      var jsonContent = file.getBlob().getDataAsString();
+      payload = JSON.parse(jsonContent);
+      payload.source = "DRIVE CACHE";
+    }
+  } catch (e) {
+    Logger.log("Error leyendo caché: " + e.toString());
+  }
+
+  // 2. FALLBACK: Si no hay caché, calcular en vivo
+  if (!payload || !payload.rawData || payload.rawData.length === 0) {
+    payload = obtenerDashboardEnVivo();
+    if (!payload || !payload.rawData || payload.rawData.length === 0) {
+      return HtmlService.createHtmlOutput(
+        '<html><body><h2 style="color:red;text-align:center;">Error: No se pudieron cargar los datos</h2>' +
+        '<p style="text-align:center;">Por favor, ejecuta <b>actualizarCacheDrive()</b> en el editor de Apps Script.</p></body></html>'
+      );
+    }
+  }
+
+  // 3. RENDERIZAR
+  try {
+    var template = HtmlService.createTemplateFromFile('Index');
+    template.payloadJson = JSON.stringify(payload);
+    return template.evaluate()
+      .setTitle('Dashboard de Métricas')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  } catch (e) {
+    return HtmlService.createHtmlOutput('Error renderizado: ' + e.toString());
+  }
+}
+
+/**
+ * FUNCIÓN TRIGGER: Actualiza el caché de forma súper rápida (Single Pass)
+ */
+function obtenerValoresUnicosArray(data, columna) {
+    var colMap = { 
+        'I': 8, 
+        'J': 9, 
+        'K': 10, 
+        'L': 11, 
+        'N': 13, 
+        'S': 18, 
+        'U': 20, // Columna U (números)
+        'V': 21, 
+        'W': 22 
+    };
+    var idx = colMap[columna];
+    var set = new Set();
+    
+    data.forEach(function (r) {
+        var v = r[idx];
+        if (v instanceof Date) {
+            v = Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+        }
+        if (v !== null && v !== undefined && v.toString().trim() !== '') {
+            set.add(v.toString().trim());
+        }
+    });
+    
+    var arr = Array.from(set);
+    
+    // ⭐ NUEVO: Ordenar columna U numéricamente de MENOR a MAYOR
+    if (columna === 'U') {
+        arr.sort(function(a, b) {
+            var numA = parseFloat(a);
+            var numB = parseFloat(b);
+            return numA - numB; // Ascendente (menor a mayor)
+        });
+    } else {
+        arr.sort(); // Alfabético para otras columnas
+    }
+    
+    return arr;
+}
+
+/**
+ * Fallback para carga en vivo
+ */
+function obtenerDashboardEnVivo() {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('Data');
+    if (!sheet) return null;
+
+    var fullData = sheet.getDataRange().getValues();
+    var dataRows = fullData.slice(1);
+
+    var filters = {};
+    ['U', 'I', 'K', 'L', 'N', 'V', 'W', 'J', 'S'].forEach(function (colName) {
+      filters[colName] = obtenerValoresUnicosArray(dataRows, colName);
+    });
+
+    var rawData = dataRows.map(function (row) {
+      return [
+        row[0],  // CASE
+        formatearFecha(row[6]),  // DATE
+        row[8],  // COUNTRY
+        row[9],  // OWNER
+        row[10], // STAGE
+        row[11], // OUTREACH
+        row[13], // STATUS
+        row[18], // WEEK
+        row[20], // ⭐ MONTH (columna U)
+        row[21], // SUP
+        row[22], // AGENT
+        formatearFecha(row[26]), // TRIP_DATE
+        row[30], // FT
+        row[32], // TRIP_HOUR
+        row[33], // CR
+        row[34]  // CT
+      ];
+    });
+
+    return { 
+        filters: filters, 
+        rawData: rawData, 
+        timestamp: new Date().toString(), 
+        source: "LIVE RAW (OPTIMIZED)" 
+    };
+  } catch (e) {
+    Logger.log("Error en obtenerDashboardEnVivo: " + e.toString());
+    return null;
+  }
+}
+
+function actualizarCacheDrive() {
+  try {
+    Logger.log("🚀 Iniciando actualización optimizada...");
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('Data');
+    
+    if (!sheet) {
+      throw new Error("❌ Hoja 'Data' no encontrada");
+    }
+
+    var fullData = sheet.getDataRange().getValues();
+    var dataRows = fullData.slice(1);
+    
+    if (dataRows.length === 0) {
+      Logger.log("⚠️ Hoja vacía");
+      return "⚠️ La hoja 'Data' está vacía. No hay datos para actualizar.";
+    }
+
+    Logger.log("📊 Procesando " + dataRows.length + " filas...");
+
+    var colMap = { 
+        'I': 8, 
+        'J': 9, 
+        'K': 10, 
+        'L': 11, 
+        'N': 13, 
+        'S': 18, 
+        'U': 20,
+        'V': 21, 
+        'W': 22 
+    };
+    
+    var filtrosInit = { 
+        'U': new Set(),
+        'I': new Set(), 
+        'K': new Set(), 
+        'L': new Set(), 
+        'N': new Set(), 
+        'V': new Set(), 
+        'W': new Set(), 
+        'J': new Set(), 
+        'S': new Set() 
+    };
+
+    var rawData = dataRows.map(function (row) {
+      // Extraer filtros mientras mapeamos los datos
+      for (var key in colMap) {
+        var val = row[colMap[key]];
+        if (val instanceof Date) {
+            val = Utilities.formatDate(val, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+        }
+        if (val !== null && val !== undefined && val.toString().trim() !== '') {
+            filtrosInit[key].add(val.toString().trim());
+        }
+      }
+
+      return [
+        row[0],  // CASE
+        formatearFecha(row[6]),  // DATE
+        row[8],  // COUNTRY
+        row[9],  // OWNER
+        row[10], // STAGE
+        row[11], // OUTREACH
+        row[13], // STATUS
+        row[18], // WEEK
+        row[20], // MONTH (columna U)
+        row[21], // SUP
+        row[22], // AGENT
+        formatearFecha(row[26]), // TRIP_DATE
+        row[30], // FT
+        row[32], // TRIP_HOUR
+        row[33], // CR
+        row[34]  // CT
+      ];
+    });
+
+    Logger.log("📦 Datos procesados: " + rawData.length + " filas");
+
+    // Convertir Sets a Arrays con ordenamiento específico
+    for (var k in filtrosInit) {
+        var arr = Array.from(filtrosInit[k]);
+        
+        if (k === 'U') {
+            arr.sort(function(a, b) {
+                var numA = parseFloat(a);
+                var numB = parseFloat(b);
+                return numA - numB;
+            });
+        } else {
+            arr.sort();
+        }
+        
+        filtrosInit[k] = arr;
+    }
+
+    var payload = { 
+        filters: filtrosInit, 
+        rawData: rawData, 
+        timestamp: new Date().toString(), 
+        source: "DRIVE CACHE (OPTIMIZED)" 
+    };
+    
+    var jsonString = JSON.stringify(payload);
+    Logger.log("💾 Tamaño del JSON: " + (jsonString.length / 1024).toFixed(2) + " KB");
+
+    var folder;
+    try { 
+        folder = DriveApp.getFolderById(CACHE_FOLDER_ID); 
+        Logger.log("✅ Carpeta encontrada: " + folder.getName());
+    } catch (e) { 
+        Logger.log("⚠️ Carpeta no encontrada, usando raíz");
+        folder = DriveApp.getRootFolder(); 
+    }
+
+    var files = folder.getFilesByName(CACHE_FILENAME);
+    if (files.hasNext()) {
+        var file = files.next();
+        file.setContent(jsonString);
+        Logger.log("✅ Archivo actualizado: " + file.getName());
+    } else {
+        var newFile = folder.createFile(CACHE_FILENAME, jsonString, MimeType.PLAIN_TEXT);
+        Logger.log("✅ Archivo creado: " + newFile.getName());
+    }
+
+    var mensaje = "✅ Actualización exitosa: " + rawData.length + " filas procesadas";
+    Logger.log(mensaje);
+    return mensaje;
+
+  } catch (e) {
+    var errorMsg = "❌ Error en actualización: " + e.toString() + "\nLínea: " + e.lineNumber;
+    Logger.log(errorMsg);
+    throw new Error(errorMsg);
+  }
+}
+function obtenerValoresUnicosArray(data, columna) {
+    var colMap = { 
+        'I': 8, 
+        'J': 9, 
+        'K': 10, 
+        'L': 11, 
+        'N': 13, 
+        'S': 18, 
+        'U': 20, // ⭐ CAMBIO: Era T:19, ahora U:20
+        'V': 21, 
+        'W': 22 
+    };
+    var idx = colMap[columna];
+    var set = new Set();
+    data.forEach(function (r) {
+        var v = r[idx];
+        if (v instanceof Date) v = Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+        if (v && v.toString().trim() !== '') set.add(v.toString().trim());
+    });
+    
+    var arr = Array.from(set);
+    
+    // ⭐ NUEVO: Ordenar de mayor a menor para columna U
+    if (columna === 'U') {
+        arr.sort(function(a, b) {
+            return b.localeCompare(a); // Descendente
+        });
+    } else {
+        arr.sort();
+    }
+    
+    return arr;
+}
+
+var COLS = {
+  CASE: 0, DATE: 6, COUNTRY: 8, OWNER: 9, STAGE: 10,
+  OUTREACH: 11, STATUS: 13, WEEK: 18, MONTH: 19,
+  SUP: 21, AGENT: 22, TRIP_DATE: 26, FT: 30,
+  TRIP_HOUR: 32, CR: 33, CT: 34
+};
+
+function formatearFecha(date) {
+  if (date instanceof Date) return Utilities.formatDate(date, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  return date;
+}
+
+// Mantener funciones por compatibilidad histórica
+function obtenerDashboardCompleto(f) { return { status: 'success' }; }
+function obtenerRanking(f) { return { status: 'success', ranking: [] }; }
+function obtenerAnalisisTiempos(f) { return { status: 'success', timeAnalysis: {} }; }
+
+
+
+/**
+ * ⭐ NUEVA: Guardar fecha de actualización en Google Sheets
+ */
+function guardarFechaEnSheet(fecha) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('FechaActualizacion');
+    
+    // Crear la hoja si no existe
+    if (!sheet) {
+      Logger.log('📝 Creando hoja FechaActualizacion...');
+      sheet = ss.insertSheet('FechaActualizacion');
+      sheet.getRange('A1').setValue('Última Actualización');
+      sheet.getRange('A1').setFontWeight('bold');
+      sheet.getRange('A1').setBackground('#667eea');
+      sheet.getRange('A1').setFontColor('white');
+    }
+    
+    // Guardar la fecha en A2
+    sheet.getRange('A2').setValue(fecha);
+    
+    Logger.log('✅ Fecha guardada en Sheet: ' + fecha);
+    return true;
+  } catch (e) {
+    Logger.log('❌ Error guardando fecha en Sheet: ' + e.toString());
+    return false;
+  }
+}
+
+/**
+ * ⭐ NUEVA: Leer fecha de actualización desde Google Sheets
+ */
+function obtenerFechaDeSheet() {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('FechaActualizacion');
+    
+    if (!sheet) {
+      Logger.log('⚠️ Hoja FechaActualizacion no existe aún');
+      return '';
+    }
+    
+    var fecha = sheet.getRange('A2').getValue();
+    
+    if (!fecha || fecha === '') {
+      Logger.log('⚠️ No hay fecha guardada');
+      return '';
+    }
+    
+    Logger.log('✅ Fecha recuperada de Sheet: ' + fecha);
+    return fecha.toString();
+  } catch (e) {
+    Logger.log('❌ Error leyendo fecha de Sheet: ' + e.toString());
+    return '';
+  }
+}

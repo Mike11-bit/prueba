@@ -1,0 +1,2926 @@
+<!DOCTYPE html>
+<!--
+=====================================================
+Index.html - Dashboard de Métricas MEJORADO
+=====================================================
+NUEVAS CARACTERÍSTICAS:
+1. Select de Semanas (Columna S) en los filtros
+2. Tabla unificada de Outliers con 4 métricas priorizando FT
+3. Sistema de seguimiento histórico de performance Q1-Q4
+=====================================================
+-->
+<html>
+
+<head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Métricas</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<!-- jQuery (requerido por Select2) -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+
+    <style>
+        /* ============================================
+           ESTILOS GLOBALES
+           ============================================ */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        /* ============================================
+           HEADER
+           ============================================ */
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        /* ============================================
+           SECCIÓN DE FILTROS
+           ============================================ */
+        .filters-section {
+            background: #f8f9fa;
+            padding: 25px;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .filters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .filter-group label {
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #333;
+            font-size: 0.9em;
+        }
+
+        .filter-group select {
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1em;
+        }
+
+        .filters-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        /* ============================================
+           BOTONES
+           ============================================ */
+        .btn {
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .btn-clear {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .btn-apply {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-refresh {
+            background: #27ae60;
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        /* ============================================
+           TARJETAS DE MÉTRICAS
+           ============================================ */
+        .metrics-section {
+            padding: 25px;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .metric-card {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .metric-card h3 {
+            font-size: 2.5em;
+            font-weight: 700;
+        }
+
+        /* ============================================
+           PESTAÑAS (TABS)
+           ============================================ */
+        .tabs {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 2px solid #ddd;
+            overflow-x: auto;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 15px 20px;
+            text-align: center;
+            cursor: pointer;
+            background: #f8f9fa;
+            border: none;
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            min-width: 140px;
+        }
+
+        .tab.active {
+            background: white;
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 30px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* ============================================
+           ACORDEONES
+           ============================================ */
+        details {
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: white;
+        }
+
+        summary {
+            background: #f1f2f6;
+            padding: 15px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 1.1em;
+            list-style: none;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        summary::-webkit-details-marker {
+            display: none;
+        }
+
+        summary:after {
+            content: '+';
+            font-size: 1.5em;
+            color: #667eea;
+        }
+
+        details[open] summary:after {
+            content: '−';
+        }
+
+        .details-content {
+            padding: 20px;
+        }
+
+        /* ============================================
+           GRÁFICOS
+           ============================================ */
+        .chart-wrapper {
+            position: relative;
+            height: 500px;
+            width: 100%;
+            margin-bottom: 30px;
+        }
+
+        /* ============================================
+           TABLAS
+           ============================================ */
+        .table-container {
+            overflow-x: auto;
+            margin-top: 20px;
+        }
+
+        table {
+            border-collapse: collapse;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            width: 100%;
+        }
+
+        thead {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        th,
+        td {
+            padding: 12px 15px;
+            border: 1px solid #e0e0e0;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        td:first-child {
+            font-weight: 700;
+            background: #f8f9fa;
+            color: #667eea;
+            text-align: left;
+            position: sticky;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* ============================================
+           LOADING OVERLAY
+           ============================================ */
+        #global-loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.9);
+            z-index: 9999;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px;
+        }
+
+        @keyframes spin {
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* ============================================
+           ESTILOS PARA OUTLIERS UNIFICADOS
+           ============================================ */
+        .unified-table {
+            width: 100%;
+            font-size: 0.85em;
+            border-collapse: collapse;
+        }
+
+        .unified-table thead {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .unified-table th {
+            padding: 12px 8px;
+            text-align: center;
+            font-weight: 600;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .unified-table tbody tr {
+            border-bottom: 1px solid #f1f1f1;
+            transition: background 0.2s;
+        }
+
+        .unified-table tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        .unified-table td {
+            padding: 10px 8px;
+            text-align: center;
+            border: 1px solid #e0e0e0;
+        }
+
+        .unified-table td:nth-child(1),
+        .unified-table td:nth-child(2) {
+            text-align: left;
+            font-weight: 600;
+        }
+
+        /* Estilos de badges para quartiles */
+        .q-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-weight: bold;
+            font-size: 0.85em;
+        }
+
+        .q1 {
+            background: #d5f5e3;
+            color: #1e8449;
+        }
+
+        .q2 {
+            background: #d6eaf8;
+            color: #1f618d;
+        }
+
+        .q3 {
+            background: #fdebd0;
+            color: #b9770e;
+        }
+
+        .q4 {
+            background: #fadbd8;
+            color: #922b21;
+        }
+
+        /* Estilos de badges para outliers */
+        .outlier-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-weight: bold;
+            font-size: 0.85em;
+        }
+
+        .outlier-high {
+            background: #fadbd8;
+            color: #c0392b;
+        }
+
+        .outlier-low {
+            background: #d6eaf8;
+            color: #2980b9;
+        }
+
+        .outlier-none {
+            background: #ecf0f1;
+            color: #95a5a6;
+        }
+
+        /* Destacado de filas con outliers */
+        .row-outlier-high {
+            background: #fff5f5 !important;
+        }
+
+        .row-outlier-low {
+            background: #f0f8ff !important;
+        }
+
+        /* Estilos para indicadores de evolución */
+        .evolution-indicator {
+            display: inline-block;
+            margin-left: 5px;
+            font-size: 1.2em;
+        }
+
+        .evolution-up {
+            color: #27ae60;
+        }
+
+        .evolution-down {
+            color: #e74c3c;
+        }
+
+        .evolution-stable {
+            color: #95a5a6;
+        }
+
+        /* ============================================
+           ANÁLISIS DE EVOLUCIÓN
+           ============================================ */
+        .analysis-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        .analysis-card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            border-top: 5px solid #667eea;
+        }
+
+        .analysis-card.day {
+            border-top-color: #27ae60;
+        }
+
+        .analysis-card.hour {
+            border-top-color: #f39c12;
+        }
+
+        .analysis-card.combo {
+            border-top-color: #9b59b6;
+        }
+
+        .analysis-icon {
+            font-size: 3em;
+            margin-bottom: 15px;
+        }
+
+        .analysis-label {
+            color: #666;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+
+        .analysis-value {
+            font-size: 2em;
+            font-weight: 700;
+            color: #2c3e50;
+        }
+
+        .analysis-count {
+            color: #667eea;
+            font-size: 1.1em;
+            font-weight: 600;
+            margin-top: 5px;
+        }
+
+        .detail-table {
+            margin-top: 30px;
+        }
+
+        .detail-table h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        /* ============================================
+           ESTILOS PARA HISTÓRICO
+           ============================================ */
+        .historical-section {
+            margin-top: 30px;
+            padding: 25px;
+            background: #ffffff;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.05);
+            border: 1px solid #eee;
+        }
+
+        .historical-section h3 {
+            color: #667eea;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 1.5em;
+        }
+
+        .week-comparison {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 30px;
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        .week-selector-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .week-selector-group label {
+            font-size: 0.8em;
+            font-weight: bold;
+            color: #666;
+            text-transform: uppercase;
+        }
+
+        .week-comparison select {
+            padding: 10px 15px;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            font-size: 1.1em;
+            background: white;
+            cursor: pointer;
+            min-width: 150px;
+        }
+
+        .vs-badge {
+            background: #667eea;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+
+        .evolution-summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 25px;
+        }
+
+        .evo-card {
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            color: white;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .evo-up {
+            background: linear-gradient(135deg, #2ecc71, #27ae60);
+        }
+
+        .evo-down {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+        }
+
+        .evo-same {
+            background: linear-gradient(135deg, #95a5a6, #7f8c8d);
+        }
+
+        .evo-val {
+            font-size: 2em;
+            font-weight: bold;
+        }
+
+        .evo-lbl {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        /* ============================================
+           ESTILOS PARA ANÁLISIS & HEATMAP
+           ============================================ */
+        .heatmap-container {
+            margin-top: 30px;
+            overflow-x: auto;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            background: white;
+            padding: 20px;
+            border: 1px solid #eee;
+        }
+
+        .heatmap-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85em;
+        }
+
+        .heatmap-table th,
+        .heatmap-table td {
+            width: 3.5%;
+            height: 40px;
+            border: 1px solid #eee;
+            text-align: center;
+        }
+
+        .heatmap-table th {
+            background: #f8f9fa;
+            font-weight: bold;
+            color: #667eea;
+            font-size: 0.8em;
+        }
+
+        .heatmap-table td.day-label {
+            width: 120px;
+            background: #f8f9fa;
+            font-weight: bold;
+            text-align: left;
+            padding-left: 15px;
+            color: #2c3e50;
+        }
+
+        .heatmap-cell {
+            transition: all 0.2s;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .heatmap-cell:hover {
+            transform: scale(1.15);
+            z-index: 10;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+        }
+
+        .analysis-charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+            margin-top: 30px;
+        }
+
+        @media (max-width: 1000px) {
+            .analysis-charts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+
+        /* ============================================
+   ESTILOS PARA INDICADOR DE ACTUALIZACIÓN
+   ============================================ */
+#last-update-date {
+    font-size: 0.75em;
+    margin-left: 8px;
+    opacity: 0.8;
+    font-weight: normal;
+    background: rgba(255, 255, 255, 0.2);
+    padding: 2px 6px;
+    border-radius: 3px;
+    transition: all 0.3s;
+}
+
+.btn-refresh:hover #last-update-date {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* ============================================
+   SELECT2 CUSTOMIZATION
+   ============================================ */
+.select2-container--default .select2-selection--single {
+    height: 42px !important;
+    padding: 8px 12px !important;
+    border: 2px solid #ddd !important;
+    border-radius: 8px !important;
+    font-size: 1em !important;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    line-height: 24px !important;
+    padding-left: 0 !important;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 40px !important;
+    right: 5px !important;
+}
+
+.select2-dropdown {
+    border: 2px solid #667eea !important;
+    border-radius: 8px !important;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2) !important;
+}
+
+.select2-container--default .select2-results__option--highlighted[aria-selected] {
+    background-color: #667eea !important;
+}
+
+.select2-search--dropdown .select2-search__field {
+    border: 2px solid #ddd !important;
+    border-radius: 5px !important;
+    padding: 8px !important;
+    font-size: 0.95em !important;
+}
+
+.select2-container {
+    width: 100% !important;
+}
+
+.select2-results__option {
+    padding: 8px 12px !important;
+}
+    </style>
+</head>
+
+<body>
+    <!-- OVERLAY DE CARGA -->
+    <div id="global-loading">
+        <div class="spinner"></div>
+        <h2 style="color:#667eea">Cargando...</h2>
+    </div>
+
+    <!-- CONTENEDOR PRINCIPAL -->
+    <div class="container">
+        <!-- HEADER -->
+        <div class="header">
+            <h1>📊 Dashboard de Métricas</h1>
+            <p>Análisis WOW, MOM, DOD + Ranking + Tiempos + Evolución</p>
+        </div>
+
+        <!-- SECCIÓN DE FILTROS -->
+        <div class="filters-section">
+            <div class="filters-grid">
+                <!-- NUEVO: Select de Semanas -->
+                <div class="filter-group">
+                    <label>Week (S) 📅</label>
+                    <select id="filterWeek">
+                        <option value="">Todas</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Month (T)</label>
+                    <select id="filterBegin">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Country (I)</label>
+                    <select id="filterI">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Stage (K)</label>
+                    <select id="filterK">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Outreach Type (L)</label>
+                    <select id="filterOutreachType">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Status (N)</label>
+                    <select id="filterStatus">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Supervisor (V)</label>
+                    <select id="filterSupervisor">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Agent (W)</label>
+                    <select id="filterAgent">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Case Owner (J)</label>
+                    <select id="filterCaseOwner">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+            </div>
+
+
+<div class="filters-actions">
+    <button class="btn btn-refresh" onclick="actualizarBaseDatos()">
+        🔄 Actualizar Datos 
+       
+    </button>
+  
+    <button class="btn btn-clear" onclick="limpiarFiltros()">🧹 Limpiar</button>
+    <button class="btn btn-apply" onclick="aplicarFiltros()">🔍 Aplicar</button>
+</div>
+        </div>
+
+        <!-- TARJETAS DE MÉTRICAS -->
+        <div class="metrics-section">
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <h3 id="metricFT">-</h3>
+                    <p>FT Cases</p>
+                </div>
+                <div class="metric-card">
+                    <h3 id="metricCases">-</h3>
+                    <p>Total Cases</p>
+                </div>
+                <div class="metric-card">
+                    <h3 id="metricCT">-</h3>
+                    <p>CT Average</p>
+                </div>
+                <div class="metric-card">
+                    <h3 id="metricCR">-</h3>
+                    <p>CR Average</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- NAVEGACIÓN POR PESTAÑAS -->
+        <div class="tabs">
+            <button class="tab active" onclick="cambiarTab('wow')">WOW</button>
+            <button class="tab" onclick="cambiarTab('mom')">MOM</button>
+            <button class="tab" onclick="cambiarTab('dod')">DOD</button>
+            <button class="tab" onclick="cambiarTab('ranking')">🏆 OTROS</button>
+            <button class="tab" onclick="cambiarTab('analisis')">📈 ANÁLISIS</button>
+            <button class="tab" onclick="cambiarTab('outliers')">📊 OUTLIERS</button>
+        </div>
+
+        <!-- CONTENIDO DE CADA PESTAÑA -->
+        <div id="wow" class="tab-content active"></div>
+        <div id="mom" class="tab-content"></div>
+        <div id="dod" class="tab-content"></div>
+        <div id="ranking" class="tab-content"></div>
+        <div id="analisis" class="tab-content"></div>
+        <div id="outliers" class="tab-content"></div>
+    </div>
+
+    <!-- DATA INJECTION -->
+    <div id="backend-data" style="display:none;">
+        <?!= (typeof payloadJson !== 'undefined') ? payloadJson : ((typeof payload !== 'undefined') ? payload : '') ?>
+    </div>
+
+    <!-- JAVASCRIPT -->
+    <script>
+
+ 
+
+      
+
+      // ============================================
+// INICIALIZAR SELECT2 CON BÚSQUEDA
+// ============================================
+function inicializarSelect2() {
+    // Esperar a que jQuery y Select2 estén disponibles
+    if (typeof jQuery === 'undefined' || typeof jQuery.fn.select2 === 'undefined') {
+        console.warn('⚠️ Select2 no disponible, reintentando...');
+        setTimeout(inicializarSelect2, 200);
+        return;
+    }
+
+    console.log('🔍 Inicializando Select2...');
+
+    // Configuración común para todos los selects
+    var select2Config = {
+        theme: 'default',
+        placeholder: 'Buscar...',
+        allowClear: true,
+        width: '100%',
+        language: {
+            noResults: function() {
+                return "No se encontraron resultados";
+            },
+            searching: function() {
+                return "Buscando...";
+            }
+        }
+    };
+
+    // Inicializar cada select
+    jQuery('#filterWeek').select2(select2Config);
+    jQuery('#filterBegin').select2(select2Config);
+    jQuery('#filterI').select2(select2Config);
+    jQuery('#filterK').select2(select2Config);
+    jQuery('#filterOutreachType').select2(select2Config);
+    jQuery('#filterStatus').select2(select2Config);
+    jQuery('#filterSupervisor').select2(select2Config);
+    jQuery('#filterAgent').select2(select2Config);
+    jQuery('#filterCaseOwner').select2(select2Config);
+
+    console.log('✅ Select2 inicializado correctamente');
+}
+
+      // ============================================
+// FUNCIONES PARA FECHA DE ACTUALIZACIÓN
+// ============================================
+// ============================================
+// FUNCIONES PARA FECHA DE ACTUALIZACIÓN
+// ============================================
+
+function obtenerFechaActual() {
+    const ahora = new Date();
+    const opciones = {
+        weekday: 'short',
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        timeZone: 'America/Bogota' // ⭐ Cambiado a tu zona horaria
+    };
+    return ahora.toLocaleDateString('es-ES', opciones);
+}
+
+function guardarFechaActualizacion() {
+    const fecha = obtenerFechaActual();
+    
+    console.log('💾 Guardando fecha en Google Sheets:', fecha);
+    
+    // ⭐ NUEVO: Guardar en Google Sheets en lugar de localStorage
+    google.script.run
+        .withSuccessHandler(function() {
+            console.log('✅ Fecha guardada exitosamente en Sheets');
+            actualizarIndicadorFecha(fecha);
+        })
+        .withFailureHandler(function(err) {
+            console.error('❌ Error guardando fecha:', err);
+            // Fallback a localStorage si falla
+            try {
+                localStorage.setItem('dashboardLastUpdate', fecha);
+                actualizarIndicadorFecha(fecha);
+            } catch (e) {
+                console.error('❌ Fallback también falló:', e);
+            }
+        })
+        .guardarFechaEnSheet(fecha);
+}
+
+function cargarFechaActualizacion() {
+    const elemento = document.getElementById('last-update-date');
+    
+    if (!elemento) {
+        console.warn('⚠️ Elemento last-update-date no encontrado aún');
+        setTimeout(cargarFechaActualizacion, 100);
+        return;
+    }
+    
+    console.log('📅 Cargando fecha desde Google Sheets...');
+    
+    // ⭐ CORREGIDO: Leer desde Google Sheets
+    google.script.run
+        .withSuccessHandler(function(fecha) {
+            if (fecha && fecha !== '') {
+                console.log('✅ Fecha recuperada de Sheets:', fecha);
+                actualizarIndicadorFecha(fecha);
+            } else {
+                elemento.textContent = '(Última: Nunca)';
+            }
+        })
+        .withFailureHandler(function(err) {
+            console.error('❌ Error leyendo fecha:', err);
+            elemento.textContent = '(Última: Error)';
+        })
+        .obtenerFechaDeSheet();
+}
+
+function actualizarIndicadorFecha(fecha) {
+    const fechaTexto = fecha || obtenerFechaActual();
+    const elemento = document.getElementById('last-update-date');
+    
+    if (elemento) {
+        elemento.textContent = `(Última: ${fechaTexto})`;
+        
+        // ⭐ NUEVO: Efecto visual de confirmación
+        elemento.style.background = 'rgba(46, 204, 113, 0.3)';
+        elemento.style.transition = 'background 0.3s';
+        setTimeout(function() {
+            elemento.style.background = 'rgba(255, 255, 255, 0.2)';
+        }, 2000);
+    } else {
+        console.warn('⚠️ Elemento last-update-date no encontrado');
+    }
+}
+
+function verificarLocalStorage() {
+    try {
+        const test = '__storage_test__';
+        localStorage.setItem(test, test);
+        localStorage.removeItem(test);
+        console.log('✅ localStorage disponible y funcional');
+        return true;
+    } catch (e) {
+        console.error('❌ localStorage NO disponible:', e);
+        alert('⚠️ Advertencia: El almacenamiento local está deshabilitado en tu navegador. La fecha de actualización no se guardará entre sesiones.');
+        return false;
+    }
+}
+
+function actualizarBaseDatos() {
+    if (!confirm("¿Deseas actualizar el caché de base de datos? Esto procesará todas las filas y podría tardar unos segundos.")) {
+        return;
+    }
+
+    mostrarCarga(true, "Actualizando base de datos...");
+
+    // ⭐ Guardar fecha ANTES de llamar al servidor
+    guardarFechaActualizacion();
+
+    google.script.run
+        .withSuccessHandler(function (msg) {
+            console.log('✅ Respuesta del servidor:', msg);
+            
+            // ⭐ CORRECCIÓN #3: Recarga automática sin preguntar
+            mostrarCarga(true, "✅ Actualización exitosa! Recargando datos...");
+            
+            // Esperar 1 segundo para que el servidor guarde el archivo
+            setTimeout(function() {
+                window.location.reload(true); // true = forzar recarga desde servidor
+            }, 1000);
+        })
+        .withFailureHandler(function (err) {
+            console.error('❌ Error del servidor:', err);
+            mostrarCarga(false);
+            
+            alert(
+                "❌ Error al actualizar la base de datos:\n\n" + 
+                err.message + "\n\n" +
+                "Detalles técnicos:\n" + err.toString() + "\n\n" +
+                "Por favor, verifica:\n" +
+                "1. Que la hoja 'Data' existe\n" +
+                "2. Que tienes permisos de edición\n" +
+                "3. Revisa los logs en Apps Script (Ver > Registros)"
+            );
+        })
+        .actualizarCacheDrive();
+}
+
+        // ============================================
+        // FAIL-SAFE TIMER
+        // ============================================
+      // ============================================
+// FAIL-SAFE TIMER MEJORADO
+// ============================================
+setTimeout(function () {
+    var loading = document.getElementById('global-loading');
+    if (loading && loading.style.display !== 'none') {
+        console.warn('⚠️ Tiempo de espera excedido. Forzando apertura.');
+        loading.style.display = 'none';
+
+        // ⭐ NUEVO: Verificar si hay datos antes de mostrar mensaje
+        if (!dashboardData || !rawDataGlobal || rawDataGlobal.length === 0) {
+            var errorDiv = document.createElement('div');
+            errorDiv.style.cssText = "position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:40px;border-radius:15px;box-shadow:0 10px 30px rgba(0,0,0,0.3);max-width:500px;text-align:center;z-index:9999;";
+            errorDiv.innerHTML = `
+                <h2 style="color:#e74c3c;margin-bottom:20px;">⚠️ Error de Carga</h2>
+                <p style="margin-bottom:20px;">No se pudieron cargar los datos del dashboard.</p>
+                <p style="background:#f8f9fa;padding:15px;border-radius:8px;margin-bottom:20px;">
+                    <strong>Posibles causas:</strong><br>
+                    • El caché no está generado<br>
+                    • Hubo un error en el servidor<br>
+                    • La hoja "Data" está vacía
+                </p>
+                <button onclick="actualizarBaseDatos()" style="background:#3498db;color:white;border:none;padding:15px 30px;border-radius:8px;cursor:pointer;font-size:1.1em;margin-right:10px;">
+                    🔄 Generar Caché Ahora
+                </button>
+                <button onclick="location.reload()" style="background:#95a5a6;color:white;border:none;padding:15px 30px;border-radius:8px;cursor:pointer;font-size:1.1em;">
+                    ↻ Reintentar
+                </button>
+            `;
+            document.body.appendChild(errorDiv);
+        }
+
+        if (!dashboardData) renderDashboardEmpty();
+    }
+}, 15000);
+
+        // ============================================
+        // GLOBAL ERROR HANDLER
+        // ============================================
+        window.onerror = function (msg, url, line, col, error) {
+            console.error('🔥 Error Global:', msg);
+            var loading = document.getElementById('global-loading');
+            if (loading) loading.style.display = 'none';
+            var errDiv = document.createElement('div');
+            errDiv.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.95);z-index:10000;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;font-family:sans-serif;";
+            errDiv.innerHTML = `
+                <h1 style="color:#e74c3c;font-size:3em;margin:0;">🐞</h1>
+                <h2 style="color:#2c3e50;">Algo salió mal</h2>
+                <p style="background:#f1f1f1;padding:15px;border-radius:5px;font-family:monospace;">${msg} <br><small>Line: ${line} Col: ${col}</small></p>
+                <button onclick="location.reload()" style="background:#3498db;color:white;border:none;padding:10px 20px;border-radius:5px;cursor:pointer;font-size:1.1em;">Reintentar</button>
+            `;
+            document.body.appendChild(errDiv);
+            return false;
+        };
+
+        // ============================================
+        // VARIABLES GLOBALES
+        // ============================================
+        var charts = {};
+        var dashboardData = null;
+        var rawDataGlobal = [];
+        var initialDashboardData = null;
+        var serverPayload = null;
+        var historicalData = {}; // NUEVO: Almacena datos históricos por semana
+
+        // Mapeo de índices de columnas
+    var COLS = {
+  CASE: 0, DATE: 1, COUNTRY: 2, OWNER: 3, STAGE: 4,
+  OUTREACH: 5, STATUS: 6, WEEK: 7, MONTH: 8, // ⭐ MONTH ahora es índice 8 (columna U en raw)
+  SUP: 9, AGENT: 10, TRIP_DATE: 11, FT: 12,
+  TRIP_HOUR: 13, CR: 14, CT: 15
+};
+
+        // ============================================
+        // INICIALIZACIÓN
+        // ============================================
+  window.addEventListener('DOMContentLoaded', function () {
+    console.log('🚀 Inicializando Dashboard Mejorado...');
+    
+    // Verificar localStorage
+    verificarLocalStorage();
+
+    try {
+        var divContent = document.getElementById('backend-data').textContent;
+        if (divContent && divContent.trim().length > 0 && divContent.trim() !== 'null') {
+            serverPayload = JSON.parse(divContent);
+            console.log('✅ Payload leído del HTML (Tamaño: ' + divContent.length + ')');
+        }
+    } catch (e) {
+        console.warn('⚠️ Error parseando payload del HTML:', e);
+    }
+
+    if (serverPayload && serverPayload.rawData && serverPayload.rawData.length > 0) {
+        initFromPayload(serverPayload);
+    } else {
+        console.warn('⚠️ No hay datos iniciales. Intentando Fallback...');
+        
+        // ⭐ NUEVO: Mostrar mensaje más claro
+        var loadingText = document.querySelector('#global-loading h2');
+        if (loadingText) {
+            loadingText.innerHTML = "⚠️ No se encontraron datos en caché<br><small>Cargando desde servidor...</small>";
+        }
+        
+        iniciarCargaCliente();
+    }
+});
+
+
+
+function initFromPayload(data) {
+    console.time('⚡ Init Dashboard');
+
+    if (data.rawData) {
+        rawDataGlobal = data.rawData;
+        console.log('📦 Raw Data Loaded: ' + rawDataGlobal.length + ' filas');
+        
+        diagnosticarDatos();
+        procesarDatosHistoricos();
+    }
+    
+    if (data.filters) {
+        fillFiltersInstant(data.filters);
+    }
+
+    if (rawDataGlobal.length > 0) {
+        dashboardData = procesarDatos(rawDataGlobal);
+        initialDashboardData = dashboardData;
+        renderDashboard();
+    } else {
+        console.warn('⚠️ Recibidas 0 filas de datos.');
+        document.getElementById('global-loading').style.display = 'none';
+        alert('⚠️ El servidor devolvió 0 datos.');
+        renderDashboardEmpty();
+    }
+
+    // ⭐ CORREGIDO: Cargar fecha después de que el DOM esté listo
+    setTimeout(function() {
+        cargarFechaActualizacion();
+    }, 100);
+    
+    console.timeEnd('⚡ Init Dashboard');
+    console.log('✅ Dashboard listo para usar');
+}
+
+        function iniciarCargaCliente() {
+            var loadingText = document.querySelector('#global-loading h2');
+            if (loadingText) loadingText.innerHTML = "Reconectando con servidor...";
+
+            if (typeof google !== 'undefined' && google.script) {
+                google.script.run
+                    .withSuccessHandler(function (response) {
+                        console.log('✅ Datos recuperados via Client-Side fetch');
+                        if (response && response.rawData && response.rawData.length > 0) {
+                            serverPayload = response;
+                            initFromPayload(response);
+                        } else {
+                            document.getElementById('global-loading').style.display = 'none';
+                            alert('⚠️ El servidor respondió, pero NO HAY DATOS en la hoja.');
+                            renderDashboardEmpty();
+                        }
+                    })
+                    .withFailureHandler(function (error) {
+                        console.error('❌ Error fatal en fallback:', error);
+                        throw new Error("Fallo conexión servidor: " + error.message);
+                    })
+                    .obtenerDashboardEnVivo();
+            } else {
+                console.error('Entorno local detectado');
+                document.getElementById('global-loading').style.display = 'none';
+            }
+        }
+
+        function initFromPayload(data) {
+            console.time('⚡ Init Dashboard');
+
+            if (data.rawData) {
+                rawDataGlobal = data.rawData;
+                console.log('📦 Raw Data Loaded: ' + rawDataGlobal.length + ' filas');
+
+                // NUEVO: Procesar datos históricos
+                procesarDatosHistoricos();
+            }
+
+            if (data.filters) {
+                fillFiltersInstant(data.filters);
+            }
+
+            if (rawDataGlobal.length > 0) {
+                dashboardData = procesarDatos(rawDataGlobal);
+                initialDashboardData = dashboardData;
+                renderDashboard();
+            } else {
+                console.warn('⚠️ Recibidas 0 filas de datos.');
+                document.getElementById('global-loading').style.display = 'none';
+                alert('⚠️ El servidor devolvió 0 datos.');
+                renderDashboardEmpty();
+            }
+
+            console.timeEnd('⚡ Init Dashboard');
+            console.log('✅ Dashboard listo para usar');
+        }
+
+        function renderDashboardEmpty() {
+            document.getElementById('metricFT').innerText = '0';
+            document.getElementById('metricCases').innerText = '0';
+            document.getElementById('metricCT').innerText = '0%';
+            document.getElementById('metricCR').innerText = '0%';
+            document.querySelector('.container').insertAdjacentHTML('beforeend', '<h2 style="text-align:center;color:red;padding:20px;">NO DATA FOUND</h2>');
+        }
+
+        // ============================================
+        // PROCESAMIENTO DE DATOS HISTÓRICOS
+        // ============================================
+        function procesarDatosHistoricos() {
+            console.log('📊 Procesando datos históricos por semana...');
+
+            // Obtener todas las semanas únicas
+            var semanas = new Set();
+            rawDataGlobal.forEach(function (row) {
+                var week = row[COLS.WEEK];
+                if (week) semanas.add(week);
+            });
+
+            // Convertir a array y ordenar
+            var semanasArray = Array.from(semanas).sort();
+
+            // Llenar el select de semanas
+            var selectWeek = document.getElementById('filterWeek');
+            semanasArray.forEach(function (week) {
+                var option = document.createElement('option');
+                option.value = week;
+                option.text = week;
+                selectWeek.appendChild(option);
+            });
+
+            // Procesar métricas por agente para cada semana
+            semanasArray.forEach(function (week) {
+                var dataSemana = rawDataGlobal.filter(function (row) {
+                    return row[COLS.WEEK] === week;
+                });
+
+                historicalData[week] = calcularMetricasPorAgente(dataSemana);
+            });
+
+            console.log('✅ Datos históricos procesados: ' + semanasArray.length + ' semanas');
+        }
+
+        function calcularMetricasPorAgente(rows) {
+            var agentMap = {};
+
+            rows.forEach(function (row) {
+                var agent = row[COLS.AGENT];
+                if (!agent) return;
+
+                if (!agentMap[agent]) {
+                    agentMap[agent] = {
+                        agent: agent,
+                        supervisor: row[COLS.SUP] || 'N/A',
+                        ft: 0,
+                        cases: 0,
+                        ctSum: 0,
+                        ctCount: 0,
+                        crSum: 0,
+                        crCount: 0
+                    };
+                }
+
+                var a = agentMap[agent];
+                a.cases++;
+
+                if (row[COLS.FT] == 1 || row[COLS.FT] == '1') a.ft++;
+
+                var ct = parseNumberRobust(row[COLS.CT]);
+                if (ct !== null) {
+                    a.ctSum += ct;
+                    a.ctCount++;
+                }
+
+                var cr = parseNumberRobust(row[COLS.CR]);
+                if (cr !== null) {
+                    a.crSum += cr;
+                    a.crCount++;
+                }
+            });
+
+            // Calcular promedios y clasificar
+            var agentes = [];
+            for (var key in agentMap) {
+                var a = agentMap[key];
+                agentes.push({
+                    agent: a.agent,
+                    supervisor: a.supervisor,
+                    ft: a.ft,
+                    cases: a.cases,
+                    ct: a.ctCount > 0 ? a.ctSum / a.ctCount : 0,
+                    cr: a.crCount > 0 ? a.crSum / a.crCount : 0
+                });
+            }
+
+            // Clasificar por quartiles para cada métrica
+            return clasificarPorQuartiles(agentes);
+        }
+
+        function clasificarPorQuartiles(agentes) {
+            if (agentes.length < 4) return { agentes: agentes, stats: null };
+
+            // CORRECCIÓN CRÍTICA: Para FT, mayor es mejor
+            var ftValues = agentes.map(a => a.ft).sort((a, b) => b - a); // DESCENDENTE
+            var ctValues = agentes.map(a => a.ct).sort((a, b) => a - b);
+            var crValues = agentes.map(a => a.cr).sort((a, b) => a - b);
+
+            var stats = {
+                ft: calculateStats(ftValues, true), // true = higher is better
+                ct: calculateStats(ctValues, false),
+                cr: calculateStats(crValues, false)
+            };
+
+            agentes.forEach(function (agent) {
+                // FT: Mayor = Q1, Menor = Q4
+                agent.ftQuartile = getQuartileLabel(agent.ft, stats.ft, true);
+                agent.ftOutlier = getOutlierStatus(agent.ft, stats.ft, true);
+
+                // CT & CR: Menor = Q1 (mejor), Mayor = Q4 (peor)
+                agent.ctQuartile = getQuartileLabel(agent.ct, stats.ct, false);
+                agent.ctOutlier = getOutlierStatus(agent.ct, stats.ct, false);
+                agent.crQuartile = getQuartileLabel(agent.cr, stats.cr, false);
+                agent.crOutlier = getOutlierStatus(agent.cr, stats.cr, false);
+            });
+
+            return { agentes: agentes, stats: stats };
+        }
+
+        function getQuartileLabel(value, stats, higherIsBetter) {
+            if (higherIsBetter) {
+                // Para FT: Mayor = Q1 (mejor)
+                if (value >= stats.q3) return 'Q1';
+                if (value >= stats.median) return 'Q2';
+                if (value >= stats.q1) return 'Q3';
+                return 'Q4';
+            } else {
+                // Para CT/CR: Menor = Q1 (mejor)
+                if (value <= stats.q1) return 'Q1';
+                if (value <= stats.median) return 'Q2';
+                if (value <= stats.q3) return 'Q3';
+                return 'Q4';
+            }
+        }
+
+        function getOutlierStatus(value, stats, higherIsBetter) {
+            if (value > stats.upperFence) {
+                return higherIsBetter ? 'HIGH_GOOD' : 'HIGH';
+            }
+            if (value < stats.lowerFence) {
+                return higherIsBetter ? 'LOW' : 'LOW_GOOD';
+            }
+            return 'NONE';
+        }
+
+        // ============================================
+        // FILTROS
+        // ============================================
+
+
+
+function fillFiltersInstant(filters) {
+    var map = {
+        'S': 'filterWeek',
+        'U': 'filterBegin',
+        'I': 'filterI',
+        'K': 'filterK',
+        'L': 'filterOutreachType',
+        'N': 'filterStatus',
+        'V': 'filterSupervisor',
+        'W': 'filterAgent',
+        'J': 'filterCaseOwner'
+    };
+
+    for (var col in map) {
+        var selectElement = document.getElementById(map[col]);
+        if (selectElement && filters[col]) {
+            while (selectElement.options.length > 1) {
+                selectElement.remove(1);
+            }
+
+            var fragment = document.createDocumentFragment();
+            
+            filters[col].forEach(function (value) {
+                var option = document.createElement('option');
+                option.value = value;
+                option.text = value;
+                fragment.appendChild(option);
+            });
+            
+            selectElement.appendChild(fragment);
+        }
+    }
+
+    // ⭐ NUEVO: Inicializar Select2 después de llenar los datos
+    setTimeout(function() {
+        inicializarSelect2();
+    }, 100);
+}
+
+        function getFiltros() {
+            return {
+                week: document.getElementById('filterWeek').value, // NUEVO
+                colI: document.getElementById('filterI').value,
+                colK: document.getElementById('filterK').value,
+                outreachType: document.getElementById('filterOutreachType').value,
+                supervisor: document.getElementById('filterSupervisor').value,
+                agent: document.getElementById('filterAgent').value,
+                caseOwner: document.getElementById('filterCaseOwner').value,
+                status: document.getElementById('filterStatus').value,
+                begin: document.getElementById('filterBegin').value
+            };
+        }
+function aplicarFiltros() {
+    console.time('⚡ Filtrado');
+    console.log('🔍 Iniciando filtrado...');
+
+    var filtros = getFiltros();
+    console.log('📋 Filtros obtenidos:', filtros);
+    
+    var hayFiltros = Object.values(filtros).some(v => v !== '');
+    console.log('¿Hay filtros activos?', hayFiltros);
+
+    if (!hayFiltros && initialDashboardData) {
+        console.log('⚡ Sin filtros - usando snapshot inicial');
+        dashboardData = initialDashboardData;
+        renderDashboard();
+        console.timeEnd('⚡ Filtrado');
+        return;
+    }
+
+    var datosFiltrados = rawDataGlobal.filter(function (row) {
+        return aplicarFiltroFila(row, filtros);
+    });
+
+    console.log('📊 Filas antes de filtrar:', rawDataGlobal.length);
+    console.log('📊 Filas después de filtrar:', datosFiltrados.length);
+    
+    if (datosFiltrados.length === 0) {
+        console.warn('⚠️ El filtro resultó en 0 filas. Revisando primera fila:');
+        if (rawDataGlobal.length > 0) {
+            console.log('Primera fila completa:', rawDataGlobal[0]);
+            console.log('Valor MONTH:', rawDataGlobal[0][COLS.MONTH]);
+            console.log('Filtro begin:', filtros.begin);
+        }
+    }
+
+    dashboardData = procesarDatos(datosFiltrados);
+    renderDashboard();
+
+    console.timeEnd('⚡ Filtrado');
+}
+
+   function limpiarFiltros() {
+    console.log('🧹 Limpiando filtros...');
+
+    // ⭐ NUEVO: Limpiar Select2
+    if (typeof jQuery !== 'undefined' && typeof jQuery.fn.select2 !== 'undefined') {
+        jQuery('.filters-grid select').val('').trigger('change');
+    } else {
+        // Fallback para selects normales
+        document.querySelectorAll('.filters-grid select').forEach(function (select) {
+            select.value = '';
+        });
+    }
+
+    if (initialDashboardData) {
+        console.log('⚡ Restaurando datos iniciales');
+        dashboardData = initialDashboardData;
+        renderDashboard();
+    } else {
+        aplicarFiltros();
+    }
+}
+
+        // ============================================
+        // PROCESAMIENTO DE DATOS
+        // ============================================
+        function procesarDatos(rows) {
+            console.time('  📊 Procesamiento');
+
+            var resultado = {
+                metrics: calcularKPIs(rows),
+                wow: {
+                    main: agruparDatos(rows, COLS.WEEK),
+                    breakdown: generarDesgloses(rows)
+                },
+                mom: {
+                    main: agruparDatos(rows, COLS.MONTH),
+                    breakdown: generarDesgloses(rows)
+                },
+                dod: {
+                    main: agruparDatos(rows, COLS.DATE),
+                    breakdown: generarDesgloses(rows)
+                },
+                ranking: agruparDatos(rows, COLS.AGENT),
+                analisis: analizarMejoresTiempos(rows)
+            };
+
+            console.timeEnd('  📊 Procesamiento');
+            return resultado;
+        }
+
+        function calcularKPIs(rows) {
+            var ft = 0, cases = 0, sumCT = 0, countCT = 0, sumCR = 0, countCR = 0;
+
+            for (var i = 0; i < rows.length; i++) {
+                var row = rows[i];
+                cases++;
+
+                if (row[COLS.FT] == 1 || row[COLS.FT] == '1') ft++;
+
+                var ct = parseNumberRobust(row[COLS.CT]);
+                if (ct !== null) {
+                    sumCT += ct;
+                    countCT++;
+                }
+
+                var cr = parseNumberRobust(row[COLS.CR]);
+                if (cr !== null) {
+                    sumCR += cr;
+                    countCR++;
+                }
+            }
+
+            return {
+                ft: ft,
+                cases: cases,
+                ct: countCT ? sumCT / countCT : 0,
+                cr: countCR ? sumCR / countCR : 0
+            };
+        }
+
+        function agruparDatos(rows, colIdx) {
+            var grupos = {};
+
+            for (var i = 0; i < rows.length; i++) {
+                var row = rows[i];
+                var key = row[colIdx] || 'N/A';
+
+                if (!grupos[key]) {
+                    grupos[key] = {
+                        label: key,
+                        ft: 0,
+                        cases: 0,
+                        ctSum: 0,
+                        ctCount: 0,
+                        crSum: 0,
+                        crCount: 0
+                    };
+                }
+
+                var g = grupos[key];
+                g.cases++;
+
+                if (row[COLS.FT] == 1 || row[COLS.FT] == '1') g.ft++;
+
+                var ct = parseNumberRobust(row[COLS.CT]);
+                if (ct !== null) {
+                    g.ctSum += ct;
+                    g.ctCount++;
+                }
+
+                var cr = parseNumberRobust(row[COLS.CR]);
+                if (cr !== null) {
+                    g.crSum += cr;
+                    g.crCount++;
+                }
+            }
+
+            var resultado = [];
+            for (var key in grupos) {
+                var g = grupos[key];
+                resultado.push({
+                    label: g.label,
+                    ft: g.ft,
+                    cases: g.cases,
+                    ct: g.ctCount ? g.ctSum / g.ctCount : 0,
+                    cr: g.crCount ? g.crSum / g.crCount : 0
+                });
+            }
+
+            resultado.sort(function (a, b) {
+                return a.label > b.label ? 1 : -1;
+            });
+
+            return resultado;
+        }
+
+        function generarDesgloses(rows) {
+            return {
+                I: agruparDatos(rows, COLS.COUNTRY),
+                K: agruparDatos(rows, COLS.STAGE),
+                L: agruparDatos(rows, COLS.OUTREACH),
+                N: agruparDatos(rows, COLS.STATUS)
+            };
+        }
+
+        function analizarMejoresTiempos(rows) {
+            var dias = {}, horas = {}, diaHora = {}, paises = {};
+            var diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+
+            for (var i = 0; i < rows.length; i++) {
+                var row = rows[i];
+                var isFT = (row[COLS.FT] == 1 || row[COLS.FT] == '1');
+
+                // Distribución por País (Columna I/COUNTRY)
+                var pais = row[COLS.COUNTRY] || 'Desconocido';
+                if (!paises[pais]) paises[pais] = { label: pais, count: 0, ft: 0, ctSum: 0, ctCount: 0, crSum: 0, crCount: 0 };
+                var p = paises[pais];
+                p.count++;
+                if (isFT) p.ft++;
+
+                var ct = parseNumberRobust(row[COLS.CT]);
+                if (ct !== null) { p.ctSum += ct; p.ctCount++; }
+                var cr = parseNumberRobust(row[COLS.CR]);
+                if (cr !== null) { p.crSum += cr; p.crCount++; }
+
+                var fechaStr = row[COLS.TRIP_DATE];
+                if (!fechaStr) continue;
+
+                var parts = fechaStr.split('-');
+                if (parts.length < 3) continue;
+
+                var dateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+                var diaNombre = diasSemana[dateObj.getDay()];
+
+                if (!dias[diaNombre]) dias[diaNombre] = { label: diaNombre, count: 0, ft: 0, ctSum: 0, ctCount: 0, crSum: 0, crCount: 0 };
+                var d = dias[diaNombre];
+                d.count++;
+                if (isFT) d.ft++;
+                if (ct !== null) { d.ctSum += ct; d.ctCount++; }
+                if (cr !== null) { d.crSum += cr; d.crCount++; }
+
+                var hora = row[COLS.TRIP_HOUR];
+                var horaNum = -1;
+
+                if (typeof hora === 'number') {
+                    if (hora < 1) horaNum = Math.floor(hora * 24);
+                    else horaNum = Math.floor(hora);
+                } else if (typeof hora === 'string' && hora.includes(':')) {
+                    horaNum = parseInt(hora.split(':')[0]);
+                }
+
+                if (horaNum >= 0 && horaNum <= 23) {
+                    var horaStr = (horaNum < 10 ? '0' + horaNum : horaNum) + ':00';
+                    if (!horas[horaStr]) horas[horaStr] = { label: horaStr, count: 0, ft: 0, ctSum: 0, ctCount: 0, crSum: 0, crCount: 0 };
+                    var h = horas[horaStr];
+                    h.count++;
+                    if (isFT) h.ft++;
+                    if (ct !== null) { h.ctSum += ct; h.ctCount++; }
+                    if (cr !== null) { h.crSum += cr; h.crCount++; }
+
+                    var dh = diaNombre + ' ' + horaStr;
+                    if (isFT) diaHora[dh] = (diaHora[dh] || 0) + 1;
+                }
+            }
+
+            function getMaxFT(obj) {
+                var maxKey = '-', maxVal = 0;
+                for (var k in obj) {
+                    if (obj[k].ft > maxVal) {
+                        maxVal = obj[k].ft;
+                        maxKey = k;
+                    }
+                }
+                return { label: maxKey, count: maxVal };
+            }
+
+            function toArrayExtended(obj) {
+                var arr = [];
+                for (var k in obj) {
+                    var item = obj[k];
+                    arr.push({
+                        label: item.label,
+                        count: item.count,
+                        ft: item.ft,
+                        ct: item.ctCount > 0 ? item.ctSum / item.ctCount : 0,
+                        cr: item.crCount > 0 ? item.crSum / item.crCount : 0
+                    });
+                }
+                arr.sort(function (a, b) { return b.ft - a.ft; });
+                return arr;
+            }
+
+            return {
+                bestDay: getMaxFT(dias),
+                bestHour: getMaxFT(horas),
+                bestTime: { label: getMaxKey(diaHora), count: diaHora[getMaxKey(diaHora)] || 0 },
+                allDays: toArrayExtended(dias),
+                allHours: toArrayExtended(horas),
+                allCountries: toArrayExtended(paises)
+            };
+        }
+
+        function getMaxKey(obj) {
+            var maxKey = '-', maxVal = 0;
+            for (var k in obj) {
+                if (obj[k] > maxVal) { maxVal = obj[k]; maxKey = k; }
+            }
+            return maxKey;
+        }
+
+        /**
+         * Llama al backend para actualizar el archivo JSON en Drive
+         */
+function guardarFechaActualizacion() {
+    const fecha = obtenerFechaActual();
+    
+    console.log('💾 Guardando fecha en Google Sheets:', fecha);
+    
+    // ⭐ CORREGIDO: Guardar en Google Sheets
+    google.script.run
+        .withSuccessHandler(function() {
+            console.log('✅ Fecha guardada exitosamente en Sheets');
+            actualizarIndicadorFecha(fecha);
+        })
+        .withFailureHandler(function(err) {
+            console.error('❌ Error guardando fecha:', err);
+            alert('⚠️ No se pudo guardar la fecha: ' + err.message);
+        })
+        .guardarFechaEnSheet(fecha);
+}
+
+        function mostrarCarga(mostrar, texto) {
+            var loader = document.getElementById('global-loading');
+            if (loader) {
+                loader.style.display = mostrar ? 'flex' : 'none';
+                if (texto) {
+                    var h2 = loader.querySelector('h2');
+                    if (h2) h2.innerText = texto;
+                }
+            }
+        }
+
+        // ============================================
+        // RENDERIZADO
+        // ============================================
+        function renderDashboard() {
+            if (!dashboardData) return;
+
+            document.getElementById('global-loading').style.display = 'none';
+
+            console.time('  🎨 Render');
+
+            var m = dashboardData.metrics;
+            document.getElementById('metricFT').innerText = m.ft.toLocaleString();
+            document.getElementById('metricCases').innerText = m.cases.toLocaleString();
+            document.getElementById('metricCT').innerText = (m.ct * 100).toFixed(2) + '%';
+            document.getElementById('metricCR').innerText = (m.cr * 100).toFixed(2) + '%';
+
+            renderCurrentTab();
+
+            console.timeEnd('  🎨 Render');
+        }
+
+        function renderCurrentTab() {
+            var activeTabEl = document.querySelector('.tab.active');
+            if (!activeTabEl) return;
+
+            var onclickAttr = activeTabEl.getAttribute('onclick');
+            var match = onclickAttr.match(/'([^']+)'/);
+            if (!match) return;
+
+            var id = match[1];
+            var container = document.getElementById(id);
+            if (!container) return;
+
+            container.innerHTML = '';
+
+            if (!dashboardData) return;
+
+            if (id === 'ranking') {
+                renderRankingTab(container);
+            } else if (id === 'analisis') {
+                renderAnalisisTab(container);
+            } else if (id === 'outliers') {
+                renderOutliersUnificado(container); // NUEVO
+            } else {
+                if (!dashboardData[id]) return;
+                renderMainView(id, dashboardData[id].main, container);
+                renderBreakdownAccordion(dashboardData[id].breakdown, container);
+            }
+        }
+
+        // ============================================
+        // PESTAÑA OUTLIERS UNIFICADO
+        // ============================================
+
+
+function renderOutliersUnificado(container) {
+    console.time('📊 Outliers Unificado');
+
+    // ⭐ CORREGIDO: Obtener filtros ANTES de filtrar
+    var filtros = getFiltros();
+    var filteredRaw = rawDataGlobal.filter(function (r) {
+        return aplicarFiltroFila(r, filtros);
+    });
+
+    if (filteredRaw.length === 0) {
+        container.innerHTML = '<p style="text-align:center;padding:30px;">No hay datos para analizar con los filtros aplicados.</p>';
+        return;
+    }
+
+    // ⭐ CAMBIO: Agrupar por columna J (OWNER) en lugar de AGENT
+    var ownerMap = {};
+    
+    filteredRaw.forEach(function(row) {
+        var owner = row[COLS.OWNER] || 'N/A'; // Columna J
+        
+        if (!ownerMap[owner]) {
+            ownerMap[owner] = {
+                owner: owner,
+                supervisor: row[COLS.SUP] || 'N/A',
+                agent: row[COLS.AGENT] || 'N/A', // ⭐ NUEVO: Capturar también el Agent
+                ft: 0,
+                cases: 0,
+                ctSum: 0,
+                ctCount: 0,
+                crSum: 0,
+                crCount: 0
+            };
+        }
+        
+        var o = ownerMap[owner];
+        o.cases++;
+        
+        if (row[COLS.FT] == 1 || row[COLS.FT] == '1') o.ft++;
+        
+        var ct = parseNumberRobust(row[COLS.CT]);
+        if (ct !== null) {
+            o.ctSum += ct;
+            o.ctCount++;
+        }
+        
+        var cr = parseNumberRobust(row[COLS.CR]);
+        if (cr !== null) {
+            o.crSum += cr;
+            o.crCount++;
+        }
+    });
+    
+    // Convertir a array
+    var owners = [];
+    for (var key in ownerMap) {
+        var o = ownerMap[key];
+        owners.push({
+            agent: o.owner, // Usar "agent" para compatibilidad con el resto del código
+            supervisor: o.supervisor,
+            ft: o.ft,
+            cases: o.cases,
+            ct: o.ctCount > 0 ? o.ctSum / o.ctCount : 0,
+            cr: o.crCount > 0 ? o.crSum / o.crCount : 0
+        });
+    }
+    
+    if (owners.length < 4) {
+        container.innerHTML = '<p style="text-align:center;padding:30px;">Insuficientes Case Owners para análisis de quartiles (mínimo 4 requeridos, encontrados: ' + owners.length + ').</p>';
+        return;
+    }
+
+    // Clasificar por quartiles
+    var resultado = clasificarPorQuartiles(owners);
+    var agentes = resultado.agentes;
+    var stats = resultado.stats;
+
+    // Ordenar: Prioridad FT (Q4 primero), luego por outliers
+    agentes.sort(function (a, b) {
+        var ftWeightA = parseInt(a.ftQuartile.replace('Q', ''));
+        var ftWeightB = parseInt(b.ftQuartile.replace('Q', ''));
+
+        if (ftWeightA !== ftWeightB) return ftWeightB - ftWeightA;
+
+        var outlierWeightA = (a.ftOutlier !== 'NONE' ? 2 : 0) +
+            (a.ctOutlier !== 'NONE' ? 1 : 0) +
+            (a.crOutlier !== 'NONE' ? 1 : 0);
+        var outlierWeightB = (b.ftOutlier !== 'NONE' ? 2 : 0) +
+            (b.ctOutlier !== 'NONE' ? 1 : 0) +
+            (b.crOutlier !== 'NONE' ? 1 : 0);
+
+        return outlierWeightB - outlierWeightA;
+    });
+
+    // Construir HTML
+    var html = '<h2 style="color:#667eea;text-align:center;margin-bottom:20px;">📊 Performance Unificada por Case Owner</h2>';
+    
+    // ⭐ NUEVO: Mostrar filtros activos
+    var filtrosActivos = [];
+    if (filtros.week) filtrosActivos.push('Week: ' + filtros.week);
+    if (filtros.begin) filtrosActivos.push('Month: ' + filtros.begin);
+    if (filtros.colI) filtrosActivos.push('Country: ' + filtros.colI);
+    if (filtros.supervisor) filtrosActivos.push('Supervisor: ' + filtros.supervisor);
+    if (filtros.agent) filtrosActivos.push('Agent: ' + filtros.agent);
+    if (filtros.caseOwner) filtrosActivos.push('Case Owner: ' + filtros.caseOwner);
+    
+    if (filtrosActivos.length > 0) {
+        html += '<div style="background:#e8f4f8;padding:10px;border-radius:5px;margin-bottom:15px;text-align:center;">';
+        html += '<strong>🔍 Filtros Activos:</strong> ' + filtrosActivos.join(' | ');
+        html += '</div>';
+    }
+
+    // Resumen de estadísticas
+    html += '<div style="background:#f8f9fa;padding:15px;border-radius:10px;margin-bottom:20px;">';
+    html += '<h3 style="color:#667eea;margin-bottom:10px;">📈 Estadísticas Globales (' + owners.length + ' Case Owners)</h3>';
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;">';
+
+    var metricas = [
+        { label: 'FT Cases', stat: stats.ft, format: function (v) { return v.toFixed(0); } },
+        { label: 'CT %', stat: stats.ct, format: function (v) { return (v * 100).toFixed(2) + '%'; } },
+        { label: 'CR %', stat: stats.cr, format: function (v) { return (v * 100).toFixed(2) + '%'; } }
+    ];
+
+    metricas.forEach(function (m) {
+        html += '<div style="background:white;padding:10px;border-radius:5px;text-align:center;">';
+        html += '<strong>' + m.label + '</strong><br>';
+        html += '<small>Avg: ' + m.format(m.stat.mean) + ' | ';
+        html += 'Q1: ' + m.format(m.stat.q1) + ' | ';
+        html += 'Q3: ' + m.format(m.stat.q3) + '</small>';
+        html += '</div>';
+    });
+
+    html += '</div></div>';
+
+    // Comparación de semanas
+    html += renderComparacionSemanal(container);
+
+    // Tabla unificada
+    html += '<div style="overflow-x:auto;max-height:600px;overflow-y:auto;">';
+    html += '<table class="unified-table">';
+    html += '<thead><tr>';
+    html += '<th rowspan="2">Case Owner</th>';
+    html += '<th rowspan="2">Supervisor</th>';
+    html += '<th rowspan="2">Cases</th>';
+    html += '<th colspan="3" style="background:#e74c3c;">FT (Prioritario)</th>';
+    html += '<th colspan="3" style="background:#3498db;">CT %</th>';
+    html += '<th colspan="3" style="background:#2ecc71;">CR %</th>';
+    html += '</tr><tr>';
+    // FT
+    html += '<th style="background:#e74c3c;">Valor</th>';
+    html += '<th style="background:#e74c3c;">Q</th>';
+    html += '<th style="background:#e74c3c;">Out</th>';
+    // CT
+    html += '<th style="background:#3498db;">Valor</th>';
+    html += '<th style="background:#3498db;">Q</th>';
+    html += '<th style="background:#3498db;">Out</th>';
+    // CR
+    html += '<th style="background:#2ecc71;">Valor</th>';
+    html += '<th style="background:#2ecc71;">Q</th>';
+    html += '<th style="background:#2ecc71;">Out</th>';
+    html += '</tr></thead><tbody>';
+
+    agentes.forEach(function (a) {
+        var rowClass = '';
+        if (a.ftOutlier !== 'NONE' || a.ctOutlier !== 'NONE' || a.crOutlier !== 'NONE') {
+            rowClass = 'row-outlier-high';
+        }
+
+        html += '<tr class="' + rowClass + '">';
+        html += '<td style="text-align:left;font-weight:bold;">' + a.agent + '</td>';
+        html += '<td style="text-align:left;color:#7f8c8d;">' + a.supervisor + '</td>';
+        html += '<td>' + a.cases + '</td>';
+
+        // FT
+        html += '<td style="font-weight:bold;color:#c0392b;">' + a.ft + '</td>';
+        html += '<td>' + renderQuartileBadge(a.ftQuartile) + '</td>';
+        html += '<td>' + renderOutlierBadge(a.ftOutlier) + '</td>';
+
+        // CT
+        html += '<td>' + (a.ct * 100).toFixed(2) + '%</td>';
+        html += '<td>' + renderQuartileBadge(a.ctQuartile) + '</td>';
+        html += '<td>' + renderOutlierBadge(a.ctOutlier) + '</td>';
+
+        // CR
+        html += '<td>' + (a.cr * 100).toFixed(2) + '%</td>';
+        html += '<td>' + renderQuartileBadge(a.crQuartile) + '</td>';
+        html += '<td>' + renderOutlierBadge(a.crOutlier) + '</td>';
+
+        html += '</tr>';
+    });
+
+    html += '</tbody></table></div>';
+
+    container.innerHTML = html;
+    console.timeEnd('📊 Outliers Unificado');
+}
+
+        
+
+        function renderQuartileBadge(quartile) {
+            var className = quartile.toLowerCase();
+            return '<span class="q-badge ' + className + '">' + quartile + '</span>';
+        }
+
+        function renderOutlierBadge(status) {
+            if (status === 'NONE') {
+                return '<span class="outlier-badge outlier-none">-</span>';
+            } else if (status === 'HIGH') {
+                return '<span class="outlier-badge outlier-high">⚠️ Alto</span>';
+            } else {
+                return '<span class="outlier-badge outlier-low">✅ Bajo</span>';
+            }
+        }
+
+        // ============================================
+        // COMPARACIÓN SEMANAL (EVOLUCIÓN)
+        // ============================================
+        function renderComparacionSemanal(container) {
+            if (Object.keys(historicalData).length < 2) {
+                return '<p style="text-align:center;padding:20px;color:#999;font-style:italic;">⚠️ Se requieren al menos 2 semanas de datos para realizar análisis de evolución.</p>';
+            }
+
+            var semanas = Object.keys(historicalData).sort();
+            var semanaActual = semanas[semanas.length - 1];
+            var semanaPrevia = semanas.length > 1 ? semanas[semanas.length - 2] : semanas[0];
+
+            var html = '<div class="historical-section">';
+            html += '<h3>🔄 Análisis de Evolución Semanal</h3>';
+
+            html += '<div class="week-comparison">';
+
+            // Selector Base
+            html += '<div class="week-selector-group">';
+            html += '<label>Semana Base (A)</label>';
+            html += '<select id="weekBase" onchange="actualizarComparacion()">';
+            semanas.forEach(function (week) {
+                var selected = week === semanaPrevia ? 'selected' : '';
+                html += '<option value="' + week + '" ' + selected + '>' + week + '</option>';
+            });
+            html += '</select>';
+            html += '</div>';
+
+            html += '<div class="vs-badge">VS</div>';
+
+            // Selector Comparación
+            html += '<div class="week-selector-group">';
+            html += '<label>Semana Objetivo (B)</label>';
+            html += '<select id="weekCompare" onchange="actualizarComparacion()">';
+            semanas.forEach(function (week) {
+                var selected = week === semanaActual ? 'selected' : '';
+                html += '<option value="' + week + '" ' + selected + '>' + week + '</option>';
+            });
+            html += '</select>';
+            html += '</div>';
+
+            html += '</div>'; // End week-comparison
+
+            html += '<div id="comparison-results"></div>';
+            html += '</div>';
+
+            // Auto-cargar la primera vez
+            setTimeout(actualizarComparacion, 100);
+
+            return html;
+        }
+
+        function actualizarComparacion() {
+            var weekBaseEl = document.getElementById('weekBase');
+            var weekCompareEl = document.getElementById('weekCompare');
+
+            if (!weekBaseEl || !weekCompareEl) return;
+
+            var weekBase = weekBaseEl.value;
+            var weekCompare = weekCompareEl.value;
+
+            var container = document.getElementById('comparison-results');
+
+            if (!weekBase || !weekCompare || weekBase === weekCompare) {
+                container.innerHTML = '<p style="text-align:center;color:#999;padding:20px;">ℹ️ Por favor selecciona dos semanas diferentes para comparar.</p>';
+                return;
+            }
+
+            var dataBase = historicalData[weekBase];
+            var dataCompare = historicalData[weekCompare];
+
+            if (!dataBase || !dataCompare) return;
+
+            // Crear mapas para búsqueda rápida
+            var agentMapBase = {};
+            dataBase.agentes.forEach(function (a) { agentMapBase[a.agent] = a; });
+
+            var agentMapCompare = {};
+            dataCompare.agentes.forEach(function (a) { agentMapCompare[a.agent] = a; });
+
+            // Encontrar agentes en ambas semanas
+            var evoluciones = [];
+
+            for (var agent in agentMapBase) {
+                if (agentMapCompare[agent]) {
+                    var base = agentMapBase[agent];
+                    var compare = agentMapCompare[agent];
+                    var qScoreBase = getQuartileScore(base.ftQuartile);
+                    var qScoreCompare = getQuartileScore(compare.ftQuartile);
+
+                    var evolution = {
+                        agent: agent,
+                        supervisor: base.supervisor,
+                        ftBase: base.ft,
+                        ftCompare: compare.ft,
+                        ftDelta: compare.ft - base.ft,
+                        qBase: base.ftQuartile,
+                        qCompare: compare.ftQuartile,
+                        evolution: qScoreCompare - qScoreBase // + mejoró, - empeoró
+                    };
+
+                    evoluciones.push(evolution);
+                }
+            }
+
+            // Ordenar: 1. Mayor mejora de quartil, 2. Mayor mejora de FT
+            evoluciones.sort(function (a, b) {
+                if (b.evolution !== a.evolution) return b.evolution - a.evolution;
+                return b.ftDelta - a.ftDelta;
+            });
+
+            // Resumen Estadístico
+            var mejoraron = evoluciones.filter(e => e.evolution > 0).length;
+            var empeoraron = evoluciones.filter(e => e.evolution < 0).length;
+            var iguales = evoluciones.filter(e => e.evolution === 0).length;
+
+            var html = '<div class="evolution-summary-grid">';
+            html += '<div class="evo-card evo-up"><div class="evo-val">+' + mejoraron + '</div><div class="evo-lbl">Mejoraron Quartil</div></div>';
+            html += '<div class="evo-card evo-same"><div class="evo-val">' + iguales + '</div><div class="evo-lbl">Sin Cambio Q</div></div>';
+            html += '<div class="evo-card evo-down"><div class="evo-val">' + empeoraron + '</div><div class="evo-lbl">Empeoraron Quartil</div></div>';
+            html += '</div>';
+
+            // Tabla
+            html += '<div style="overflow-x:auto;max-height:500px;overflow-y:auto;margin-top:20px;">';
+            html += '<table class="unified-table">';
+            html += '<thead>';
+            html += '<tr>';
+            html += '<th rowspan="2">Agente</th>';
+            html += '<th rowspan="2">Supervisor</th>';
+            html += '<th colspan="2" style="background:#bdc3c7;color:#2c3e50;">' + weekBase + ' (Base)</th>';
+            html += '<th colspan="2" style="background:#34495e;color:white;">' + weekCompare + ' (Objetivo)</th>';
+            html += '<th rowspan="2">Δ Evolución</th>';
+            html += '<th rowspan="2">Δ FT Cases</th>';
+            html += '</tr>';
+            html += '<tr>';
+            html += '<th style="background:#bdc3c7;color:#2c3e50;">Q</th><th style="background:#bdc3c7;color:#2c3e50;">FT</th>';
+            html += '<th style="background:#34495e;color:white;">Q</th><th style="background:#34495e;color:white;">FT</th>';
+            html += '</tr>';
+            html += '</thead><tbody>';
+
+            evoluciones.forEach(function (e) {
+                var rowStyle = '';
+                var evoIcon = '➡️';
+                var evoClass = '';
+                var evoText = 'Igual';
+
+                if (e.evolution > 0) {
+                    evoIcon = '🚀';
+                    rowStyle = 'background-color:rgba(46, 204, 113, 0.1);';
+                    evoClass = 'evolution-up';
+                    evoText = 'Mejoró +' + e.evolution;
+                } else if (e.evolution < 0) {
+                    evoIcon = '🔻';
+                    rowStyle = 'background-color:rgba(231, 76, 60, 0.1);';
+                    evoClass = 'evolution-down';
+                    evoText = 'Bajó ' + e.evolution;
+                }
+
+                html += '<tr style="' + rowStyle + '">';
+                html += '<td style="text-align:left;font-weight:bold;">' + e.agent + '</td>';
+                html += '<td style="text-align:left;color:#7f8c8d;">' + e.supervisor + '</td>';
+
+                // Base
+                html += '<td>' + renderQuartileBadge(e.qBase) + '</td>';
+                html += '<td style="color:#7f8c8d;">' + e.ftBase + '</td>';
+
+                // Compare
+                html += '<td>' + renderQuartileBadge(e.qCompare) + '</td>';
+                html += '<td style="font-weight:bold;">' + e.ftCompare + '</td>';
+
+                // Evolución
+                html += '<td style="font-weight:bold;" class="' + evoClass + '">' + evoIcon + ' ' + evoText + '</td>';
+                html += '<td style="font-weight:bold;color:' + (e.ftDelta >= 0 ? '#27ae60' : '#c0392b') + '">' + (e.ftDelta > 0 ? '+' : '') + e.ftDelta + '</td>';
+
+                html += '</tr>';
+            });
+
+            html += '</tbody></table></div>';
+
+            container.innerHTML = html;
+        }
+
+        function getQuartileScore(qLabel) {
+            // Q1 = 4 puntos (Mejor), Q4 = 1 punto (Peor)
+            if (qLabel === 'Q1') return 4;
+            if (qLabel === 'Q2') return 3;
+            if (qLabel === 'Q3') return 2;
+            if (qLabel === 'Q4') return 1;
+            return 0;
+        }
+
+        function calcularEvolucion(qBase, qCompare) {
+            var map = { 'Q1': 4, 'Q2': 3, 'Q3': 2, 'Q4': 1 };
+            return map[qCompare] - map[qBase];
+        }
+
+        // ============================================
+        // FUNCIONES AUXILIARES
+        // ============================================
+        function parseNumberRobust(v) {
+            if (v === null || v === undefined || v === '') return null;
+            if (typeof v === 'number') return v;
+            if (typeof v === 'string') {
+                var clean = v.replace('%', '').replace(',', '').trim();
+                var num = parseFloat(clean);
+                if (!isNaN(num)) {
+                    if (v.includes('%')) return num / 100;
+                    return num;
+                }
+            }
+            return null;
+        }
+function aplicarFiltroFila(row, filtros) {
+    // ⭐ NUEVO: Normalizar valores para comparación
+    function normalizar(valor) {
+        if (valor === null || valor === undefined) return '';
+        return valor.toString().trim();
+    }
+    
+    if (filtros.week && normalizar(row[COLS.WEEK]) !== normalizar(filtros.week)) return false;
+    if (filtros.outreachType && normalizar(row[COLS.OUTREACH]) !== normalizar(filtros.outreachType)) return false;
+    if (filtros.caseOwner && normalizar(row[COLS.OWNER]) !== normalizar(filtros.caseOwner)) return false;
+    if (filtros.status && normalizar(row[COLS.STATUS]) !== normalizar(filtros.status)) return false;
+    
+    // ⭐ CRÍTICO: Comparación especial para Month (puede ser número)
+    if (filtros.begin && filtros.begin !== '') {
+        var rowMonth = normalizar(row[COLS.MONTH]);
+        var filtroMonth = normalizar(filtros.begin);
+        if (rowMonth !== filtroMonth) {
+            console.log('Filtro MONTH no coincide:', rowMonth, '!==', filtroMonth);
+            return false;
+        }
+    }
+    
+    if (filtros.supervisor && normalizar(row[COLS.SUP]) !== normalizar(filtros.supervisor)) return false;
+    if (filtros.agent && normalizar(row[COLS.AGENT]) !== normalizar(filtros.agent)) return false;
+    if (filtros.colI && normalizar(row[COLS.COUNTRY]) !== normalizar(filtros.colI)) return false;
+    if (filtros.colK && normalizar(row[COLS.STAGE]) !== normalizar(filtros.colK)) return false;
+    
+    return true;
+}
+
+        function calculateStats(values) {
+            values.sort(function (a, b) { return a - b; });
+            var n = values.length;
+
+            var mean = values.reduce(function (a, b) { return a + b }, 0) / n;
+            var q1 = getPercentile(values, 25);
+            var median = getPercentile(values, 50);
+            var q3 = getPercentile(values, 75);
+            var iqr = q3 - q1;
+
+            return {
+                mean: mean, q1: q1, median: median, q3: q3, iqr: iqr,
+                lowerFence: q1 - (1.5 * iqr),
+                upperFence: q3 + (1.5 * iqr),
+                min: values[0],
+                max: values[n - 1]
+            };
+        }
+
+        function getPercentile(sorted, p) {
+            var idx = (p / 100) * (sorted.length - 1);
+            var lower = Math.floor(idx);
+            var upper = Math.ceil(idx);
+            var weight = idx - lower;
+            return sorted[lower] * (1 - weight) + sorted[upper] * weight;
+        }
+
+        // ============================================
+        // OTRAS PESTAÑAS (RANKING, ANÁLISIS)
+        // ============================================
+        function renderRankingTab(container) {
+            if (dashboardData && dashboardData.ranking) {
+                renderRankingTable(dashboardData.ranking, container);
+            } else {
+                container.innerHTML = '<p style="text-align:center;padding:50px;color:#666;">No hay datos de ranking disponibles.</p>';
+            }
+        }
+
+        function renderRankingTable(data, container) {
+            if (!data || data.length === 0) {
+                container.innerHTML = '<p style="text-align:center;padding:50px;color:#666;">No hay datos.</p>';
+                return;
+            }
+
+            var sortedData = data.slice().sort(function (a, b) {
+                return b.ft - a.ft;
+            });
+
+            var html = '<h2 style="color:#667eea;text-align:center;margin-bottom:25px;">🏆 Top Performers</h2>';
+            html += '<div class="table-container"><table><thead><tr><th>Rank</th><th>Agente</th><th>FT ⭐</th><th>Cases</th><th>CT%</th><th>CR%</th></tr></thead><tbody>';
+
+            for (var i = 0; i < sortedData.length; i++) {
+                var d = sortedData[i];
+                var rank = i + 1;
+                var medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '';
+                var style = rank <= 3 ? 'background:#fff9db;font-weight:bold;' : '';
+
+                html += '<tr style="' + style + '">';
+                html += '<td>' + rank + ' ' + medal + '</td>';
+                html += '<td style="text-align:left;">' + d.label + '</td>';
+                html += '<td style="color:#667eea;font-weight:bold;">' + d.ft + '</td>';
+                html += '<td>' + d.cases + '</td>';
+                html += '<td>' + (d.ct * 100).toFixed(2) + '%</td>';
+                html += '<td>' + (d.cr * 100).toFixed(2) + '%</td>';
+                html += '</tr>';
+            }
+
+            html += '</tbody></table></div>';
+            container.innerHTML = html;
+        }
+
+        function renderAnalisisTab(container) {
+            if (dashboardData && dashboardData.analisis) {
+                renderAnalisisDetalle(dashboardData.analisis, container);
+            } else {
+                container.innerHTML = '<p style="text-align:center;padding:50px;color:#666;">No hay datos de análisis disponibles.</p>';
+            }
+        }
+
+        function renderAnalisisDetalle(ta, container) {
+            var html = '<h2 style="color:#667eea;text-align:center;margin-bottom:25px;">📈 Análisis de Mejores Tiempos y Rendimiento (Enfoque FT)</h2>';
+
+            // Tarjetas de Resumen
+            html += '<div class="analysis-grid">';
+            html += '<div class="analysis-card day"><div class="analysis-icon">📅</div><div class="analysis-label">Mejor Día (FT)</div><div class="analysis-value">' + ta.bestDay.label + '</div><div class="analysis-count">' + ta.bestDay.count + ' FT Cases</div></div>';
+            html += '<div class="analysis-card hour"><div class="analysis-icon">⏰</div><div class="analysis-label">Mejor Hora (FT)</div><div class="analysis-value">' + ta.bestHour.label + '</div><div class="analysis-count">' + ta.bestHour.count + ' FT Cases</div></div>';
+            html += '<div class="analysis-card combo"><div class="analysis-icon">🎯</div><div class="analysis-label">Mejor Momento (FT)</div><div class="analysis-value">' + ta.bestTime.label + '</div><div class="analysis-count">' + ta.bestTime.count + ' FT Cases</div></div>';
+            html += '</div>';
+
+            // Gráficos de Análisis
+            html += '<div class="analysis-charts-grid">';
+            html += '<div class="chart-wrapper" style="height:350px;"><h4 style="text-align:center;color:#667eea;">FT Cases por Día</h4><canvas id="chart-analysis-days"></canvas></div>';
+            html += '<div class="chart-wrapper" style="height:350px;"><h4 style="text-align:center;color:#667eea;">FT Cases por Hora</h4><canvas id="chart-analysis-hours"></canvas></div>';
+            html += '</div>';
+
+            // Distribución por Ciudad/País
+            if (ta.allCountries && ta.allCountries.length > 0) {
+                html += '<div class="heatmap-container" style="margin-top:40px;">';
+                html += '<h3 style="color:#667eea;margin-bottom:15px;text-align:center;">🌍 Distribución por Ciudad / País</h2>';
+                html += '<div class="analysis-charts-grid">';
+                html += '<div class="chart-wrapper" style="height:350px;"><canvas id="chart-analysis-countries"></canvas></div>';
+                html += '<div class="table-container" style="max-height:350px; overflow-y:auto;"><table><thead><tr><th>País/Ciudad</th><th>FT Cases</th><th>Total</th><th>Avg CT%</th></tr></thead><tbody>';
+                ta.allCountries.forEach(function (p) {
+                    html += '<tr><td style="text-align:left;font-weight:bold;">' + p.label + '</td><td style="color:#667eea;font-weight:bold;">' + p.ft + '</td><td>' + p.count + '</td><td>' + (p.ct * 100).toFixed(1) + '%</td></tr>';
+                });
+                html += '</tbody></table></div>';
+                html += '</div></div>';
+            }
+
+            // Mapa de Calor (Heatmap)
+            html += '<div class="heatmap-container">';
+            html += '<h3 style="color:#667eea;margin-bottom:15px;text-align:center;">🔥 Mapa de Calor: FT Cases Día vs Hora</h3>';
+            html += '<div id="analysis-heatmap"></div>';
+            html += '</div>';
+
+            // Tablas Detalladas
+            if (ta.allDays && ta.allDays.length > 0) {
+                html += '<div class="detail-table"><h3>📅 Distribución por Día</h3><div class="table-container"><table><thead><tr><th>Día</th><th>FT Cases</th><th>Total</th><th>Avg CT%</th><th>Avg CR%</th></tr></thead><tbody>';
+                ta.allDays.forEach(function (d) {
+                    html += '<tr>';
+                    html += '<td style="text-align:left;font-weight:bold;">' + d.label + '</td>';
+                    html += '<td style="color:#667eea;font-weight:bold;">' + d.ft + '</td>';
+                    html += '<td>' + d.count + '</td>';
+                    html += '<td style="color:#f39c12;font-weight:bold;">' + (d.ct * 100).toFixed(2) + '%</td>';
+                    html += '<td style="color:#e74c3c;font-weight:bold;">' + (d.cr * 100).toFixed(2) + '%</td>';
+                    html += '</tr>';
+                });
+                html += '</tbody></table></div></div>';
+            }
+
+            if (ta.allHours && ta.allHours.length > 0) {
+                var sortedHours = ta.allHours.slice().sort((a, b) => a.label.localeCompare(b.label));
+                html += '<div class="detail-table"><h3>⏰ Distribución por Hora</h3><div class="table-container"><table><thead><tr><th>Hora</th><th>FT Cases</th><th>Total</th><th>Avg CT%</th><th>Avg CR%</th></tr></thead><tbody>';
+                sortedHours.forEach(function (h) {
+                    html += '<tr>';
+                    html += '<td style="font-weight:bold;">' + h.label + '</td>';
+                    html += '<td style="color:#667eea;font-weight:bold;">' + h.ft + '</td>';
+                    html += '<td>' + h.count + '</td>';
+                    html += '<td style="color:#f39c12;font-weight:bold;">' + (h.ct * 100).toFixed(2) + '%</td>';
+                    html += '<td style="color:#e74c3c;font-weight:bold;">' + (h.cr * 100).toFixed(2) + '%</td>';
+                    html += '</tr>';
+                });
+                html += '</tbody></table></div></div>';
+            }
+
+            container.innerHTML = html;
+
+            requestAnimationFrame(function () {
+                renderAnalysisCharts(ta);
+                renderAnalysisHeatmap(ta);
+            });
+        }
+
+        function renderAnalysisCharts(ta) {
+            // Chart Días
+            var ctxDays = document.getElementById('chart-analysis-days').getContext('2d');
+            var sortedDays = ta.allDays.slice().sort((a, b) => {
+                var order = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+                return order.indexOf(a.label) - order.indexOf(b.label);
+            });
+
+            new Chart(ctxDays, {
+                type: 'bar',
+                data: {
+                    labels: sortedDays.map(d => d.label),
+                    datasets: [{
+                        label: 'FT Cases',
+                        data: sortedDays.map(d => d.ft),
+                        backgroundColor: 'rgba(102, 126, 234, 0.7)',
+                        borderColor: '#667eea',
+                        borderWidth: 1
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+
+            // Chart Horas
+            var ctxHours = document.getElementById('chart-analysis-hours').getContext('2d');
+            var sortedHours = ta.allHours.slice().sort((a, b) => a.label.localeCompare(b.label));
+
+            new Chart(ctxHours, {
+                type: 'line',
+                data: {
+                    labels: sortedHours.map(h => h.label),
+                    datasets: [{
+                        label: 'FT Cases x Hora',
+                        data: sortedHours.map(h => h.ft),
+                        borderColor: '#764ba2',
+                        backgroundColor: 'rgba(118, 75, 162, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+
+            // Chart Países
+            if (document.getElementById('chart-analysis-countries')) {
+                var ctxCountries = document.getElementById('chart-analysis-countries').getContext('2d');
+                new Chart(ctxCountries, {
+                    type: 'bar',
+                    data: {
+                        labels: ta.allCountries.map(p => p.label),
+                        datasets: [{
+                            label: 'FT Cases',
+                            data: ta.allCountries.map(p => p.ft),
+                            backgroundColor: 'rgba(39, 174, 96, 0.7)',
+                            borderColor: '#27ae60',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false
+                    }
+                });
+            }
+        }
+
+        function renderAnalysisHeatmap(ta) {
+            var container = document.getElementById('analysis-heatmap');
+            if (!container) return;
+
+            var diasOrder = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+            var matrix = {};
+
+            // Re-procesar Matrix Day/Hour desde rawDataGlobal filtrada (Solo FT)
+            var filtros = getFiltros();
+            rawDataGlobal.forEach(function (row) {
+                if (!aplicarFiltroFila(row, filtros)) return;
+
+                var isFT = (row[COLS.FT] == 1 || row[COLS.FT] == '1');
+                if (!isFT) return;
+
+                var fechaStr = row[COLS.TRIP_DATE];
+                if (!fechaStr) return;
+                var parts = fechaStr.split('-');
+                var dateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+                var dia = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][dateObj.getDay()];
+
+                var horaNum = -1;
+                var h = row[COLS.TRIP_HOUR];
+                if (typeof h === 'number') {
+                    horaNum = h < 1 ? Math.floor(h * 24) : Math.floor(h);
+                } else if (typeof h === 'string' && h.includes(':')) {
+                    horaNum = parseInt(h.split(':')[0]);
+                }
+
+                if (horaNum >= 0 && horaNum <= 23) {
+                    if (!matrix[dia]) matrix[dia] = {};
+                    matrix[dia][horaNum] = (matrix[dia][horaNum] || 0) + 1;
+                }
+            });
+
+            // Encontrar max para escala de colores
+            var maxVal = 0;
+            for (var d in matrix) {
+                for (var h in matrix[d]) {
+                    if (matrix[d][h] > maxVal) maxVal = matrix[d][h];
+                }
+            }
+
+            var html = '<table class="heatmap-table"><thead><tr><th>Día / Hora</th>';
+            for (var h = 0; h < 24; h++) html += '<th>' + (h < 10 ? '0' + h : h) + '</th>';
+            html += '</tr></thead><tbody>';
+
+            diasOrder.forEach(function (dia) {
+                html += '<tr><td class="day-label">' + dia + '</td>';
+                for (var h = 0; h < 24; h++) {
+                    var val = (matrix[dia] && matrix[dia][h]) ? matrix[dia][h] : 0;
+                    var pct = maxVal > 0 ? (val / maxVal) : 0;
+                    var bg = pct > 0 ? 'rgba(118, 75, 162, ' + (0.1 + pct * 0.9) + ')' : 'transparent';
+                    var color = pct > 0.5 ? 'white' : '#333';
+                    html += '<td class="heatmap-cell" style="background:' + bg + '; color:' + color + '" title="' + dia + ' ' + h + ':00 - ' + val + ' FT Cases">' + (val > 0 ? val : '') + '</td>';
+                }
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+            html += '<p style="text-align:right; font-size:0.8em; margin-top:5px; color:#666;">* Los colores representan la densidad de <strong>FT Cases</strong> (más oscuro = más volumen)</p>';
+            container.innerHTML = html;
+        }
+
+        // ============================================
+        // VISTAS WOW, MOM, DOD
+        // ============================================
+        function renderMainView(type, data, container) {
+            if (!data || data.length === 0) {
+                container.innerHTML += '<p style="text-align:center;">No hay datos.</p>';
+                return;
+            }
+
+            var details = document.createElement('details');
+            details.open = true;
+
+            var summary = document.createElement('summary');
+            summary.textContent = '📈 Gráfico & Tabla';
+            details.appendChild(summary);
+
+            var content = document.createElement('div');
+            content.className = 'details-content';
+
+            var chartId = 'chart-' + type;
+            content.innerHTML = '<div class="chart-wrapper"><canvas id="' + chartId + '"></canvas></div>';
+
+            renderHorizontalTable('Principal', data, content);
+            details.appendChild(content);
+            container.appendChild(details);
+
+            requestAnimationFrame(function () {
+                requestAnimationFrame(function () {
+                    renderComboChart(chartId, data);
+                });
+            });
+        }
+function renderBreakdownAccordion(bd, container) {
+    var details = document.createElement('details');
+    var summary = document.createElement('summary');
+    summary.textContent = '📋 Desglose';
+    details.appendChild(summary);
+
+    var content = document.createElement('div');
+    content.className = 'details-content';
+
+    var breakdowns = [
+        { key: 'I', title: 'Country' },
+        { key: 'K', title: 'Stage' },
+        { key: 'L', title: 'Outreach Type' },
+        { key: 'N', title: 'Status' }
+    ];
+
+    for (var i = 0; i < breakdowns.length; i++) {
+        var item = breakdowns[i];
+        var div = document.createElement('div');
+        div.style.marginBottom = '25px';
+        
+        // ⭐ NUEVO: Agregar gráfico para Country (Columna I)
+        if (item.key === 'I' && bd[item.key] && bd[item.key].length > 0) {
+            var chartId = 'chart-breakdown-' + item.key + '-' + Math.random().toString(36).substr(2, 9);
+            
+            // Crear acordeón para el gráfico
+            var detailsChart = document.createElement('details');
+            var summaryChart = document.createElement('summary');
+            summaryChart.textContent = '📊 Gráfico - ' + item.title;
+            summaryChart.style.background = '#e8f4f8';
+            summaryChart.style.color = '#2c3e50';
+            detailsChart.appendChild(summaryChart);
+            
+            var chartContent = document.createElement('div');
+            chartContent.className = 'details-content';
+            chartContent.innerHTML = '<div class="chart-wrapper" style="height:400px;"><canvas id="' + chartId + '"></canvas></div>';
+            detailsChart.appendChild(chartContent);
+            
+            div.appendChild(detailsChart);
+            
+            // Renderizar el gráfico después de agregar al DOM
+            (function(id, data) {
+                requestAnimationFrame(function() {
+                    requestAnimationFrame(function() {
+                        renderCountryChart(id, data);
+                    });
+                });
+            })(chartId, bd[item.key]);
+        }
+        
+        renderHorizontalTable('Columna ' + item.key + ' - ' + item.title, bd[item.key], div);
+        content.appendChild(div);
+    }
+
+    details.appendChild(content);
+    container.appendChild(details);
+}
+
+// ⭐ NUEVA FUNCIÓN: Renderizar gráfico de países/ciudades
+function renderCountryChart(id, data) {
+    var canvas = document.getElementById(id);
+    if (!canvas) {
+        console.warn('Canvas no encontrado: ' + id);
+        return;
+    }
+
+    var ctx = canvas.getContext('2d');
+    
+    // Ordenar por FT descendente para mejor visualización
+    var sortedData = data.slice().sort(function(a, b) {
+        return b.ft - a.ft;
+    });
+    
+    // Limitar a top 15 para mejor visualización
+    var displayData = sortedData.slice(0, 15);
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: displayData.map(function(d) { return d.label; }),
+            datasets: [
+                {
+                    label: 'FT Cases',
+                    data: displayData.map(function(d) { return d.ft; }),
+                    backgroundColor: 'rgba(102, 126, 234, 0.7)',
+                    borderColor: '#667eea',
+                    borderWidth: 1
+                },
+                {
+                    label: 'Total Cases',
+                    data: displayData.map(function(d) { return d.cases; }),
+                    backgroundColor: 'rgba(118, 75, 162, 0.5)',
+                    borderColor: '#764ba2',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            indexAxis: 'y', // Horizontal bar
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Top 15 Ciudades/Países por FT Cases',
+                    font: { size: 16 }
+                },
+                legend: {
+                    position: 'top'
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Número de Cases'
+                    }
+                }
+            }
+        }
+    });
+}
+
+        function renderHorizontalTable(title, data, container) {
+            if (!data || data.length === 0) {
+                container.innerHTML = '<p>No hay datos para: ' + title + '</p>';
+                return;
+            }
+
+            var h4 = document.createElement('h4');
+            h4.textContent = title;
+            h4.style.color = '#667eea';
+            h4.style.marginBottom = '8px';
+            container.appendChild(h4);
+
+            var div = document.createElement('div');
+            div.className = 'table-container';
+
+            var html = '<table><thead><tr><th>Metric</th>';
+            for (var i = 0; i < data.length; i++) {
+                html += '<th>' + data[i].label + '</th>';
+            }
+            html += '</tr></thead><tbody>';
+
+            var metrics = [
+                { label: 'FT Cases', key: 'ft', format: function (v) { return v; } },
+                { label: 'Total Cases', key: 'cases', format: function (v) { return v; } },
+                { label: 'CT %', key: 'ct', format: function (v) { return (v * 100).toFixed(2) + '%'; } },
+                { label: 'CR %', key: 'cr', format: function (v) { return (v * 100).toFixed(2) + '%'; } }
+            ];
+
+            for (var m = 0; m < metrics.length; m++) {
+                var metric = metrics[m];
+                html += '<tr><td><strong>' + metric.label + '</strong></td>';
+                for (var i = 0; i < data.length; i++) {
+                    html += '<td>' + metric.format(data[i][metric.key]) + '</td>';
+                }
+                html += '</tr>';
+            }
+
+            html += '</tbody></table>';
+            div.innerHTML = html;
+            container.appendChild(div);
+        }
+
+        function renderComboChart(id, data) {
+            var canvas = document.getElementById(id);
+            if (!canvas) return;
+
+            var ctx = canvas.getContext('2d');
+
+            if (charts[id]) {
+                charts[id].destroy();
+            }
+
+            var labels = [];
+            var ftData = [];
+            var casesData = [];
+            var ctData = [];
+            var crData = [];
+
+            for (var i = 0; i < data.length; i++) {
+                labels.push(data[i].label);
+                ftData.push(data[i].ft);
+                casesData.push(data[i].cases);
+                ctData.push(data[i].ct * 100);
+                crData.push(data[i].cr * 100);
+            }
+
+            charts[id] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'FT Cases',
+                            data: ftData,
+                            backgroundColor: 'rgba(102,126,234,0.7)',
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Total Cases',
+                            data: casesData,
+                            backgroundColor: 'rgba(118,75,162,0.7)',
+                            yAxisID: 'y'
+                        },
+                        {
+                            type: 'line',
+                            label: 'CT %',
+                            data: ctData,
+                            borderColor: '#ff9f43',
+                            borderWidth: 3,
+                            yAxisID: 'y1',
+                            fill: false
+                        },
+                        {
+                            type: 'line',
+                            label: 'CR %',
+                            data: crData,
+                            borderColor: '#eb3b5a',
+                            borderWidth: 3,
+                            yAxisID: 'y1',
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            position: 'left',
+                            title: { display: true, text: 'Cases' }
+                        },
+                        y1: {
+                            type: 'linear',
+                            position: 'right',
+                            title: { display: true, text: '%' },
+                            grid: { drawOnChartArea: false },
+                            ticks: {
+                                callback: function (value) {
+                                    return value + '%';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function cambiarTab(type) {
+            var tabs = document.querySelectorAll('.tab');
+            for (var i = 0; i < tabs.length; i++) {
+                tabs[i].classList.remove('active');
+            }
+
+            var contents = document.querySelectorAll('.tab-content');
+            for (var i = 0; i < contents.length; i++) {
+                contents[i].classList.remove('active');
+            }
+
+            var btn = document.querySelector("button[onclick=\"cambiarTab('" + type + "')\"]");
+            if (btn) btn.classList.add('active');
+
+            var content = document.getElementById(type);
+            if (content) content.classList.add('active');
+
+            renderCurrentTab();
+        }
+    </script>
+</body>
+
+</html>
