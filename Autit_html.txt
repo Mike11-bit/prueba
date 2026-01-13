@@ -584,6 +584,19 @@
                 align-items: flex-start;
             }
         }
+
+        .chart-card {
+    background: white;
+    border-radius: 12px;
+    padding: 25px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+    min-height: 400px; /* ⭐ AGREGAR ESTO */
+    max-height: 500px; /* ⭐ AGREGAR ESTO */
+}
+
+.chart-card canvas {
+    max-height: 350px !important; /* ⭐ AGREGAR ESTO */
+}
     </style>
 
 
@@ -715,6 +728,13 @@
                         <option value="">Todas las LOBs</option>
                     </select>
                 </div>
+
+      <div class="filter-group">
+    <label class="filter-label">📅 Mes CDM</label>
+    <select id="filtroMesCDM" onchange="aplicarFiltros()">
+        <option value="">Todos los meses</option>
+    </select>
+</div>
                 <div class="filter-group">
                     <label class="filter-label">🔍 Buscar BMS/Nombre</label>
                     <input type="text" id="busquedaRapida" placeholder="BMS ID o Nombre...">
@@ -765,6 +785,7 @@
                             <th>🎯 Acción</th>
                             <th>👤 Usuario</th>
                             <th>🏢 LOB</th>
+
                             <th>🆔 BMS ID</th>
                             <th>👤 Nombre Agente</th>
                             <th>💰 Monto</th>
@@ -878,19 +899,22 @@
                             <th>🆔 BMS</th>
                             <th>👤 Nombre</th>
                             <th>🏢 LOB</th>
+                                    <th>📅 Mes CDM</th> <!-- ⭐ NUEVA COLUMNA -->
+
                             <th>💰 Monto</th>
                             <th>📝 Comentario</th>
                             <th>📊 Estado</th>
                             <th>⚙️ Acciones</th>
                         </tr>
                     </thead>
-                    <tbody id="tbodyDisputas">
-                        <tr>
-                            <td colspan="8" style="text-align:center;padding:40px;">
-                                <div class="loading">Cargando disputas...</div>
-                            </td>
-                        </tr>
-                    </tbody>
+                <tbody id="tbodyDisputas">
+    <tr>
+        <td colspan="9" style="text-align:center;padding:40px;">
+            <div class="loading">Cargando disputas...</div>
+        </td>
+    </tr>
+</tbody>
+
                 </table>
             </div>
             
@@ -905,7 +929,6 @@
     </div>
     
 </div>
-
 
 
 
@@ -933,7 +956,6 @@ window.addEventListener('DOMContentLoaded', function() {
     configurarFechasPorDefecto();
     cargarDatosIniciales();
     
-    // Configurar búsqueda en tiempo real
     const busquedaInput = document.getElementById('busquedaRapida');
     if (busquedaInput) {
         busquedaInput.addEventListener('input', debounce(aplicarFiltros, 300));
@@ -963,7 +985,6 @@ function configurarFechasPorDefecto() {
 
 function cargarDatosIniciales() {
     console.log('🚀 Iniciando carga de datos...');
-    
     mostrarCargando(true);
     mostrarToast('⏳ Cargando datos de auditoría...', 'info');
     
@@ -972,7 +993,6 @@ function cargarDatosIniciales() {
         .withFailureHandler(procesarRespuestaError)
         .obtenerDatosAuditSeguro();
 }
-
 
 function procesarRespuestaExitosa(response) {
     console.log('✅ Respuesta recibida del servidor');
@@ -993,37 +1013,26 @@ function procesarRespuestaExitosa(response) {
         
         console.log('✅ Validación de response exitosa');
         
-        // Cargar información del usuario
         cargarInfoUsuario(response.usuario);
-        
-        // ⭐ GUARDAR LOBS PERMITIDAS EN VARIABLE GLOBAL
         window.lobsPermitidasGlobal = response.lobsPermitidas || [];
         console.log('📋 LOBs permitidas guardadas:', window.lobsPermitidasGlobal);
         
-        // Guardar permiso disputas
         window.permisoDisputasGlobal = response.permisoDisputas;
         console.log('🔐 Permiso disputas guardado:', window.permisoDisputasGlobal);
         
-        // Verificar y controlar acceso a tab disputas
         verificarYControlarAccesoDisputas(response.permisoDisputas);
         
-        // Cargar datos de auditoría
         datosAudit = Array.isArray(response.auditData) ? response.auditData : [];
         datosFiltrados = [...datosAudit];
         
-        // Separar disputas
         datosDisputas = datosAudit.filter(d => d.tipoAccion === 'Disputa');
         disputasFiltradas = [...datosDisputas];
         
         console.log(`📊 ${datosAudit.length} registros totales (${datosDisputas.length} disputas)`);
         
-        // Actualizar última actualización
         actualizarUltimaActualizacion();
-        
-        // Inicializar dashboard
         inicializarDashboard();
         
-        // Mostrar mensaje de éxito
         if (datosAudit.length === 0) {
             mostrarToast('📋 No hay registros en Audit todavía', 'warning');
             mostrarMensajeVacio();
@@ -1039,27 +1048,18 @@ function procesarRespuestaExitosa(response) {
     }
 }
 
-/**
- * Verifica permisos y controla acceso al tab de disputas
- */
 function verificarYControlarAccesoDisputas(permisoDisputas) {
-    // ⭐ YA NO OCULTAMOS EL TAB - TODOS PUEDEN VERLO
     const tabDisputasBtn = document.querySelector('[onclick*="disputas"]');
     
-    // El tab siempre es visible
     if (tabDisputasBtn) {
         tabDisputasBtn.style.display = 'block';
     }
     
     if (!permisoDisputas || !permisoDisputas.permitido) {
-        // ❌ SIN PERMISO: Modo SOLO LECTURA
         console.log('🔒 Modo SOLO LECTURA para Gestión de Disputas');
         console.log('📋 Mensaje:', permisoDisputas?.mensaje || 'Sin permisos');
-        
-        // ⭐ Guardar que está en modo solo lectura
         window.modoSoloLecturaDisputas = true;
     } else {
-        // ✅ CON PERMISO: Puede responder
         console.log(`✅ Puede responder disputas (Rol Base: ${permisoDisputas.rol})`);
         window.modoSoloLecturaDisputas = false;
     }
@@ -1127,7 +1127,7 @@ function inicializarDashboard() {
     actualizarEstadisticas();
     actualizarEstadisticasDisputas();
     cargarFiltrosDinamicos();
-    aplicarFiltros();
+    renderizarTabla();
     generarGraficos();
     generarTimeline();
 }
@@ -1162,9 +1162,6 @@ function mostrarMensajeVacio() {
     }
 }
 
-// ========================================
-// TOAST NOTIFICATIONS
-// ========================================
 function mostrarToast(mensaje, tipo = 'info') {
     const container = document.getElementById('toastContainer');
     const toast = document.createElement('div');
@@ -1185,9 +1182,6 @@ function mostrarToast(mensaje, tipo = 'info') {
     }, 5000);
 }
 
-// ========================================
-// UTILIDADES
-// ========================================
 function debounce(func, wait) {
     let timeout;
     return function executedFunction(...args) {
@@ -1200,23 +1194,17 @@ function debounce(func, wait) {
     };
 }
 
-// ========================================
-// TABS
-// ========================================
 function switchTab(tabName) {
     console.log('🔄 Cambiando a tab:', tabName);
     
-    // ⭐ YA NO BLOQUEAMOS EL ACCESO - SOLO MOSTRAMOS MENSAJE
     if (tabName === 'disputas') {
         const permisoDisputas = window.permisoDisputasGlobal;
         
         if (!permisoDisputas || !permisoDisputas.permitido) {
-            // Mostrar toast informativo
             mostrarToast('ℹ️ Estás en modo SOLO LECTURA. Solo puedes visualizar las disputas.', 'info');
         }
     }
     
-    // Ocultar todos los tabs
     document.querySelectorAll('.tab-content').forEach(tab => {
         tab.classList.remove('active');
         tab.style.display = 'none';
@@ -1226,7 +1214,6 @@ function switchTab(tabName) {
         btn.classList.remove('active');
     });
     
-    // Mostrar tab seleccionado
     const tabContent = document.getElementById('tab-' + tabName);
     if (tabContent) {
         tabContent.classList.add('active');
@@ -1240,19 +1227,13 @@ function switchTab(tabName) {
         if (btn) btn.classList.add('active');
     }
     
-    // Cargar datos según tab
     if (tabName === 'disputas') {
         renderizarTablaDisputas(disputasFiltradas);
         cargarFiltrosDisputas();
-        
-        // ⭐ MOSTRAR BANNER DE SOLO LECTURA SI APLICA
         mostrarBannerSoloLectura();
     }
 }
 
-// ========================================
-// ESTADÍSTICAS
-// ========================================
 function actualizarEstadisticas() {
     const stats = {
         aprobaciones: datosAudit.filter(d => d.tipoAccion === 'Aprobación').length,
@@ -1298,32 +1279,35 @@ function actualizarEstadisticasDisputas() {
 }
 
 function cargarFiltrosDinamicos() {
-    // Usuarios únicos
     const usuarios = [...new Set(datosAudit.map(d => d.usuario).filter(Boolean))].sort();
     cargarSelectOptions('filtroUsuario', usuarios);
     
-    // ⭐ CORREGIDO: Usar LOBs permitidas del backend, NO de datosAudit
     let lobs;
-    
     if (window.lobsPermitidasGlobal && window.lobsPermitidasGlobal.length > 0) {
-        // ✅ Usar las LOBs asignadas al usuario
         lobs = window.lobsPermitidasGlobal.sort();
-        console.log(`📋 Cargando ${lobs.length} LOBs permitidas en filtro:`, lobs);
     } else {
-        // Fallback: extraer de datos (por si acaso)
         lobs = [...new Set(datosAudit.map(d => d.lob).filter(Boolean))].sort();
-        console.log(`⚠️ Fallback: Usando LOBs de datosAudit:`, lobs);
     }
-    
     cargarSelectOptions('filtroLob', lobs);
+    
+    const mesesCDM = [...new Set(datosAudit
+        .map(d => d.mesCDM)
+        .filter(m => m && m !== undefined && m !== null && String(m).trim() !== '' && isNaN(m))
+    )].sort();
+    
+    console.log('📅 Meses CDM encontrados:', mesesCDM);
+    cargarSelectOptions('filtroMesCDM', mesesCDM);
 }
+
 function cargarSelectOptions(selectId, opciones) {
     const select = document.getElementById(selectId);
-    if (!select) return;
-    
-    while (select.options.length > 1) {
-        select.remove(1);
+    if (!select) {
+        console.warn(`⚠️ No se encontró select: ${selectId}`);
+        return;
     }
+    
+    const primeraOpcion = select.options[0] ? select.options[0].outerHTML : '<option value="">Seleccionar...</option>';
+    select.innerHTML = primeraOpcion;
     
     opciones.forEach(opcion => {
         const opt = document.createElement('option');
@@ -1331,26 +1315,41 @@ function cargarSelectOptions(selectId, opciones) {
         opt.textContent = opcion;
         select.appendChild(opt);
     });
+    
+    console.log(`✅ ${opciones.length} opciones cargadas en ${selectId}`);
 }
 
-// ========================================
-// FILTROS AUDIT
-// ========================================
 function aplicarFiltros() {
     try {
+        console.log('🔍 Aplicando filtros...');
+        console.log('   Total datos disponibles:', datosAudit.length);
+        
         const filtros = obtenerValoresFiltros();
+        console.log('   Filtros activos:', filtros);
+        
+        if (filtros.mesCDM) {
+            console.log('   🔍 Buscando Mes CDM:', filtros.mesCDM);
+            console.log('   📊 Meses disponibles en datos:', 
+                [...new Set(datosAudit.map(d => d.mesCDM))].filter(Boolean)
+            );
+            
+            const coincidenciasExactas = datosAudit.filter(d => d.mesCDM === filtros.mesCDM).length;
+            console.log('   ✅ Coincidencias exactas:', coincidenciasExactas);
+        }
         
         datosFiltrados = datosAudit.filter(d => cumpleFiltros(d, filtros));
+        
+        console.log('   ✅ Resultados después de filtrar:', datosFiltrados.length);
         
         paginaActual = 1;
         renderizarTabla();
         generarGraficos();
         generarTimeline();
         
-        console.log(`🔍 Filtros aplicados: ${datosFiltrados.length} de ${datosAudit.length} registros`);
+        console.log(`✅ Filtros aplicados: ${datosFiltrados.length} de ${datosAudit.length} registros`);
         
     } catch (error) {
-        console.error('Error al aplicar filtros:', error);
+        console.error('❌ Error al aplicar filtros:', error);
         mostrarError('Error al aplicar filtros');
     }
 }
@@ -1361,35 +1360,40 @@ function obtenerValoresFiltros() {
     
     return {
         fechaDesde: fechaDesde ? new Date(fechaDesde) : null,
-        fechaHasta: fechaHasta ? new Date(fechaHasta
-
-
-        + 'T23:59:59') : null,
+        fechaHasta: fechaHasta ? new Date(fechaHasta + 'T23:59:59') : null,
         usuario: document.getElementById('filtroUsuario')?.value || '',
         tipoAccion: document.getElementById('filtroTipoAccion')?.value || '',
         lob: document.getElementById('filtroLob')?.value || '',
+        mesCDM: document.getElementById('filtroMesCDM')?.value || '',
         busqueda: document.getElementById('busquedaRapida')?.value?.toLowerCase() || ''
     };
 }
 
 function cumpleFiltros(dato, filtros) {
-    const fechaRegistro = new Date(dato.timestamp);
+    const cumpleMesCDM = !filtros.mesCDM || 
+                         (dato.mesCDM && String(dato.mesCDM).trim() === String(filtros.mesCDM).trim());
     
-    const cumpleFecha = (!filtros.fechaDesde || fechaRegistro >= filtros.fechaDesde) && 
-                       (!filtros.fechaHasta || fechaRegistro <= filtros.fechaHasta);
+    let cumpleFecha = true;
+    if (!filtros.mesCDM && (filtros.fechaDesde || filtros.fechaHasta)) { 
+        try {
+            const fReg = new Date(dato.timestamp);
+            cumpleFecha = (!filtros.fechaDesde || fReg >= filtros.fechaDesde) && 
+                          (!filtros.fechaHasta || fReg <= filtros.fechaHasta);
+        } catch(e) { cumpleFecha = true; }
+    }
     
     const cumpleUsuario = !filtros.usuario || dato.usuario === filtros.usuario;
     const cumpleTipo = !filtros.tipoAccion || dato.tipoAccion === filtros.tipoAccion;
     const cumpleLob = !filtros.lob || dato.lob === filtros.lob;
-    const cumpleBusqueda = !filtros.busqueda || 
+    const cumpleBusqueda = !filtros.busqueda ||
                           (dato.bmsId && dato.bmsId.toString().toLowerCase().includes(filtros.busqueda)) ||
                           (dato.nombreAgente && dato.nombreAgente.toLowerCase().includes(filtros.busqueda));
     
-    return cumpleFecha && cumpleUsuario && cumpleTipo && cumpleLob && cumpleBusqueda;
+    return cumpleFecha && cumpleUsuario && cumpleTipo && cumpleLob && cumpleMesCDM && cumpleBusqueda;
 }
 
 function limpiarFiltros() {
-    const filtros = ['filtroUsuario', 'filtroTipoAccion', 'filtroLob', 'busquedaRapida'];
+    const filtros = ['filtroUsuario', 'filtroTipoAccion', 'filtroLob', 'filtroMesCDM', 'busquedaRapida'];
     filtros.forEach(id => {
         const elemento = document.getElementById(id);
         if (elemento) elemento.value = '';
@@ -1400,22 +1404,18 @@ function limpiarFiltros() {
     mostrarToast('🗑️ Filtros limpiados', 'info');
 }
 
-
 function mostrarBannerSoloLectura() {
     const tabDisputas = document.getElementById('tab-disputas');
     
     if (!tabDisputas) return;
     
-    // Remover banner anterior si existe
     const bannerAnterior = document.getElementById('banner-solo-lectura');
     if (bannerAnterior) {
         bannerAnterior.remove();
     }
     
-    // Si NO está en modo solo lectura, no mostrar banner
     if (!window.modoSoloLecturaDisputas) return;
     
-    // Crear banner de solo lectura
     const banner = document.createElement('div');
     banner.id = 'banner-solo-lectura';
     banner.style.cssText = `
@@ -1439,7 +1439,6 @@ function mostrarBannerSoloLectura() {
         </div>
     `;
     
-    // Insertar banner al inicio del tab
     const filtersSection = tabDisputas.querySelector('.filters-section');
     if (filtersSection) {
         tabDisputas.insertBefore(banner, filtersSection);
@@ -1447,6 +1446,10 @@ function mostrarBannerSoloLectura() {
         tabDisputas.insertBefore(banner, tabDisputas.firstChild);
     }
 }
+
+// Continúa en PARTE 2...
+
+// ... Continúa desde PARTE 1
 
 // ========================================
 // TABLA AUDIT CON PAGINACIÓN
@@ -1556,9 +1559,6 @@ function cambiarPagina(direccion) {
     }
 }
 
-// ========================================
-// VER DETALLES (CORREGIDO: Director y Supervisor)
-// ========================================
 function verDetalles(datos) {
     const detalles = generarTextoDetalles(datos);
     
@@ -1594,7 +1594,6 @@ function verDetalles(datos) {
 }
 
 function generarTextoDetalles(datos) {
-
     let texto = `
 ═══════════════════════════════════════
 📋 DETALLES COMPLETOS DE LA OPERACIÓN
@@ -1734,49 +1733,53 @@ function generarGraficoActividad() {
     const ctx = document.getElementById('chartActividad');
     if (!ctx) return;
     
+    if (chartActividad) { 
+        chartActividad.destroy(); 
+        chartActividad = null; 
+    }
+    
+    if (!datosFiltrados || datosFiltrados.length === 0) return;
+    
     const actividadPorDia = {};
     datosFiltrados.forEach(d => {
-        const fecha = new Date(d.timestamp).toLocaleDateString('es-CO');
-        actividadPorDia[fecha] = (actividadPorDia[fecha] || 0) + 1;
+        try {
+            const fecha = new Date(d.timestamp);
+            if (!isNaN(fecha.getTime())) {
+                const fechaStr = fecha.toLocaleDateString('es-CO');
+                actividadPorDia[fechaStr] = (actividadPorDia[fechaStr] || 0) + 1;
+            }
+        } catch(e) {}
     });
     
     const fechasOrdenadas = Object.keys(actividadPorDia).sort((a, b) => {
-        return new Date(a.split('/').reverse().join('-')) - new Date(b.split('/').reverse().join('-'));
+        const partsA = a.split('/'); 
+        const partsB = b.split('/');
+        return new Date(partsA[2], partsA[1]-1, partsA[0]) - new Date(partsB[2], partsB[1]-1, partsB[0]);
     });
-    
-    const labels = fechasOrdenadas;
-    const data = fechasOrdenadas.map(f => actividadPorDia[f]);
-    
-    if (chartActividad) chartActividad.destroy();
     
     chartActividad = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: labels,
+            labels: fechasOrdenadas,
             datasets: [{
-                label: 'Operaciones por día',
-                data: data,
+                label: 'Operaciones',
+                data: fechasOrdenadas.map(f => actividadPorDia[f]),
                 borderColor: '#3498db',
                 backgroundColor: 'rgba(52, 152, 219, 0.1)',
-                borderWidth: 3,
                 fill: true,
-                tension: 0.4
+                tension: 0.3
             }]
         },
         options: {
             responsive: true,
-            maintainAspectRatio: true,
-            plugins: {
-                legend: {
-                    display: false
-                }
+            maintainAspectRatio: true, // ⭐ CAMBIAR A true
+            plugins: { 
+                legend: { display: false } 
             },
             scales: {
                 y: {
                     beginAtZero: true,
-                    ticks: {
-                        stepSize: 1
-                    }
+                    ticks: { stepSize: 1 }
                 }
             }
         }
@@ -1919,14 +1922,24 @@ function actualizarDatos() {
     }
     
     mostrarToast('🔄 Actualizando datos...', 'info');
-    cargarDatosIniciales();
     
-    setTimeout(() => {
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = '🔄 Actualizar';
-        }
-    }, 2000);
+    google.script.run
+        .withSuccessHandler(function(response) {
+            procesarRespuestaExitosa(response);
+            
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '🔄 Actualizar';
+            }
+        })
+        .withFailureHandler(function(error) {
+            procesarRespuestaError(error);
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '🔄 Actualizar';
+            }
+        })
+        .obtenerDatosAuditSeguro();
 }
 
 // ========================================
@@ -1961,11 +1974,8 @@ function diagnosticarConexion() {
 }
 
 // ========================================
-// ========================================
 // GESTIÓN DE DISPUTAS
 // ========================================
-// ========================================
-
 function cargarDisputas() {
     console.log('📋 Cargando disputas...');
     mostrarToast('⏳ Cargando disputas...', 'info');
@@ -1998,7 +2008,7 @@ function renderizarTablaDisputas(disputas) {
     if (!disputas || disputas.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="8" style="text-align:center;padding:40px;color:#7f8c8d;">
+                <td colspan="9" style="text-align:center;padding:40px;color:#7f8c8d;">
                     No hay disputas registradas
                 </td>
             </tr>
@@ -2027,12 +2037,11 @@ function crearFilaDisputa(disputa) {
         .replace(/'/g, "&#39;")
         .replace(/"/g, "&quot;");
     
-    // ⭐ VERIFICAR SI TIENE PERMISO PARA RESPONDER
-    const puedeResponder = !window.modoSoloLecturaDisputas;
+    const soloLectura = (typeof window.modoSoloLecturaDisputas !== 'undefined') ? window.modoSoloLecturaDisputas : true;
+    const puedeResponder = !soloLectura;
     
     let botonHTML;
     if (puedeResponder) {
-        // ✅ Usuario puede responder
         botonHTML = `
             <button class="btn-primary" 
                     style="padding:6px 12px;font-size:0.85rem;"
@@ -2041,7 +2050,6 @@ function crearFilaDisputa(disputa) {
             </button>
         `;
     } else {
-        // 🔒 Usuario solo puede ver
         botonHTML = `
             <button class="btn-secondary" 
                     style="padding:6px 12px;font-size:0.85rem;cursor:not-allowed;opacity:0.5;"
@@ -2052,28 +2060,29 @@ function crearFilaDisputa(disputa) {
         `;
     }
     
-    return `
-        <tr>
-            <td>${formatearFecha(disputa.timestamp)}</td>
-            <td><strong>${disputa.bmsId}</strong></td>
-            <td>${disputa.nombreAgente}</td>
-            <td>${disputa.lob}</td>
-            <td style="text-align:right;font-weight:600;">
-                $${Number(disputa.monto).toLocaleString('es-CO', {minimumFractionDigits: 2})}
-            </td>
-            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${disputa.detalles}">
-                ${disputa.detalles}
-            </td>
-            <td>
-                <span style="padding:6px 12px;border-radius:12px;font-size:0.85rem;font-weight:600;background:${colorEstado};color:white;display:inline-block;">
-                    ${disputa.estado}
-                </span>
-            </td>
-            <td>
-                ${botonHTML}
-            </td>
-        </tr>
-    `;
+return `
+    <tr>
+        <td>${formatearFecha(disputa.timestamp)}</td>
+        <td><strong>${disputa.bmsId}</strong></td>
+        <td>${disputa.nombreAgente}</td>
+        <td>${disputa.lob}</td>
+        <td><span class="badge badge-info">${disputa.mesCDM || '-'}</span></td> <!-- ⭐ ESTA LÍNEA -->
+        <td style="text-align:right;font-weight:600;">
+            $${Number(disputa.monto).toLocaleString('es-CO', {minimumFractionDigis: 2})}
+        </td>
+        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${disputa.detalles}">
+            ${disputa.detalles}
+        </td>
+        <td>
+            <span style="padding:6px 12px;border-radius:12px;font-size:0.85rem;font-weight:600;background:${colorEstado};color:white;display:inline-block;">
+                ${disputa.estado}
+            </span>
+        </td>
+        <td>
+            ${botonHTML}
+        </td>
+    </tr>
+`;
 }
 
 function obtenerColorEstado(estado) {
@@ -2085,7 +2094,6 @@ function obtenerColorEstado(estado) {
         '📋 Más Información': '#9b59b6'
     };
     
-    // Buscar coincidencia parcial
     for (const key in colores) {
         if (estado.includes(key) || estado.includes(key.replace(/[⏳✅❌📋]/g, '').trim())) {
             return colores[key];
@@ -2124,14 +2132,12 @@ function filtrarDisputas() {
 }
 
 function cargarFiltrosDisputas() {
-    // ⭐ CORREGIDO: Usar LOBs permitidas, NO extraer de datosDisputas
     let lobs;
     
     if (window.lobsPermitidasGlobal && window.lobsPermitidasGlobal.length > 0) {
         lobs = window.lobsPermitidasGlobal.sort();
         console.log(`📋 Cargando ${lobs.length} LOBs permitidas en filtro de disputas:`, lobs);
     } else {
-        // Fallback
         lobs = [...new Set(datosDisputas.map(d => d.lob))].sort();
         console.log(`⚠️ Fallback: Usando LOBs de datosDisputas:`, lobs);
     }
@@ -2176,10 +2182,6 @@ function actualizarInfoPaginacionDisputas(totalRegistros) {
     });
 }
 
-// ========================================
-// GESTIÓN DE DISPUTAS - CONTINUACIÓN
-// ========================================
-
 function cambiarPaginaDisputas(direccion) {
     const totalPaginas = Math.ceil(disputasFiltradas.length / registrosPorPagina);
     const nuevaPagina = paginaActualDisputas + direccion;
@@ -2195,10 +2197,70 @@ function cambiarPaginaDisputas(direccion) {
     }
 }
 
-// ========================================
-// MODAL DE RESPUESTA A DISPUTA
-// ========================================
+function exportarDisputas() {
+    if (disputasFiltradas.length === 0) {
+        mostrarToast('⚠️ No hay disputas para exportar', 'warning');
+        return;
+    }
+    
+    try {
+        const datosExcel = disputasFiltradas.map(d => ({
+            'Timestamp': formatearFecha(d.timestamp),
+            'BMS ID': d.bmsId || '',
+            'Nombre': d.nombreAgente || '',
+            'LOB': d.lob || '',
+            'Mes CDM': d.mesCDM || '',
+            'Monto': d.monto || 0,
+            'Fecha KPI': d.fechaKPI || '',
+            'Comentario': d.detalles || '',
+            'Estado': d.estado || '',
+            'Usuario': d.usuario || '',
+            'Correo': d.correo || ''
+        }));
+        
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(datosExcel);
+        
+        ws['!cols'] = [
+            {wch: 20}, {wch: 10}, {wch: 30}, {wch: 15},
+            {wch: 12}, {wch: 15}, {wch: 12}, {wch: 50},
+            {wch: 20}, {wch: 25}, {wch: 30}
+        ];
+        
+        XLSX.utils.book_append_sheet(wb, ws, 'Disputas');
+        
+        const nombreArchivo = `Disputas_${new Date().toISOString().slice(0, 10)}.xlsx`;
+        XLSX.writeFile(wb, nombreArchivo);
+        
+        mostrarToast(`✅ Archivo exportado: ${nombreArchivo}`, 'success');
+        
+    } catch (error) {
+        console.error('Error al exportar:', error);
+        mostrarError('Error al exportar disputas: ' + error.message);
+    }
+}
 
+function actualizarDisputas() {
+    const btn = event?.target;
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Actualizando...';
+    }
+    
+    mostrarToast('🔄 Actualizando disputas...', 'info');
+    cargarDatosIniciales();
+    
+    setTimeout(() => {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '🔄 Actualizar';
+        }
+    }, 2000);
+}
+
+// ========================================
+// MODAL RESPUESTA DISPUTA
+// ========================================
 function abrirModalRespuesta(disputa) {
     console.log('📝 Abriendo modal para disputa:', disputa);
     
@@ -2220,8 +2282,6 @@ function abrirModalRespuesta(disputa) {
     
     modal.innerHTML = `
         <div style="background:white;width:90%;max-width:800px;max-height:90vh;overflow-y:auto;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,0.3);position:relative;">
-            
-            <!-- HEADER -->
             <div style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;padding:20px;border-radius:12px 12px 0 0;position:sticky;top:0;z-index:10;">
                 <button onclick="cerrarModalRespuesta()" 
                         style="position:absolute;top:15px;right:15px;background:rgba(255,255,255,0.2);color:white;border:none;border-radius:50%;width:35px;height:35px;cursor:pointer;font-size:1.5rem;line-height:1;transition:all 0.3s;">×</button>
@@ -2229,10 +2289,7 @@ function abrirModalRespuesta(disputa) {
                 <p style="margin:5px 0 0 0;opacity:0.9;font-size:0.9rem;">BMS ID: <strong>${disputa.bmsId}</strong> | ${disputa.nombreAgente}</p>
             </div>
             
-            <!-- CONTENIDO -->
             <div style="padding:30px;">
-                
-                <!-- INFORMACIÓN DE LA DISPUTA -->
                 <div style="background:#f8f9fa;border-left:4px solid #f39c12;padding:20px;border-radius:8px;margin-bottom:25px;">
                     <h3 style="margin:0 0 15px 0;color:#2c3e50;font-size:1.1rem;">📋 Información de la Disputa</h3>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;font-size:0.9rem;">
@@ -2255,10 +2312,7 @@ function abrirModalRespuesta(disputa) {
                     </div>
                 </div>
                 
-                <!-- FORMULARIO DE RESPUESTA -->
                 <form id="formRespuestaDisputa" onsubmit="enviarRespuestaDisputa(event, ${JSON.stringify(disputa).replace(/"/g, '&quot;')})">
-                    
-                    <!-- DECISIÓN -->
                     <div style="margin-bottom:20px;">
                         <label style="display:block;font-weight:600;margin-bottom:8px;color:#2c3e50;">
                             🎯 Decisión <span style="color:red;">*</span>
@@ -2274,7 +2328,6 @@ function abrirModalRespuesta(disputa) {
                         </select>
                     </div>
                     
-                    <!-- MONTO AJUSTADO (solo si se aprueba) -->
                     <div id="divMontoAjustado" style="margin-bottom:20px;display:none;">
                         <label style="display:block;font-weight:600;margin-bottom:8px;color:#2c3e50;">
                             💰 Monto Ajustado <span style="color:red;">*</span>
@@ -2289,7 +2342,6 @@ function abrirModalRespuesta(disputa) {
                         </small>
                     </div>
                     
-                    <!-- RESPUESTA -->
                     <div style="margin-bottom:20px;">
                         <label style="display:block;font-weight:600;margin-bottom:8px;color:#2c3e50;">
                             💬 Respuesta al Agente <span style="color:red;">*</span>
@@ -2301,7 +2353,6 @@ function abrirModalRespuesta(disputa) {
                                   style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px;font-size:1rem;resize:vertical;"></textarea>
                     </div>
                     
-                    <!-- COMENTARIO INTERNO -->
                     <div style="margin-bottom:25px;">
                         <label style="display:block;font-weight:600;margin-bottom:8px;color:#2c3e50;">
                             📝 Comentario Interno (Opcional)
@@ -2315,7 +2366,6 @@ function abrirModalRespuesta(disputa) {
                         </small>
                     </div>
                     
-                    <!-- BOTONES -->
                     <div style="display:flex;gap:15px;justify-content:flex-end;padding-top:20px;border-top:2px solid #e0e0e0;">
                         <button type="button" 
                                 onclick="cerrarModalRespuesta()"
@@ -2327,16 +2377,13 @@ function abrirModalRespuesta(disputa) {
                             ✅ Enviar Respuesta
                         </button>
                     </div>
-                    
                 </form>
-                
             </div>
         </div>
     `;
     
     document.body.appendChild(modal);
     
-    // Cerrar al hacer clic fuera del modal
     modal.addEventListener('click', function(e) {
         if (e.target === modal) {
             cerrarModalRespuesta();
@@ -2381,7 +2428,6 @@ function enviarRespuestaDisputa(event, disputa) {
     const montoAjustado = formData.get('montoAjustado');
     const comentarioInterno = formData.get('comentarioInterno');
     
-    // Validaciones
     if (!decision || !respuesta) {
         mostrarToast('⚠️ Completa los campos obligatorios', 'warning');
         return;
@@ -2392,7 +2438,6 @@ function enviarRespuestaDisputa(event, disputa) {
         return;
     }
     
-    // Confirmar acción
     const mensajesConfirmacion = {
         'APROBADA': '¿Confirmas APROBAR esta disputa? Se ajustará el bono en Audit.',
         'RECHAZADA': '¿Confirmas RECHAZAR esta disputa?',
@@ -2404,7 +2449,6 @@ function enviarRespuestaDisputa(event, disputa) {
         return;
     }
     
-    // Preparar datos
     const datosRespuesta = {
         fila: disputa.fila,
         bmsId: disputa.bmsId,
@@ -2418,14 +2462,12 @@ function enviarRespuestaDisputa(event, disputa) {
         comentarioInterno: comentarioInterno || ''
     };
     
-    // Deshabilitar botón
     const btnSubmit = form.querySelector('button[type="submit"]');
     btnSubmit.disabled = true;
     btnSubmit.innerHTML = '⏳ Procesando...';
     
     mostrarToast('⏳ Procesando respuesta...', 'info');
     
-    // Enviar al backend
     google.script.run
         .withSuccessHandler(function(response) {
             console.log('✅ Respuesta procesada:', response);
@@ -2433,8 +2475,6 @@ function enviarRespuestaDisputa(event, disputa) {
             if (response.success) {
                 mostrarToast(`✅ ${response.mensaje}`, 'success');
                 cerrarModalRespuesta();
-                
-                // Recargar disputas
                 cargarDatosIniciales();
             } else {
                 mostrarToast(`❌ Error: ${response.error}`, 'error');
@@ -2452,125 +2492,8 @@ function enviarRespuestaDisputa(event, disputa) {
 }
 
 // ========================================
-// EXPORTAR DISPUTAS
+// CAMBIO DE TIPO DE ACCESO
 // ========================================
-
-function exportarDisputas() {
-    if (disputasFiltradas.length === 0) {
-        mostrarToast('⚠️ No hay disputas para exportar', 'warning');
-        return;
-    }
-    
-    try {
-        const datosExcel = disputasFiltradas.map(d => ({
-            'Timestamp': formatearFecha(d.timestamp),
-            'BMS ID': d.bmsId || '',
-            'Nombre': d.nombreAgente || '',
-            'LOB': d.lob || '',
-            'Monto': d.monto || 0,
-            'Fecha KPI': d.fechaKPI || '',
-            'Comentario': d.detalles || '',
-            'Estado': d.estado || '',
-            'Usuario': d.usuario || '',
-            'Correo': d.correo || ''
-        }));
-        
-        const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.json_to_sheet(datosExcel);
-        
-        ws['!cols'] = [
-            {wch: 20}, {wch: 10}, {wch: 30}, {wch: 15},
-            {wch: 15}, {wch: 12}, {wch: 50}, {wch: 20},
-            {wch: 25}, {wch: 30}
-        ];
-        
-        XLSX.utils.book_append_sheet(wb, ws, 'Disputas');
-        
-        const nombreArchivo = `Disputas_${new Date().toISOString().slice(0, 10)}.xlsx`;
-        XLSX.writeFile(wb, nombreArchivo);
-        
-        mostrarToast(`✅ Archivo exportado: ${nombreArchivo}`, 'success');
-        
-    } catch (error) {
-        console.error('Error al exportar:', error);
-        mostrarError('Error al exportar disputas: ' + error.message);
-    }
-}
-
-// ========================================
-// ACTUALIZAR DISPUTAS
-// ========================================
-
-function actualizarDisputas() {
-    const btn = event?.target;
-    if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '⏳ Actualizando...';
-    }
-    
-    mostrarToast('🔄 Actualizando disputas...', 'info');
-    cargarDatosIniciales();
-    
-    setTimeout(() => {
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = '🔄 Actualizar';
-        }
-    }, 2000);
-}
-
-// ========================================
-// ANIMACIONES CSS (agregar al <style>)
-// ========================================
-
-
-
-
-// Inyectar estilos si no existen
-if (!document.getElementById('estilos-animaciones')) {
-    const style = document.createElement('style');
-    style.id = 'estilos-animaciones';
-    style.textContent = estilosAnimaciones;
-    document.head.appendChild(style);
-}
-
-// ========================================
-// FUNCIONES DE UTILIDAD ADICIONALES
-// ========================================
-
-function copiarAlPortapapeles(texto) {
-    navigator.clipboard.writeText(texto).then(() => {
-        mostrarToast('✅ Copiado al portapapeles', 'success');
-    }).catch(err => {
-        console.error('Error al copiar:', err);
-        mostrarToast('❌ Error al copiar', 'error');
-    });
-}
-
-function descargarJSON(data, nombreArchivo) {
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = nombreArchivo;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
-    mostrarToast(`✅ Descargado: ${nombreArchivo}`, 'success');
-}
-
-console.log('✅ Dashboard de Auditoría - Código completo cargado');
-
-
-
-// ========================================
-// CAMBIO DE TIPO DE ACCESO (VISTA)
-// ========================================
-/**
- * Carga el tipo de acceso actual al iniciar
- */
 function cargarTipoAccesoActual() {
     google.script.run
         .withSuccessHandler(function(tipoAcceso) {
@@ -2585,9 +2508,7 @@ function cargarTipoAccesoActual() {
         })
         .obtenerTipoAccesoActual();
 }
-/**
- * Cambia el tipo de acceso y redirige a la página correspondiente
- */
+
 function cambiarTipoAccesoYRedirigir() {
     const select = document.getElementById('selectTipoAcceso');
     const nuevoTipoAcceso = select.value;
@@ -2597,7 +2518,6 @@ function cambiarTipoAccesoYRedirigir() {
     }
     
     if (!confirm(`¿Cambiar vista a ${nuevoTipoAcceso}?`)) {
-        // Revertir selección
         cargarTipoAccesoActual();
         return;
     }
@@ -2611,7 +2531,6 @@ function cambiarTipoAccesoYRedirigir() {
             if (response.success) {
                 mostrarToast(`✅ ${response.mensaje}`, 'success');
                 
-                // Redirigir a la nueva vista
                 setTimeout(() => {
                     window.location.href = `${window.location.origin}${window.location.pathname}?page=${nuevoTipoAcceso}`;
                 }, 1000);
@@ -2627,16 +2546,14 @@ function cambiarTipoAccesoYRedirigir() {
         })
         .cambiarTipoAcceso(emailUsuario, nuevoTipoAcceso);
 }
-// ⭐ Cargar tipo de acceso al iniciar
+
 window.addEventListener('DOMContentLoaded', function() {
     cargarTipoAccesoActual();
 });
 
-
+console.log('✅ Dashboard de Auditoría - Código completo cargado');
 
 </script>
 
 </body>
-
-
 </html>
