@@ -18,15 +18,7 @@ NUEVAS CARACTERÍSTICAS:
     <title>Dashboard de Métricas</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <!-- Select2 CSS -->
-<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-<!-- jQuery (requerido por Select2) -->
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<!-- Select2 JS -->
-<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-
-
-    <style>
+   <style>
         /* ============================================
            ESTILOS GLOBALES
            ============================================ */
@@ -77,13 +69,22 @@ NUEVAS CARACTERÍSTICAS:
         }
 
         .filters-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 15px;
+            display: flex;
+            flex-wrap: nowrap;
+            /* ⭐ Forzar una sola fila */
+            gap: 10px;
             margin-bottom: 15px;
+            align-items: flex-end;
+            overflow-x: auto;
+            /* ⭐ Scroll horizontal si la pantalla es muy pequeña */
+            padding-bottom: 5px;
         }
 
         .filter-group {
+            flex: 1;
+            /* ⭐ Todos ocupan el mismo espacio proporcional */
+            min-width: 120px;
+            /* ⭐ Ancho mínimo para legibilidad */
             display: flex;
             flex-direction: column;
         }
@@ -92,7 +93,10 @@ NUEVAS CARACTERÍSTICAS:
             font-weight: 600;
             margin-bottom: 5px;
             color: #333;
-            font-size: 0.9em;
+            font-size: 0.85em;
+            /* ⭐ Un poco más pequeño para caber mejor */
+            white-space: nowrap;
+            /* ⭐ Evitar que el label se parta */
         }
 
         .filter-group select {
@@ -685,72 +689,6 @@ NUEVAS CARACTERÍSTICAS:
                 grid-template-columns: 1fr;
             }
         }
-
-
-        /* ============================================
-   ESTILOS PARA INDICADOR DE ACTUALIZACIÓN
-   ============================================ */
-#last-update-date {
-    font-size: 0.75em;
-    margin-left: 8px;
-    opacity: 0.8;
-    font-weight: normal;
-    background: rgba(255, 255, 255, 0.2);
-    padding: 2px 6px;
-    border-radius: 3px;
-    transition: all 0.3s;
-}
-
-.btn-refresh:hover #last-update-date {
-    opacity: 1;
-    background: rgba(255, 255, 255, 0.3);
-}
-
-/* ============================================
-   SELECT2 CUSTOMIZATION
-   ============================================ */
-.select2-container--default .select2-selection--single {
-    height: 42px !important;
-    padding: 8px 12px !important;
-    border: 2px solid #ddd !important;
-    border-radius: 8px !important;
-    font-size: 1em !important;
-}
-
-.select2-container--default .select2-selection--single .select2-selection__rendered {
-    line-height: 24px !important;
-    padding-left: 0 !important;
-}
-
-.select2-container--default .select2-selection--single .select2-selection__arrow {
-    height: 40px !important;
-    right: 5px !important;
-}
-
-.select2-dropdown {
-    border: 2px solid #667eea !important;
-    border-radius: 8px !important;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2) !important;
-}
-
-.select2-container--default .select2-results__option--highlighted[aria-selected] {
-    background-color: #667eea !important;
-}
-
-.select2-search--dropdown .select2-search__field {
-    border: 2px solid #ddd !important;
-    border-radius: 5px !important;
-    padding: 8px !important;
-    font-size: 0.95em !important;
-}
-
-.select2-container {
-    width: 100% !important;
-}
-
-.select2-results__option {
-    padding: 8px 12px !important;
-}
     </style>
 </head>
 
@@ -791,16 +729,11 @@ NUEVAS CARACTERÍSTICAS:
                         <option value="">Todos</option>
                     </select>
                 </div>
+                <!-- ELIMINADO STAGE (K) REDUNDANTE -->
                 <div class="filter-group">
-                    <label>Stage (K)</label>
-                    <select id="filterK">
-                        <option value="">Todos</option>
-                    </select>
-                </div>
-                <div class="filter-group">
-                    <label>Outreach Type (L)</label>
-                    <select id="filterOutreachType">
-                        <option value="">Todos</option>
+                    <label>Stage (AJ) 📂</label>
+                    <select id="filterAJ" style="border: 2px solid #e67e22;">
+                        <option value="">Todas (AJ)</option>
                     </select>
                 </div>
                 <div class="filter-group">
@@ -828,17 +761,11 @@ NUEVAS CARACTERÍSTICAS:
                     </select>
                 </div>
             </div>
-
-
-<div class="filters-actions">
-    <button class="btn btn-refresh" onclick="actualizarBaseDatos()">
-        🔄 Actualizar Datos 
-       
-    </button>
-  
-    <button class="btn btn-clear" onclick="limpiarFiltros()">🧹 Limpiar</button>
-    <button class="btn btn-apply" onclick="aplicarFiltros()">🔍 Aplicar</button>
-</div>
+            <div class="filters-actions">
+                <button class="btn btn-refresh" onclick="actualizarBaseDatos()">🔄 Actualizar Datos</button>
+                <button class="btn btn-clear" onclick="limpiarFiltros()">🧹 Limpiar</button>
+                <button class="btn btn-apply" onclick="aplicarFiltros()">🔍 Aplicar</button>
+            </div>
         </div>
 
         <!-- TARJETAS DE MÉTRICAS -->
@@ -889,237 +816,23 @@ NUEVAS CARACTERÍSTICAS:
 
     <!-- JAVASCRIPT -->
     <script>
-
- 
-
-      
-
-      // ============================================
-// INICIALIZAR SELECT2 CON BÚSQUEDA
-// ============================================
-function inicializarSelect2() {
-    // Esperar a que jQuery y Select2 estén disponibles
-    if (typeof jQuery === 'undefined' || typeof jQuery.fn.select2 === 'undefined') {
-        console.warn('⚠️ Select2 no disponible, reintentando...');
-        setTimeout(inicializarSelect2, 200);
-        return;
-    }
-
-    console.log('🔍 Inicializando Select2...');
-
-    // Configuración común para todos los selects
-    var select2Config = {
-        theme: 'default',
-        placeholder: 'Buscar...',
-        allowClear: true,
-        width: '100%',
-        language: {
-            noResults: function() {
-                return "No se encontraron resultados";
-            },
-            searching: function() {
-                return "Buscando...";
-            }
-        }
-    };
-
-    // Inicializar cada select
-    jQuery('#filterWeek').select2(select2Config);
-    jQuery('#filterBegin').select2(select2Config);
-    jQuery('#filterI').select2(select2Config);
-    jQuery('#filterK').select2(select2Config);
-    jQuery('#filterOutreachType').select2(select2Config);
-    jQuery('#filterStatus').select2(select2Config);
-    jQuery('#filterSupervisor').select2(select2Config);
-    jQuery('#filterAgent').select2(select2Config);
-    jQuery('#filterCaseOwner').select2(select2Config);
-
-    console.log('✅ Select2 inicializado correctamente');
-}
-
-      // ============================================
-// FUNCIONES PARA FECHA DE ACTUALIZACIÓN
-// ============================================
-// ============================================
-// FUNCIONES PARA FECHA DE ACTUALIZACIÓN
-// ============================================
-
-function obtenerFechaActual() {
-    const ahora = new Date();
-    const opciones = {
-        weekday: 'short',
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        timeZone: 'America/Bogota' // ⭐ Cambiado a tu zona horaria
-    };
-    return ahora.toLocaleDateString('es-ES', opciones);
-}
-
-function guardarFechaActualizacion() {
-    const fecha = obtenerFechaActual();
-    
-    console.log('💾 Guardando fecha en Google Sheets:', fecha);
-    
-    // ⭐ NUEVO: Guardar en Google Sheets en lugar de localStorage
-    google.script.run
-        .withSuccessHandler(function() {
-            console.log('✅ Fecha guardada exitosamente en Sheets');
-            actualizarIndicadorFecha(fecha);
-        })
-        .withFailureHandler(function(err) {
-            console.error('❌ Error guardando fecha:', err);
-            // Fallback a localStorage si falla
-            try {
-                localStorage.setItem('dashboardLastUpdate', fecha);
-                actualizarIndicadorFecha(fecha);
-            } catch (e) {
-                console.error('❌ Fallback también falló:', e);
-            }
-        })
-        .guardarFechaEnSheet(fecha);
-}
-
-function cargarFechaActualizacion() {
-    const elemento = document.getElementById('last-update-date');
-    
-    if (!elemento) {
-        console.warn('⚠️ Elemento last-update-date no encontrado aún');
-        setTimeout(cargarFechaActualizacion, 100);
-        return;
-    }
-    
-    console.log('📅 Cargando fecha desde Google Sheets...');
-    
-    // ⭐ CORREGIDO: Leer desde Google Sheets
-    google.script.run
-        .withSuccessHandler(function(fecha) {
-            if (fecha && fecha !== '') {
-                console.log('✅ Fecha recuperada de Sheets:', fecha);
-                actualizarIndicadorFecha(fecha);
-            } else {
-                elemento.textContent = '(Última: Nunca)';
-            }
-        })
-        .withFailureHandler(function(err) {
-            console.error('❌ Error leyendo fecha:', err);
-            elemento.textContent = '(Última: Error)';
-        })
-        .obtenerFechaDeSheet();
-}
-
-function actualizarIndicadorFecha(fecha) {
-    const fechaTexto = fecha || obtenerFechaActual();
-    const elemento = document.getElementById('last-update-date');
-    
-    if (elemento) {
-        elemento.textContent = `(Última: ${fechaTexto})`;
-        
-        // ⭐ NUEVO: Efecto visual de confirmación
-        elemento.style.background = 'rgba(46, 204, 113, 0.3)';
-        elemento.style.transition = 'background 0.3s';
-        setTimeout(function() {
-            elemento.style.background = 'rgba(255, 255, 255, 0.2)';
-        }, 2000);
-    } else {
-        console.warn('⚠️ Elemento last-update-date no encontrado');
-    }
-}
-
-function verificarLocalStorage() {
-    try {
-        const test = '__storage_test__';
-        localStorage.setItem(test, test);
-        localStorage.removeItem(test);
-        console.log('✅ localStorage disponible y funcional');
-        return true;
-    } catch (e) {
-        console.error('❌ localStorage NO disponible:', e);
-        alert('⚠️ Advertencia: El almacenamiento local está deshabilitado en tu navegador. La fecha de actualización no se guardará entre sesiones.');
-        return false;
-    }
-}
-
-function actualizarBaseDatos() {
-    if (!confirm("¿Deseas actualizar el caché de base de datos? Esto procesará todas las filas y podría tardar unos segundos.")) {
-        return;
-    }
-
-    mostrarCarga(true, "Actualizando base de datos...");
-
-    // ⭐ Guardar fecha ANTES de llamar al servidor
-    guardarFechaActualizacion();
-
-    google.script.run
-        .withSuccessHandler(function (msg) {
-            console.log('✅ Respuesta del servidor:', msg);
-            
-            // ⭐ CORRECCIÓN #3: Recarga automática sin preguntar
-            mostrarCarga(true, "✅ Actualización exitosa! Recargando datos...");
-            
-            // Esperar 1 segundo para que el servidor guarde el archivo
-            setTimeout(function() {
-                window.location.reload(true); // true = forzar recarga desde servidor
-            }, 1000);
-        })
-        .withFailureHandler(function (err) {
-            console.error('❌ Error del servidor:', err);
-            mostrarCarga(false);
-            
-            alert(
-                "❌ Error al actualizar la base de datos:\n\n" + 
-                err.message + "\n\n" +
-                "Detalles técnicos:\n" + err.toString() + "\n\n" +
-                "Por favor, verifica:\n" +
-                "1. Que la hoja 'Data' existe\n" +
-                "2. Que tienes permisos de edición\n" +
-                "3. Revisa los logs en Apps Script (Ver > Registros)"
-            );
-        })
-        .actualizarCacheDrive();
-}
-
         // ============================================
         // FAIL-SAFE TIMER
         // ============================================
-      // ============================================
-// FAIL-SAFE TIMER MEJORADO
-// ============================================
-setTimeout(function () {
-    var loading = document.getElementById('global-loading');
-    if (loading && loading.style.display !== 'none') {
-        console.warn('⚠️ Tiempo de espera excedido. Forzando apertura.');
-        loading.style.display = 'none';
+        setTimeout(function () {
+            var loading = document.getElementById('global-loading');
+            if (loading && loading.style.display !== 'none') {
+                console.warn('⚠️ Tiempo de espera excedido. Forzando apertura.');
+                loading.style.display = 'none';
 
-        // ⭐ NUEVO: Verificar si hay datos antes de mostrar mensaje
-        if (!dashboardData || !rawDataGlobal || rawDataGlobal.length === 0) {
-            var errorDiv = document.createElement('div');
-            errorDiv.style.cssText = "position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:40px;border-radius:15px;box-shadow:0 10px 30px rgba(0,0,0,0.3);max-width:500px;text-align:center;z-index:9999;";
-            errorDiv.innerHTML = `
-                <h2 style="color:#e74c3c;margin-bottom:20px;">⚠️ Error de Carga</h2>
-                <p style="margin-bottom:20px;">No se pudieron cargar los datos del dashboard.</p>
-                <p style="background:#f8f9fa;padding:15px;border-radius:8px;margin-bottom:20px;">
-                    <strong>Posibles causas:</strong><br>
-                    • El caché no está generado<br>
-                    • Hubo un error en el servidor<br>
-                    • La hoja "Data" está vacía
-                </p>
-                <button onclick="actualizarBaseDatos()" style="background:#3498db;color:white;border:none;padding:15px 30px;border-radius:8px;cursor:pointer;font-size:1.1em;margin-right:10px;">
-                    🔄 Generar Caché Ahora
-                </button>
-                <button onclick="location.reload()" style="background:#95a5a6;color:white;border:none;padding:15px 30px;border-radius:8px;cursor:pointer;font-size:1.1em;">
-                    ↻ Reintentar
-                </button>
-            `;
-            document.body.appendChild(errorDiv);
-        }
+                var debugMsg = document.createElement('div');
+                debugMsg.style.cssText = "position:fixed;bottom:10px;right:10px;background:#e67e22;color:white;padding:15px;border-radius:10px;z-index:9999;box-shadow:0 10px 30px rgba(0,0,0,0.3);max-width:300px;font-size:0.9em;";
+                debugMsg.innerHTML = "<b>⚠️ Carga Inicial Lenta</b><br>Si no hay datos, haz clic en <br><b>🔄 Actualizar Datos</b> <br>para generar el caché rápido por primera vez.";
+                document.body.appendChild(debugMsg);
 
-        if (!dashboardData) renderDashboardEmpty();
-    }
-}, 15000);
+                if (!dashboardData) renderDashboardEmpty();
+            }
+        }, 15000); // Aumentado a 15 segundos para dar margen al fallback
 
         // ============================================
         // GLOBAL ERROR HANDLER
@@ -1151,83 +864,34 @@ setTimeout(function () {
         var historicalData = {}; // NUEVO: Almacena datos históricos por semana
 
         // Mapeo de índices de columnas
-    var COLS = {
-  CASE: 0, DATE: 1, COUNTRY: 2, OWNER: 3, STAGE: 4,
-  OUTREACH: 5, STATUS: 6, WEEK: 7, MONTH: 8, // ⭐ MONTH ahora es índice 8 (columna U en raw)
-  SUP: 9, AGENT: 10, TRIP_DATE: 11, FT: 12,
-  TRIP_HOUR: 13, CR: 14, CT: 15
-};
+        var COLS = {
+            CASE: 0, DATE: 1, COUNTRY: 2, OWNER: 3, STAGE: 4, STATUS: 5,
+            WEEK: 6, MONTH: 7, SUP: 8, AGENT: 9, TRIP_DATE: 10, FT: 11, TRIP_HOUR: 12, CR: 13, CT: 14
+        };
 
         // ============================================
         // INICIALIZACIÓN
         // ============================================
-  window.addEventListener('DOMContentLoaded', function () {
-    console.log('🚀 Inicializando Dashboard Mejorado...');
-    
-    // Verificar localStorage
-    verificarLocalStorage();
+        window.addEventListener('DOMContentLoaded', function () {
+            console.log('🚀 Inicializando Dashboard Mejorado...');
 
-    try {
-        var divContent = document.getElementById('backend-data').textContent;
-        if (divContent && divContent.trim().length > 0 && divContent.trim() !== 'null') {
-            serverPayload = JSON.parse(divContent);
-            console.log('✅ Payload leído del HTML (Tamaño: ' + divContent.length + ')');
-        }
-    } catch (e) {
-        console.warn('⚠️ Error parseando payload del HTML:', e);
-    }
+            try {
+                var divContent = document.getElementById('backend-data').textContent;
+                if (divContent && divContent.trim().length > 0 && divContent.trim() !== 'null') {
+                    serverPayload = JSON.parse(divContent);
+                    console.log('✅ Payload leído del HTML (Tamaño: ' + divContent.length + ')');
+                }
+            } catch (e) {
+                console.warn('⚠️ Error parseando payload del HTML:', e);
+            }
 
-    if (serverPayload && serverPayload.rawData && serverPayload.rawData.length > 0) {
-        initFromPayload(serverPayload);
-    } else {
-        console.warn('⚠️ No hay datos iniciales. Intentando Fallback...');
-        
-        // ⭐ NUEVO: Mostrar mensaje más claro
-        var loadingText = document.querySelector('#global-loading h2');
-        if (loadingText) {
-            loadingText.innerHTML = "⚠️ No se encontraron datos en caché<br><small>Cargando desde servidor...</small>";
-        }
-        
-        iniciarCargaCliente();
-    }
-});
-
-
-
-function initFromPayload(data) {
-    console.time('⚡ Init Dashboard');
-
-    if (data.rawData) {
-        rawDataGlobal = data.rawData;
-        console.log('📦 Raw Data Loaded: ' + rawDataGlobal.length + ' filas');
-        
-        diagnosticarDatos();
-        procesarDatosHistoricos();
-    }
-    
-    if (data.filters) {
-        fillFiltersInstant(data.filters);
-    }
-
-    if (rawDataGlobal.length > 0) {
-        dashboardData = procesarDatos(rawDataGlobal);
-        initialDashboardData = dashboardData;
-        renderDashboard();
-    } else {
-        console.warn('⚠️ Recibidas 0 filas de datos.');
-        document.getElementById('global-loading').style.display = 'none';
-        alert('⚠️ El servidor devolvió 0 datos.');
-        renderDashboardEmpty();
-    }
-
-    // ⭐ CORREGIDO: Cargar fecha después de que el DOM esté listo
-    setTimeout(function() {
-        cargarFechaActualizacion();
-    }, 100);
-    
-    console.timeEnd('⚡ Init Dashboard');
-    console.log('✅ Dashboard listo para usar');
-}
+            if (serverPayload && serverPayload.rawData && serverPayload.rawData.length > 0) {
+                initFromPayload(serverPayload);
+            } else {
+                console.warn('⚠️ No hay datos iniciales. Intentando Fallback...');
+                iniciarCargaCliente();
+            }
+        });
 
         function iniciarCargaCliente() {
             var loadingText = document.querySelector('#global-loading h2');
@@ -1336,7 +1000,7 @@ function initFromPayload(data) {
             var agentMap = {};
 
             rows.forEach(function (row) {
-                var agent = row[COLS.AGENT];
+                var agent = row[COLS.OWNER]; // CAMBIADO A OWNER
                 if (!agent) return;
 
                 if (!agentMap[agent]) {
@@ -1355,7 +1019,11 @@ function initFromPayload(data) {
                 var a = agentMap[agent];
                 a.cases++;
 
-                if (row[COLS.FT] == 1 || row[COLS.FT] == '1') a.ft++;
+                // ⭐ SUMA ROBUSTA DE FT (Columna AL - 37)
+                var ftVal = parseFloat(row[COLS.FT]);
+                if (!isNaN(ftVal)) {
+                    a.ft += ftVal;
+                }
 
                 var ct = parseNumberRobust(row[COLS.CT]);
                 if (ct !== null) {
@@ -1446,122 +1114,92 @@ function initFromPayload(data) {
         // ============================================
         // FILTROS
         // ============================================
+        function fillFiltersInstant(filters) {
+            var map = {
+                'S': 'filterWeek',
+                'U': 'filterBegin',  // ⭐ Sincronizado con Columna U (Meses)
+                'I': 'filterI',
+                'AJ': 'filterAJ',    // ⭐ Sincronizado con Columna AJ (Stage)
+                'N': 'filterStatus',
+                'V': 'filterSupervisor',
+                'W': 'filterAgent',
+                'J': 'filterCaseOwner'
+            };
 
+            for (var col in map) {
+                var selectElement = document.getElementById(map[col]);
+                if (selectElement && filters[col]) {
+                    while (selectElement.options.length > 1) {
+                        selectElement.remove(1);
+                    }
 
-
-function fillFiltersInstant(filters) {
-    var map = {
-        'S': 'filterWeek',
-        'U': 'filterBegin',
-        'I': 'filterI',
-        'K': 'filterK',
-        'L': 'filterOutreachType',
-        'N': 'filterStatus',
-        'V': 'filterSupervisor',
-        'W': 'filterAgent',
-        'J': 'filterCaseOwner'
-    };
-
-    for (var col in map) {
-        var selectElement = document.getElementById(map[col]);
-        if (selectElement && filters[col]) {
-            while (selectElement.options.length > 1) {
-                selectElement.remove(1);
+                    var fragment = document.createDocumentFragment();
+                    filters[col].forEach(function (value) {
+                        var option = document.createElement('option');
+                        option.value = value;
+                        option.text = value;
+                        fragment.appendChild(option);
+                    });
+                    selectElement.appendChild(fragment);
+                }
             }
-
-            var fragment = document.createDocumentFragment();
-            
-            filters[col].forEach(function (value) {
-                var option = document.createElement('option');
-                option.value = value;
-                option.text = value;
-                fragment.appendChild(option);
-            });
-            
-            selectElement.appendChild(fragment);
         }
-    }
-
-    // ⭐ NUEVO: Inicializar Select2 después de llenar los datos
-    setTimeout(function() {
-        inicializarSelect2();
-    }, 100);
-}
 
         function getFiltros() {
             return {
-                week: document.getElementById('filterWeek').value, // NUEVO
+                week: document.getElementById('filterWeek').value,
                 colI: document.getElementById('filterI').value,
-                colK: document.getElementById('filterK').value,
-                outreachType: document.getElementById('filterOutreachType').value,
+                // colK removido
                 supervisor: document.getElementById('filterSupervisor').value,
                 agent: document.getElementById('filterAgent').value,
                 caseOwner: document.getElementById('filterCaseOwner').value,
-                status: document.getElementById('filterStatus').value,
-                begin: document.getElementById('filterBegin').value
+                status: document.getElementById('filterStatus').value.trim(),
+                begin: document.getElementById('filterBegin').value.trim(),
+                stageAJ: document.getElementById('filterAJ').value.trim()
             };
         }
-function aplicarFiltros() {
-    console.time('⚡ Filtrado');
-    console.log('🔍 Iniciando filtrado...');
 
-    var filtros = getFiltros();
-    console.log('📋 Filtros obtenidos:', filtros);
-    
-    var hayFiltros = Object.values(filtros).some(v => v !== '');
-    console.log('¿Hay filtros activos?', hayFiltros);
+        function aplicarFiltros() {
+            console.time('⚡ Filtrado');
 
-    if (!hayFiltros && initialDashboardData) {
-        console.log('⚡ Sin filtros - usando snapshot inicial');
-        dashboardData = initialDashboardData;
-        renderDashboard();
-        console.timeEnd('⚡ Filtrado');
-        return;
-    }
+            var filtros = getFiltros();
+            var hayFiltros = Object.values(filtros).some(v => v !== '');
 
-    var datosFiltrados = rawDataGlobal.filter(function (row) {
-        return aplicarFiltroFila(row, filtros);
-    });
+            if (!hayFiltros && initialDashboardData) {
+                console.log('⚡ Sin filtros - usando snapshot inicial');
+                dashboardData = initialDashboardData;
+                renderDashboard();
+                console.timeEnd('⚡ Filtrado');
+                return;
+            }
 
-    console.log('📊 Filas antes de filtrar:', rawDataGlobal.length);
-    console.log('📊 Filas después de filtrar:', datosFiltrados.length);
-    
-    if (datosFiltrados.length === 0) {
-        console.warn('⚠️ El filtro resultó en 0 filas. Revisando primera fila:');
-        if (rawDataGlobal.length > 0) {
-            console.log('Primera fila completa:', rawDataGlobal[0]);
-            console.log('Valor MONTH:', rawDataGlobal[0][COLS.MONTH]);
-            console.log('Filtro begin:', filtros.begin);
+            var datosFiltrados = rawDataGlobal.filter(function (row) {
+                return aplicarFiltroFila(row, filtros);
+            });
+
+            console.log('📊 Filas filtradas: ' + datosFiltrados.length + ' de ' + rawDataGlobal.length);
+
+            dashboardData = procesarDatos(datosFiltrados);
+            renderDashboard();
+
+            console.timeEnd('⚡ Filtrado');
         }
-    }
 
-    dashboardData = procesarDatos(datosFiltrados);
-    renderDashboard();
+        function limpiarFiltros() {
+            console.log('🧹 Limpiando filtros...');
 
-    console.timeEnd('⚡ Filtrado');
-}
+            document.querySelectorAll('.filters-grid select').forEach(function (select) {
+                select.value = '';
+            });
 
-   function limpiarFiltros() {
-    console.log('🧹 Limpiando filtros...');
-
-    // ⭐ NUEVO: Limpiar Select2
-    if (typeof jQuery !== 'undefined' && typeof jQuery.fn.select2 !== 'undefined') {
-        jQuery('.filters-grid select').val('').trigger('change');
-    } else {
-        // Fallback para selects normales
-        document.querySelectorAll('.filters-grid select').forEach(function (select) {
-            select.value = '';
-        });
-    }
-
-    if (initialDashboardData) {
-        console.log('⚡ Restaurando datos iniciales');
-        dashboardData = initialDashboardData;
-        renderDashboard();
-    } else {
-        aplicarFiltros();
-    }
-}
+            if (initialDashboardData) {
+                console.log('⚡ Restaurando datos iniciales');
+                dashboardData = initialDashboardData;
+                renderDashboard();
+            } else {
+                aplicarFiltros();
+            }
+        }
 
         // ============================================
         // PROCESAMIENTO DE DATOS
@@ -1583,7 +1221,7 @@ function aplicarFiltros() {
                     main: agruparDatos(rows, COLS.DATE),
                     breakdown: generarDesgloses(rows)
                 },
-                ranking: agruparDatos(rows, COLS.AGENT),
+                ranking: agruparDatos(rows, COLS.OWNER), // UNIFICADO A OWNER
                 analisis: analizarMejoresTiempos(rows)
             };
 
@@ -1598,7 +1236,10 @@ function aplicarFiltros() {
                 var row = rows[i];
                 cases++;
 
-                if (row[COLS.FT] == 1 || row[COLS.FT] == '1') ft++;
+                var ftVal = parseFloat(row[COLS.FT]);
+                if (!isNaN(ftVal)) {
+                    ft += ftVal;
+                }
 
                 var ct = parseNumberRobust(row[COLS.CT]);
                 if (ct !== null) {
@@ -1643,7 +1284,10 @@ function aplicarFiltros() {
                 var g = grupos[key];
                 g.cases++;
 
-                if (row[COLS.FT] == 1 || row[COLS.FT] == '1') g.ft++;
+                var ftVal = parseFloat(row[COLS.FT]);
+                if (!isNaN(ftVal)) {
+                    g.ft += ftVal;
+                }
 
                 var ct = parseNumberRobust(row[COLS.CT]);
                 if (ct !== null) {
@@ -1680,8 +1324,7 @@ function aplicarFiltros() {
         function generarDesgloses(rows) {
             return {
                 I: agruparDatos(rows, COLS.COUNTRY),
-                K: agruparDatos(rows, COLS.STAGE),
-                L: agruparDatos(rows, COLS.OUTREACH),
+                AJ: agruparDatos(rows, COLS.STAGE),
                 N: agruparDatos(rows, COLS.STATUS)
             };
         }
@@ -1692,14 +1335,15 @@ function aplicarFiltros() {
 
             for (var i = 0; i < rows.length; i++) {
                 var row = rows[i];
-                var isFT = (row[COLS.FT] == 1 || row[COLS.FT] == '1');
+                var ftVal = parseFloat(row[COLS.FT]);
+                var isFT = !isNaN(ftVal) && ftVal > 0;
 
                 // Distribución por País (Columna I/COUNTRY)
                 var pais = row[COLS.COUNTRY] || 'Desconocido';
                 if (!paises[pais]) paises[pais] = { label: pais, count: 0, ft: 0, ctSum: 0, ctCount: 0, crSum: 0, crCount: 0 };
                 var p = paises[pais];
                 p.count++;
-                if (isFT) p.ft++;
+                if (!isNaN(ftVal)) p.ft += ftVal;
 
                 var ct = parseNumberRobust(row[COLS.CT]);
                 if (ct !== null) { p.ctSum += ct; p.ctCount++; }
@@ -1718,7 +1362,7 @@ function aplicarFiltros() {
                 if (!dias[diaNombre]) dias[diaNombre] = { label: diaNombre, count: 0, ft: 0, ctSum: 0, ctCount: 0, crSum: 0, crCount: 0 };
                 var d = dias[diaNombre];
                 d.count++;
-                if (isFT) d.ft++;
+                if (!isNaN(ftVal)) d.ft += ftVal;
                 if (ct !== null) { d.ctSum += ct; d.ctCount++; }
                 if (cr !== null) { d.crSum += cr; d.crCount++; }
 
@@ -1737,12 +1381,12 @@ function aplicarFiltros() {
                     if (!horas[horaStr]) horas[horaStr] = { label: horaStr, count: 0, ft: 0, ctSum: 0, ctCount: 0, crSum: 0, crCount: 0 };
                     var h = horas[horaStr];
                     h.count++;
-                    if (isFT) h.ft++;
+                    if (!isNaN(ftVal)) h.ft += ftVal;
                     if (ct !== null) { h.ctSum += ct; h.ctCount++; }
                     if (cr !== null) { h.crSum += cr; h.crCount++; }
 
                     var dh = diaNombre + ' ' + horaStr;
-                    if (isFT) diaHora[dh] = (diaHora[dh] || 0) + 1;
+                    if (!isNaN(ftVal)) diaHora[dh] = (diaHora[dh] || 0) + ftVal;
                 }
             }
 
@@ -1794,23 +1438,25 @@ function aplicarFiltros() {
         /**
          * Llama al backend para actualizar el archivo JSON en Drive
          */
-function guardarFechaActualizacion() {
-    const fecha = obtenerFechaActual();
-    
-    console.log('💾 Guardando fecha en Google Sheets:', fecha);
-    
-    // ⭐ CORREGIDO: Guardar en Google Sheets
-    google.script.run
-        .withSuccessHandler(function() {
-            console.log('✅ Fecha guardada exitosamente en Sheets');
-            actualizarIndicadorFecha(fecha);
-        })
-        .withFailureHandler(function(err) {
-            console.error('❌ Error guardando fecha:', err);
-            alert('⚠️ No se pudo guardar la fecha: ' + err.message);
-        })
-        .guardarFechaEnSheet(fecha);
-}
+        function actualizarBaseDatos() {
+            if (!confirm("¿Deseas actualizar el caché de base de datos? Esto procesará todas las filas y podría tardar unos segundos. Se recomienda hacerlo solo si hay datos nuevos.")) {
+                return;
+            }
+
+            mostrarCarga(true, "Actualizando base de datos...");
+
+            google.script.run
+                .withSuccessHandler(function (msg) {
+                    mostrarCarga(false);
+                    alert("✅ Éxito: " + msg + "\nLa página se recargará para mostrar los nuevos datos.");
+                    location.reload(); // Recargar para obtener el nuevo payloadJson
+                })
+                .withFailureHandler(function (err) {
+                    mostrarCarga(false);
+                    alert("❌ Error al actualizar: " + err);
+                })
+                .actualizarCacheDrive();
+        }
 
         function mostrarCarga(mostrar, texto) {
             var loader = document.getElementById('global-loading');
@@ -1876,205 +1522,135 @@ function guardarFechaActualizacion() {
         // ============================================
         // PESTAÑA OUTLIERS UNIFICADO
         // ============================================
+        function renderOutliersUnificado(container) {
+            console.time('📊 Outliers Unificado');
 
+            var filtros = getFiltros();
+            var filteredRaw = rawDataGlobal.filter(function (r) {
+                return aplicarFiltroFila(r, filtros);
+            });
 
-function renderOutliersUnificado(container) {
-    console.time('📊 Outliers Unificado');
+            if (filteredRaw.length === 0) {
+                container.innerHTML = '<p style="text-align:center;padding:30px;">No hay datos para analizar.</p>';
+                return;
+            }
 
-    // ⭐ CORREGIDO: Obtener filtros ANTES de filtrar
-    var filtros = getFiltros();
-    var filteredRaw = rawDataGlobal.filter(function (r) {
-        return aplicarFiltroFila(r, filtros);
-    });
+            // Calcular métricas por agente
+            var resultado = calcularMetricasPorAgente(filteredRaw);
 
-    if (filteredRaw.length === 0) {
-        container.innerHTML = '<p style="text-align:center;padding:30px;">No hay datos para analizar con los filtros aplicados.</p>';
-        return;
-    }
+            if (!resultado.agentes || resultado.agentes.length < 4) {
+                container.innerHTML = '<p style="text-align:center;padding:30px;">Insuficientes agentes para análisis de quartiles.</p>';
+                return;
+            }
 
-    // ⭐ CAMBIO: Agrupar por columna J (OWNER) en lugar de AGENT
-    var ownerMap = {};
-    
-    filteredRaw.forEach(function(row) {
-        var owner = row[COLS.OWNER] || 'N/A'; // Columna J
-        
-        if (!ownerMap[owner]) {
-            ownerMap[owner] = {
-                owner: owner,
-                supervisor: row[COLS.SUP] || 'N/A',
-                agent: row[COLS.AGENT] || 'N/A', // ⭐ NUEVO: Capturar también el Agent
-                ft: 0,
-                cases: 0,
-                ctSum: 0,
-                ctCount: 0,
-                crSum: 0,
-                crCount: 0
-            };
+            var agentes = resultado.agentes;
+            var stats = resultado.stats;
+
+            // Ordenar: Prioridad FT (Q4 primero), luego por outliers
+            agentes.sort(function (a, b) {
+                // Peso por FT Quartile (Q4 = 4, Q1 = 1)
+                var ftWeightA = parseInt(a.ftQuartile.replace('Q', ''));
+                var ftWeightB = parseInt(b.ftQuartile.replace('Q', ''));
+
+                if (ftWeightA !== ftWeightB) return ftWeightB - ftWeightA;
+
+                // Si empatan en FT, priorizar outliers
+                var outlierWeightA = (a.ftOutlier !== 'NONE' ? 2 : 0) +
+                    (a.ctOutlier !== 'NONE' ? 1 : 0) +
+                    (a.crOutlier !== 'NONE' ? 1 : 0);
+                var outlierWeightB = (b.ftOutlier !== 'NONE' ? 2 : 0) +
+                    (b.ctOutlier !== 'NONE' ? 1 : 0) +
+                    (b.crOutlier !== 'NONE' ? 1 : 0);
+
+                return outlierWeightB - outlierWeightA;
+            });
+
+            // Construir HTML
+            var html = '<h2 style="color:#667eea;text-align:center;margin-bottom:20px;">📊 Performance Unificada de Agentes</h2>';
+
+            // Resumen de estadísticas
+            html += '<div style="background:#f8f9fa;padding:15px;border-radius:10px;margin-bottom:20px;">';
+            html += '<h3 style="color:#667eea;margin-bottom:10px;">📈 Estadísticas Globales</h3>';
+            html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;">';
+
+            var metricas = [
+                { label: 'FT Cases', stat: stats.ft, format: function (v) { return v.toFixed(0); } },
+                { label: 'CT %', stat: stats.ct, format: function (v) { return (v * 100).toFixed(2) + '%'; } },
+                { label: 'CR %', stat: stats.cr, format: function (v) { return (v * 100).toFixed(2) + '%'; } }
+            ];
+
+            metricas.forEach(function (m) {
+                html += '<div style="background:white;padding:10px;border-radius:5px;text-align:center;">';
+                html += '<strong>' + m.label + '</strong><br>';
+                html += '<small>Avg: ' + m.format(m.stat.mean) + ' | ';
+                html += 'Q1: ' + m.format(m.stat.q1) + ' | ';
+                html += 'Q3: ' + m.format(m.stat.q3) + '</small>';
+                html += '</div>';
+            });
+
+            html += '</div></div>';
+
+            // NUEVA FUNCIONALIDAD: Comparación de semanas
+            html += renderComparacionSemanal(container);
+
+            // Tabla unificada
+            html += '<table class="unified-table">';
+            html += '<thead><tr>';
+            html += '<th rowspan="2">Owner</th>';
+            html += '<th rowspan="2">Supervisor</th>';
+            html += '<th rowspan="2">Cases</th>';
+            html += '<th colspan="3" style="background:#e74c3c;">FT (Prioritario)</th>';
+            html += '<th colspan="3" style="background:#3498db;">CT %</th>';
+            html += '<th colspan="3" style="background:#2ecc71;">CR %</th>';
+            html += '</tr><tr>';
+            // FT
+            html += '<th style="background:#e74c3c;">Valor</th>';
+            html += '<th style="background:#e74c3c;">Q</th>';
+            html += '<th style="background:#e74c3c;">Out</th>';
+            // CT
+            html += '<th style="background:#3498db;">Valor</th>';
+            html += '<th style="background:#3498db;">Q</th>';
+            html += '<th style="background:#3498db;">Out</th>';
+            // CR
+            html += '<th style="background:#2ecc71;">Valor</th>';
+            html += '<th style="background:#2ecc71;">Q</th>';
+            html += '<th style="background:#2ecc71;">Out</th>';
+            html += '</tr></thead><tbody>';
+
+            agentes.forEach(function (a) {
+                var rowClass = '';
+                if (a.ftOutlier !== 'NONE' || a.ctOutlier !== 'NONE' || a.crOutlier !== 'NONE') {
+                    rowClass = 'row-outlier-high';
+                }
+
+                html += '<tr class="' + rowClass + '">';
+                html += '<td style="text-align:left;font-weight:bold;">' + a.agent + '</td>'; // agent variable still has the ID/Name
+                html += '<td style="text-align:left;color:#7f8c8d;">' + a.supervisor + '</td>';
+                html += '<td>' + a.cases + '</td>';
+
+                // FT
+                html += '<td style="font-weight:bold;color:#c0392b;">' + a.ft + '</td>';
+                html += '<td>' + renderQuartileBadge(a.ftQuartile) + '</td>';
+                html += '<td>' + renderOutlierBadge(a.ftOutlier) + '</td>';
+
+                // CT
+                html += '<td>' + (a.ct * 100).toFixed(2) + '%</td>';
+                html += '<td>' + renderQuartileBadge(a.ctQuartile) + '</td>';
+                html += '<td>' + renderOutlierBadge(a.ctOutlier) + '</td>';
+
+                // CR
+                html += '<td>' + (a.cr * 100).toFixed(2) + '%</td>';
+                html += '<td>' + renderQuartileBadge(a.crQuartile) + '</td>';
+                html += '<td>' + renderOutlierBadge(a.crOutlier) + '</td>';
+
+                html += '</tr>';
+            });
+
+            html += '</tbody></table></div>';
+
+            container.innerHTML = html;
+            console.timeEnd('📊 Outliers Unificado');
         }
-        
-        var o = ownerMap[owner];
-        o.cases++;
-        
-        if (row[COLS.FT] == 1 || row[COLS.FT] == '1') o.ft++;
-        
-        var ct = parseNumberRobust(row[COLS.CT]);
-        if (ct !== null) {
-            o.ctSum += ct;
-            o.ctCount++;
-        }
-        
-        var cr = parseNumberRobust(row[COLS.CR]);
-        if (cr !== null) {
-            o.crSum += cr;
-            o.crCount++;
-        }
-    });
-    
-    // Convertir a array
-    var owners = [];
-    for (var key in ownerMap) {
-        var o = ownerMap[key];
-        owners.push({
-            agent: o.owner, // Usar "agent" para compatibilidad con el resto del código
-            supervisor: o.supervisor,
-            ft: o.ft,
-            cases: o.cases,
-            ct: o.ctCount > 0 ? o.ctSum / o.ctCount : 0,
-            cr: o.crCount > 0 ? o.crSum / o.crCount : 0
-        });
-    }
-    
-    if (owners.length < 4) {
-        container.innerHTML = '<p style="text-align:center;padding:30px;">Insuficientes Case Owners para análisis de quartiles (mínimo 4 requeridos, encontrados: ' + owners.length + ').</p>';
-        return;
-    }
-
-    // Clasificar por quartiles
-    var resultado = clasificarPorQuartiles(owners);
-    var agentes = resultado.agentes;
-    var stats = resultado.stats;
-
-    // Ordenar: Prioridad FT (Q4 primero), luego por outliers
-    agentes.sort(function (a, b) {
-        var ftWeightA = parseInt(a.ftQuartile.replace('Q', ''));
-        var ftWeightB = parseInt(b.ftQuartile.replace('Q', ''));
-
-        if (ftWeightA !== ftWeightB) return ftWeightB - ftWeightA;
-
-        var outlierWeightA = (a.ftOutlier !== 'NONE' ? 2 : 0) +
-            (a.ctOutlier !== 'NONE' ? 1 : 0) +
-            (a.crOutlier !== 'NONE' ? 1 : 0);
-        var outlierWeightB = (b.ftOutlier !== 'NONE' ? 2 : 0) +
-            (b.ctOutlier !== 'NONE' ? 1 : 0) +
-            (b.crOutlier !== 'NONE' ? 1 : 0);
-
-        return outlierWeightB - outlierWeightA;
-    });
-
-    // Construir HTML
-    var html = '<h2 style="color:#667eea;text-align:center;margin-bottom:20px;">📊 Performance Unificada por Case Owner</h2>';
-    
-    // ⭐ NUEVO: Mostrar filtros activos
-    var filtrosActivos = [];
-    if (filtros.week) filtrosActivos.push('Week: ' + filtros.week);
-    if (filtros.begin) filtrosActivos.push('Month: ' + filtros.begin);
-    if (filtros.colI) filtrosActivos.push('Country: ' + filtros.colI);
-    if (filtros.supervisor) filtrosActivos.push('Supervisor: ' + filtros.supervisor);
-    if (filtros.agent) filtrosActivos.push('Agent: ' + filtros.agent);
-    if (filtros.caseOwner) filtrosActivos.push('Case Owner: ' + filtros.caseOwner);
-    
-    if (filtrosActivos.length > 0) {
-        html += '<div style="background:#e8f4f8;padding:10px;border-radius:5px;margin-bottom:15px;text-align:center;">';
-        html += '<strong>🔍 Filtros Activos:</strong> ' + filtrosActivos.join(' | ');
-        html += '</div>';
-    }
-
-    // Resumen de estadísticas
-    html += '<div style="background:#f8f9fa;padding:15px;border-radius:10px;margin-bottom:20px;">';
-    html += '<h3 style="color:#667eea;margin-bottom:10px;">📈 Estadísticas Globales (' + owners.length + ' Case Owners)</h3>';
-    html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;">';
-
-    var metricas = [
-        { label: 'FT Cases', stat: stats.ft, format: function (v) { return v.toFixed(0); } },
-        { label: 'CT %', stat: stats.ct, format: function (v) { return (v * 100).toFixed(2) + '%'; } },
-        { label: 'CR %', stat: stats.cr, format: function (v) { return (v * 100).toFixed(2) + '%'; } }
-    ];
-
-    metricas.forEach(function (m) {
-        html += '<div style="background:white;padding:10px;border-radius:5px;text-align:center;">';
-        html += '<strong>' + m.label + '</strong><br>';
-        html += '<small>Avg: ' + m.format(m.stat.mean) + ' | ';
-        html += 'Q1: ' + m.format(m.stat.q1) + ' | ';
-        html += 'Q3: ' + m.format(m.stat.q3) + '</small>';
-        html += '</div>';
-    });
-
-    html += '</div></div>';
-
-    // Comparación de semanas
-    html += renderComparacionSemanal(container);
-
-    // Tabla unificada
-    html += '<div style="overflow-x:auto;max-height:600px;overflow-y:auto;">';
-    html += '<table class="unified-table">';
-    html += '<thead><tr>';
-    html += '<th rowspan="2">Case Owner</th>';
-    html += '<th rowspan="2">Supervisor</th>';
-    html += '<th rowspan="2">Cases</th>';
-    html += '<th colspan="3" style="background:#e74c3c;">FT (Prioritario)</th>';
-    html += '<th colspan="3" style="background:#3498db;">CT %</th>';
-    html += '<th colspan="3" style="background:#2ecc71;">CR %</th>';
-    html += '</tr><tr>';
-    // FT
-    html += '<th style="background:#e74c3c;">Valor</th>';
-    html += '<th style="background:#e74c3c;">Q</th>';
-    html += '<th style="background:#e74c3c;">Out</th>';
-    // CT
-    html += '<th style="background:#3498db;">Valor</th>';
-    html += '<th style="background:#3498db;">Q</th>';
-    html += '<th style="background:#3498db;">Out</th>';
-    // CR
-    html += '<th style="background:#2ecc71;">Valor</th>';
-    html += '<th style="background:#2ecc71;">Q</th>';
-    html += '<th style="background:#2ecc71;">Out</th>';
-    html += '</tr></thead><tbody>';
-
-    agentes.forEach(function (a) {
-        var rowClass = '';
-        if (a.ftOutlier !== 'NONE' || a.ctOutlier !== 'NONE' || a.crOutlier !== 'NONE') {
-            rowClass = 'row-outlier-high';
-        }
-
-        html += '<tr class="' + rowClass + '">';
-        html += '<td style="text-align:left;font-weight:bold;">' + a.agent + '</td>';
-        html += '<td style="text-align:left;color:#7f8c8d;">' + a.supervisor + '</td>';
-        html += '<td>' + a.cases + '</td>';
-
-        // FT
-        html += '<td style="font-weight:bold;color:#c0392b;">' + a.ft + '</td>';
-        html += '<td>' + renderQuartileBadge(a.ftQuartile) + '</td>';
-        html += '<td>' + renderOutlierBadge(a.ftOutlier) + '</td>';
-
-        // CT
-        html += '<td>' + (a.ct * 100).toFixed(2) + '%</td>';
-        html += '<td>' + renderQuartileBadge(a.ctQuartile) + '</td>';
-        html += '<td>' + renderOutlierBadge(a.ctOutlier) + '</td>';
-
-        // CR
-        html += '<td>' + (a.cr * 100).toFixed(2) + '%</td>';
-        html += '<td>' + renderQuartileBadge(a.crQuartile) + '</td>';
-        html += '<td>' + renderOutlierBadge(a.crOutlier) + '</td>';
-
-        html += '</tr>';
-    });
-
-    html += '</tbody></table></div>';
-
-    container.innerHTML = html;
-    console.timeEnd('📊 Outliers Unificado');
-}
-
-        
 
         function renderQuartileBadge(quartile) {
             var className = quartile.toLowerCase();
@@ -2184,9 +1760,9 @@ function renderOutliersUnificado(container) {
                     var evolution = {
                         agent: agent,
                         supervisor: base.supervisor,
-                        ftBase: base.ft,
-                        ftCompare: compare.ft,
-                        ftDelta: compare.ft - base.ft,
+                        ftBase: parseFloat(base.ft) || 0,
+                        ftCompare: parseFloat(compare.ft) || 0,
+                        ftDelta: (parseFloat(compare.ft) || 0) - (parseFloat(base.ft) || 0),
                         qBase: base.ftQuartile,
                         qCompare: compare.ftQuartile,
                         evolution: qScoreCompare - qScoreBase // + mejoró, - empeoró
@@ -2218,7 +1794,7 @@ function renderOutliersUnificado(container) {
             html += '<table class="unified-table">';
             html += '<thead>';
             html += '<tr>';
-            html += '<th rowspan="2">Agente</th>';
+            html += '<th rowspan="2">Owner</th>';
             html += '<th rowspan="2">Supervisor</th>';
             html += '<th colspan="2" style="background:#bdc3c7;color:#2c3e50;">' + weekBase + ' (Base)</th>';
             html += '<th colspan="2" style="background:#34495e;color:white;">' + weekCompare + ' (Objetivo)</th>';
@@ -2303,35 +1879,20 @@ function renderOutliersUnificado(container) {
             }
             return null;
         }
-function aplicarFiltroFila(row, filtros) {
-    // ⭐ NUEVO: Normalizar valores para comparación
-    function normalizar(valor) {
-        if (valor === null || valor === undefined) return '';
-        return valor.toString().trim();
-    }
-    
-    if (filtros.week && normalizar(row[COLS.WEEK]) !== normalizar(filtros.week)) return false;
-    if (filtros.outreachType && normalizar(row[COLS.OUTREACH]) !== normalizar(filtros.outreachType)) return false;
-    if (filtros.caseOwner && normalizar(row[COLS.OWNER]) !== normalizar(filtros.caseOwner)) return false;
-    if (filtros.status && normalizar(row[COLS.STATUS]) !== normalizar(filtros.status)) return false;
-    
-    // ⭐ CRÍTICO: Comparación especial para Month (puede ser número)
-    if (filtros.begin && filtros.begin !== '') {
-        var rowMonth = normalizar(row[COLS.MONTH]);
-        var filtroMonth = normalizar(filtros.begin);
-        if (rowMonth !== filtroMonth) {
-            console.log('Filtro MONTH no coincide:', rowMonth, '!==', filtroMonth);
-            return false;
+
+        function aplicarFiltroFila(row, filtros) {
+            if (filtros.week && row[COLS.WEEK] !== filtros.week) return false;
+            // outreachType removido
+            if (filtros.caseOwner && row[COLS.OWNER] !== filtros.caseOwner) return false;
+            if (filtros.status && String(row[COLS.STATUS] || '').trim() !== filtros.status) return false;
+            if (filtros.begin && String(row[COLS.MONTH] || '').trim() !== filtros.begin) return false;
+            if (filtros.supervisor && String(row[COLS.SUP] || '').trim() !== filtros.supervisor) return false;
+            if (filtros.agent && String(row[COLS.AGENT] || '').trim() !== filtros.agent) return false;
+            if (filtros.colI && String(row[COLS.COUNTRY] || '').trim() !== filtros.colI) return false;
+            // AJ es el nuevo Stage
+            if (filtros.stageAJ && String(row[COLS.STAGE] || '').trim() !== filtros.stageAJ) return false;
+            return true;
         }
-    }
-    
-    if (filtros.supervisor && normalizar(row[COLS.SUP]) !== normalizar(filtros.supervisor)) return false;
-    if (filtros.agent && normalizar(row[COLS.AGENT]) !== normalizar(filtros.agent)) return false;
-    if (filtros.colI && normalizar(row[COLS.COUNTRY]) !== normalizar(filtros.colI)) return false;
-    if (filtros.colK && normalizar(row[COLS.STAGE]) !== normalizar(filtros.colK)) return false;
-    
-    return true;
-}
 
         function calculateStats(values) {
             values.sort(function (a, b) { return a - b; });
@@ -2381,8 +1942,8 @@ function aplicarFiltroFila(row, filtros) {
                 return b.ft - a.ft;
             });
 
-            var html = '<h2 style="color:#667eea;text-align:center;margin-bottom:25px;">🏆 Top Performers</h2>';
-            html += '<div class="table-container"><table><thead><tr><th>Rank</th><th>Agente</th><th>FT ⭐</th><th>Cases</th><th>CT%</th><th>CR%</th></tr></thead><tbody>';
+            var html = '<h2 style="color:#667eea;text-align:center;margin-bottom:25px;">🏆 Top Owners</h2>';
+            html += '<div class="table-container"><table><thead><tr><th>Rank</th><th>Owner</th><th>FT ⭐</th><th>Cases</th><th>CT%</th><th>CR%</th></tr></thead><tbody>';
 
             for (var i = 0; i < sortedData.length; i++) {
                 var d = sortedData[i];
@@ -2565,8 +2126,10 @@ function aplicarFiltroFila(row, filtros) {
             rawDataGlobal.forEach(function (row) {
                 if (!aplicarFiltroFila(row, filtros)) return;
 
-                var isFT = (row[COLS.FT] == 1 || row[COLS.FT] == '1');
-                if (!isFT) return;
+                // ⭐ SUMA ROBUSTA DE FT (Columna AL - 37)
+                var ftVal = parseFloat(row[COLS.FT]);
+                if (isNaN(ftVal) || ftVal <= 0) return;
+                var isFT = true;
 
                 var fechaStr = row[COLS.TRIP_DATE];
                 if (!fechaStr) return;
@@ -2584,7 +2147,7 @@ function aplicarFiltroFila(row, filtros) {
 
                 if (horaNum >= 0 && horaNum <= 23) {
                     if (!matrix[dia]) matrix[dia] = {};
-                    matrix[dia][horaNum] = (matrix[dia][horaNum] || 0) + 1;
+                    matrix[dia][horaNum] = (matrix[dia][horaNum] || 0) + ftVal; // SUMAR EN LUGAR DE CONTAR
                 }
             });
 
@@ -2649,129 +2212,32 @@ function aplicarFiltroFila(row, filtros) {
                 });
             });
         }
-function renderBreakdownAccordion(bd, container) {
-    var details = document.createElement('details');
-    var summary = document.createElement('summary');
-    summary.textContent = '📋 Desglose';
-    details.appendChild(summary);
 
-    var content = document.createElement('div');
-    content.className = 'details-content';
+        function renderBreakdownAccordion(bd, container) {
+            var details = document.createElement('details');
+            var summary = document.createElement('summary');
+            summary.textContent = '📋 Desglose';
+            details.appendChild(summary);
 
-    var breakdowns = [
-        { key: 'I', title: 'Country' },
-        { key: 'K', title: 'Stage' },
-        { key: 'L', title: 'Outreach Type' },
-        { key: 'N', title: 'Status' }
-    ];
+            var content = document.createElement('div');
+            content.className = 'details-content';
 
-    for (var i = 0; i < breakdowns.length; i++) {
-        var item = breakdowns[i];
-        var div = document.createElement('div');
-        div.style.marginBottom = '25px';
-        
-        // ⭐ NUEVO: Agregar gráfico para Country (Columna I)
-        if (item.key === 'I' && bd[item.key] && bd[item.key].length > 0) {
-            var chartId = 'chart-breakdown-' + item.key + '-' + Math.random().toString(36).substr(2, 9);
-            
-            // Crear acordeón para el gráfico
-            var detailsChart = document.createElement('details');
-            var summaryChart = document.createElement('summary');
-            summaryChart.textContent = '📊 Gráfico - ' + item.title;
-            summaryChart.style.background = '#e8f4f8';
-            summaryChart.style.color = '#2c3e50';
-            detailsChart.appendChild(summaryChart);
-            
-            var chartContent = document.createElement('div');
-            chartContent.className = 'details-content';
-            chartContent.innerHTML = '<div class="chart-wrapper" style="height:400px;"><canvas id="' + chartId + '"></canvas></div>';
-            detailsChart.appendChild(chartContent);
-            
-            div.appendChild(detailsChart);
-            
-            // Renderizar el gráfico después de agregar al DOM
-            (function(id, data) {
-                requestAnimationFrame(function() {
-                    requestAnimationFrame(function() {
-                        renderCountryChart(id, data);
-                    });
-                });
-            })(chartId, bd[item.key]);
-        }
-        
-        renderHorizontalTable('Columna ' + item.key + ' - ' + item.title, bd[item.key], div);
-        content.appendChild(div);
-    }
-
-    details.appendChild(content);
-    container.appendChild(details);
-}
-
-// ⭐ NUEVA FUNCIÓN: Renderizar gráfico de países/ciudades
-function renderCountryChart(id, data) {
-    var canvas = document.getElementById(id);
-    if (!canvas) {
-        console.warn('Canvas no encontrado: ' + id);
-        return;
-    }
-
-    var ctx = canvas.getContext('2d');
-    
-    // Ordenar por FT descendente para mejor visualización
-    var sortedData = data.slice().sort(function(a, b) {
-        return b.ft - a.ft;
-    });
-    
-    // Limitar a top 15 para mejor visualización
-    var displayData = sortedData.slice(0, 15);
-
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: displayData.map(function(d) { return d.label; }),
-            datasets: [
-                {
-                    label: 'FT Cases',
-                    data: displayData.map(function(d) { return d.ft; }),
-                    backgroundColor: 'rgba(102, 126, 234, 0.7)',
-                    borderColor: '#667eea',
-                    borderWidth: 1
-                },
-                {
-                    label: 'Total Cases',
-                    data: displayData.map(function(d) { return d.cases; }),
-                    backgroundColor: 'rgba(118, 75, 162, 0.5)',
-                    borderColor: '#764ba2',
-                    borderWidth: 1
-                }
-            ]
-        },
-        options: {
-            indexAxis: 'y', // Horizontal bar
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                title: {
-                    display: true,
-                    text: 'Top 15 Ciudades/Países por FT Cases',
-                    font: { size: 16 }
-                },
-                legend: {
-                    position: 'top'
-                }
-            },
-            scales: {
-                x: {
-                    beginAtZero: true,
-                    title: {
-                        display: true,
-                        text: 'Número de Cases'
-                    }
-                }
+            var breakdowns = [
+                { key: 'I', title: 'Country (I)' },
+                { key: 'AJ', title: 'Stage (AJ)' },
+                { key: 'N', title: 'Status (N)' }
+            ];
+            for (var i = 0; i < breakdowns.length; i++) {
+                var item = breakdowns[i];
+                var div = document.createElement('div');
+                div.style.marginBottom = '25px';
+                renderHorizontalTable('Columna ' + item.key + ' - ' + item.title, bd[item.key], div);
+                content.appendChild(div);
             }
+
+            details.appendChild(content);
+            container.appendChild(details);
         }
-    });
-}
 
         function renderHorizontalTable(title, data, container) {
             if (!data || data.length === 0) {
