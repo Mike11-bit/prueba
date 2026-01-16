@@ -689,6 +689,286 @@ NUEVAS CARACTERÍSTICAS:
                 grid-template-columns: 1fr;
             }
         }
+
+
+
+
+/* ============================================
+   MODAL DE MENSAJES MOTIVACIONALES - MEJORADO
+   ============================================ */
+#mensaje-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(ellipse at center, rgba(102, 126, 234, 0.3) 0%, rgba(0, 0, 0, 0.95) 100%);
+    z-index: 10000;
+    justify-content: center;
+    align-items: center;
+    animation: fadeIn 0.3s ease;
+    overflow: hidden;
+}
+
+/* ⭐ ESTRELLAS DE FONDO */
+#mensaje-modal::before {
+    content: '✨ ⭐ 🌟 ✨ ⭐ 🌟 ✨ ⭐ 🌟 ✨ ⭐ 🌟 ✨ ⭐ 🌟 ✨ ⭐ 🌟';
+    position: absolute;
+    top: 10%;
+    left: 0;
+    width: 100%;
+    font-size: 2em;
+    text-align: center;
+    animation: float 3s ease-in-out infinite;
+    opacity: 0.8;
+}
+
+#mensaje-modal::after {
+    content: '🌟 ✨ ⭐ 🌟 ✨ ⭐ 🌟 ✨ ⭐ 🌟 ✨ ⭐ 🌟 ✨ ⭐ 🌟 ✨';
+    position: absolute;
+    bottom: 10%;
+    left: 0;
+    width: 100%;
+    font-size: 2em;
+    text-align: center;
+    animation: float 3s ease-in-out infinite reverse;
+    opacity: 0.8;
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-20px); }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.mensaje-content {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 50px;
+    border-radius: 25px;
+    max-width: 600px;
+    width: 90%;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 
+                0 0 100px rgba(102, 126, 234, 0.4),
+                inset 0 0 50px rgba(255, 255, 255, 0.1);
+    animation: slideDown 0.5s ease;
+    position: relative;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+}
+
+/* ⭐ PARTÍCULAS FLOTANTES ALREDEDOR DEL MODAL */
+.mensaje-content::before {
+    content: '✨';
+    position: absolute;
+    top: -30px;
+    left: -30px;
+    font-size: 3em;
+    animation: spin 4s linear infinite;
+}
+
+.mensaje-content::after {
+    content: '⭐';
+    position: absolute;
+    top: -30px;
+    right: -30px;
+    font-size: 3em;
+    animation: spin 4s linear infinite reverse;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes slideDown {
+    from {
+        transform: translateY(-100px) scale(0.8);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+}
+
+.mensaje-icon {
+    font-size: 5em;
+    margin-bottom: 20px;
+    animation: bounce 1s infinite;
+    filter: drop-shadow(0 0 20px rgba(255, 215, 0, 0.8));
+}
+
+@keyframes bounce {
+    0%, 100% { transform: translateY(0) scale(1); }
+    50% { transform: translateY(-20px) scale(1.1); }
+}
+
+.mensaje-text {
+    font-size: 1.8em;
+    color: white;
+    font-weight: 600;
+    line-height: 1.5;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3), 
+                 0 0 20px rgba(255, 255, 255, 0.5);
+    margin-bottom: 30px;
+    animation: textGlow 2s ease-in-out infinite;
+}
+
+@keyframes textGlow {
+    0%, 100% { 
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3), 
+                     0 0 10px rgba(255, 255, 255, 0.3);
+    }
+    50% { 
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3), 
+                     0 0 30px rgba(255, 255, 255, 0.8),
+                     0 0 40px rgba(255, 215, 0, 0.6);
+    }
+}
+
+.mensaje-close {
+    background: white;
+    color: #667eea;
+    border: none;
+    padding: 15px 40px;
+    border-radius: 50px;
+    font-size: 1.2em;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+}
+
+.mensaje-close:hover {
+    transform: scale(1.1);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+    background: #ffd700;
+    color: #667eea;
+}
+
+.btn-ver-mensaje {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.85em;
+    transition: all 0.3s;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+}
+
+.btn-ver-mensaje:hover {
+    transform: scale(1.05);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+/* ⭐ ESTILOS PARA EL INPUT DE NOMBRE */
+#nombre-input-container {
+    margin-bottom: 20px;
+}
+
+#nombre-input-container label {
+    color: white;
+    font-size: 1.2em;
+    display: block;
+    margin-bottom: 10px;
+    font-weight: 600;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+}
+
+#nombre-input {
+    width: 100%;
+    padding: 15px;
+    border-radius: 10px;
+    border: 3px solid white;
+    font-size: 1.1em;
+    text-align: center;
+    box-sizing: border-box;
+    outline: none;
+    transition: all 0.3s;
+    background: rgba(255, 255, 255, 0.95);
+}
+
+#nombre-input:focus {
+    border-color: #ffd700;
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
+    transform: scale(1.02);
+}
+
+#nombre-input-container button {
+    margin-top: 15px;
+    background: white;
+    color: #667eea;
+    border: none;
+    padding: 12px 35px;
+    border-radius: 25px;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 1.1em;
+    transition: all 0.3s;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+}
+
+#nombre-input-container button:hover {
+    transform: scale(1.05);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+    background: #ffd700;
+}
+
+/* ⭐ CONFETTI MEJORADO */
+@keyframes confetti-fall {
+    to { 
+        transform: translateY(100vh) rotate(720deg);
+        opacity: 0;
+    }
+}
+
+.confetti {
+    position: fixed;
+    width: 12px;
+    height: 12px;
+    top: -20px;
+    z-index: 10001;
+    animation: confetti-fall 3s linear;
+    border-radius: 50%;
+}
+
+/* ⭐ RESPONSIVE */
+@media (max-width: 600px) {
+    .mensaje-content {
+        padding: 30px 20px;
+        width: 95%;
+    }
+    
+    .mensaje-icon {
+        font-size: 3em;
+    }
+    
+    .mensaje-text {
+        font-size: 1.3em;
+    }
+    
+    #nombre-input-container label {
+        font-size: 1em;
+    }
+    
+    #nombre-input {
+        font-size: 1em;
+        padding: 12px;
+    }
+    
+    #mensaje-modal::before,
+    #mensaje-modal::after {
+        font-size: 1.5em;
+    }
+}
     </style>
 </head>
 
@@ -698,6 +978,15 @@ NUEVAS CARACTERÍSTICAS:
         <div class="spinner"></div>
         <h2 style="color:#667eea">Cargando...</h2>
     </div>
+
+    <!-- MODAL DE MENSAJE MOTIVACIONAL -->
+<div id="mensaje-modal">
+    <div class="mensaje-content">
+        <div class="mensaje-icon" id="mensaje-icon">🌟</div>
+        <div class="mensaje-text" id="mensaje-text">¡Cargando mensaje inspirador...</div>
+        <button class="mensaje-close" onclick="cerrarMensajeModal()">¡Entendido! 💪</button>
+    </div>
+</div>
 
     <!-- CONTENEDOR PRINCIPAL -->
     <div class="container">
@@ -723,6 +1012,12 @@ NUEVAS CARACTERÍSTICAS:
                         <option value="">Todos</option>
                     </select>
                 </div>
+                <div class="filter-group">
+    <label>Year (AM) 📅</label>
+    <select id="filterYear" style="border: 2px solid #9b59b6;">
+        <option value="">Todos</option>
+    </select>
+</div>
                 <div class="filter-group">
                     <label>Country (I)</label>
                     <select id="filterI">
@@ -762,7 +1057,23 @@ NUEVAS CARACTERÍSTICAS:
                 </div>
             </div>
             <div class="filters-actions">
-                <button class="btn btn-refresh" onclick="actualizarBaseDatos()">🔄 Actualizar Datos</button>
+
+
+
+<button class="btn btn-load" id="btnCargar" onclick="cargarDatos()">📥 Cargar Datos</button>
+
+<button class="btn btn-refresh" id="btnActualizar" onclick="actualizarBaseDatos()">🔄 Actualizar Caché</button>
+
+
+
+<!-- ⭐ USER EMAIL INJECTION -->
+<div id="user-email" style="display:none;">
+    <?!= (typeof userEmail !== 'undefined') ? userEmail : '' ?>
+</div>
+
+
+
+
                 <button class="btn btn-clear" onclick="limpiarFiltros()">🧹 Limpiar</button>
                 <button class="btn btn-apply" onclick="aplicarFiltros()">🔍 Aplicar</button>
             </div>
@@ -815,7 +1126,22 @@ NUEVAS CARACTERÍSTICAS:
     </div>
 
     <!-- JAVASCRIPT -->
+
+    
     <script>
+
+      function poblarSelectYear(valores) {
+    const selectYear = document.getElementById('filterYear');
+    if (!selectYear) return;
+    
+    selectYear.innerHTML = '<option value="">Todos los Años</option>';
+    valores.forEach(year => {
+        const opt = document.createElement('option');
+        opt.value = year;
+        opt.textContent = year;
+        selectYear.appendChild(opt);
+    });
+}
         // ============================================
         // FAIL-SAFE TIMER
         // ============================================
@@ -868,6 +1194,28 @@ NUEVAS CARACTERÍSTICAS:
             CASE: 0, DATE: 1, COUNTRY: 2, OWNER: 3, STAGE: 4, STATUS: 5,
             WEEK: 6, MONTH: 7, SUP: 8, AGENT: 9, TRIP_DATE: 10, FT: 11, TRIP_HOUR: 12, CR: 13, CT: 14
         };
+
+// ⭐ VALIDACIÓN DE USUARIO
+const USER_EMAIL = document.getElementById('user-email')
+    ? document.getElementById('user-email').textContent.trim()
+    : '';
+
+const USUARIOS_AUTORIZADOS = ["mikenets11@gmail.com", "mospin@gmail.com"];
+const ES_AUTORIZADO = USUARIOS_AUTORIZADOS.includes(USER_EMAIL);
+
+// ⭐ Ocultar/mostrar ambos botones según permiso
+window.addEventListener('DOMContentLoaded', function() {
+    var btnActualizar = document.getElementById('btnActualizar');
+    var btnCargar = document.getElementById('btnCargar');
+
+    // ❌ Si NO es autorizado → ocultar ambos
+    if (!ES_AUTORIZADO) {
+        if (btnActualizar) btnActualizar.style.display = 'none';
+        if (btnCargar) btnCargar.style.display = 'none';
+    }
+});
+
+
 
         // ============================================
         // INICIALIZACIÓN
@@ -1048,7 +1396,7 @@ NUEVAS CARACTERÍSTICAS:
                     ft: a.ft,
                     cases: a.cases,
                     ct: a.ctCount > 0 ? a.ctSum / a.ctCount : 0,
-                    cr: a.crCount > 0 ? a.crSum / a.crCount : 0
+                     cr: a.cases > 0 ? (a.ft / a.cases) * 100 : 0
                 });
             }
 
@@ -1114,50 +1462,51 @@ NUEVAS CARACTERÍSTICAS:
         // ============================================
         // FILTROS
         // ============================================
-        function fillFiltersInstant(filters) {
-            var map = {
-                'S': 'filterWeek',
-                'U': 'filterBegin',  // ⭐ Sincronizado con Columna U (Meses)
-                'I': 'filterI',
-                'AJ': 'filterAJ',    // ⭐ Sincronizado con Columna AJ (Stage)
-                'N': 'filterStatus',
-                'V': 'filterSupervisor',
-                'W': 'filterAgent',
-                'J': 'filterCaseOwner'
-            };
+      function fillFiltersInstant(filters) {
+    var map = {
+        'S': 'filterWeek',
+        'U': 'filterBegin',
+        'I': 'filterI',
+        'AJ': 'filterAJ',
+        'N': 'filterStatus',
+        'V': 'filterSupervisor',
+        'W': 'filterAgent',
+        'J': 'filterCaseOwner',
+        'AM': 'filterYear'  // ⭐ AGREGADO
+    };
 
-            for (var col in map) {
-                var selectElement = document.getElementById(map[col]);
-                if (selectElement && filters[col]) {
-                    while (selectElement.options.length > 1) {
-                        selectElement.remove(1);
-                    }
-
-                    var fragment = document.createDocumentFragment();
-                    filters[col].forEach(function (value) {
-                        var option = document.createElement('option');
-                        option.value = value;
-                        option.text = value;
-                        fragment.appendChild(option);
-                    });
-                    selectElement.appendChild(fragment);
-                }
+    for (var col in map) {
+        var selectElement = document.getElementById(map[col]);
+        if (selectElement && filters[col]) {
+            while (selectElement.options.length > 1) {
+                selectElement.remove(1);
             }
-        }
 
-        function getFiltros() {
-            return {
-                week: document.getElementById('filterWeek').value,
-                colI: document.getElementById('filterI').value,
-                // colK removido
-                supervisor: document.getElementById('filterSupervisor').value,
-                agent: document.getElementById('filterAgent').value,
-                caseOwner: document.getElementById('filterCaseOwner').value,
-                status: document.getElementById('filterStatus').value.trim(),
-                begin: document.getElementById('filterBegin').value.trim(),
-                stageAJ: document.getElementById('filterAJ').value.trim()
-            };
+            var fragment = document.createDocumentFragment();
+            filters[col].forEach(function (value) {
+                var option = document.createElement('option');
+                option.value = value;
+                option.text = value;
+                fragment.appendChild(option);
+            });
+            selectElement.appendChild(fragment);
         }
+    }
+}
+
+    function getFiltros() {
+    return {
+        week: document.getElementById('filterWeek').value,
+        colI: document.getElementById('filterI').value,
+        supervisor: document.getElementById('filterSupervisor').value,
+        agent: document.getElementById('filterAgent').value,
+        caseOwner: document.getElementById('filterCaseOwner').value,
+        status: document.getElementById('filterStatus').value.trim(),
+        begin: document.getElementById('filterBegin').value.trim(),
+        stageAJ: document.getElementById('filterAJ').value.trim(),
+        year: document.getElementById('filterYear').value.trim()  // ⭐ AGREGADO
+    };
+}
 
         function aplicarFiltros() {
             console.time('⚡ Filtrado');
@@ -1258,7 +1607,7 @@ NUEVAS CARACTERÍSTICAS:
                 ft: ft,
                 cases: cases,
                 ct: countCT ? sumCT / countCT : 0,
-                cr: countCR ? sumCR / countCR : 0
+                   cr: cases > 0 ? (ft / cases) * 100 : 0 
             };
         }
 
@@ -1310,7 +1659,7 @@ NUEVAS CARACTERÍSTICAS:
                     ft: g.ft,
                     cases: g.cases,
                     ct: g.ctCount ? g.ctSum / g.ctCount : 0,
-                    cr: g.crCount ? g.crSum / g.crCount : 0
+                    cr: g.cases > 0 ? (g.ft / g.cases) * 100 : 0 
                 });
             }
 
@@ -1410,7 +1759,7 @@ NUEVAS CARACTERÍSTICAS:
                         count: item.count,
                         ft: item.ft,
                         ct: item.ctCount > 0 ? item.ctSum / item.ctCount : 0,
-                        cr: item.crCount > 0 ? item.crSum / item.crCount : 0
+                       cr: item.count > 0 ? (item.ft / item.count) * 100 : 0 
                     });
                 }
                 arr.sort(function (a, b) { return b.ft - a.ft; });
@@ -1438,25 +1787,63 @@ NUEVAS CARACTERÍSTICAS:
         /**
          * Llama al backend para actualizar el archivo JSON en Drive
          */
-        function actualizarBaseDatos() {
-            if (!confirm("¿Deseas actualizar el caché de base de datos? Esto procesará todas las filas y podría tardar unos segundos. Se recomienda hacerlo solo si hay datos nuevos.")) {
-                return;
+      function actualizarBaseDatos() {
+    if (!ES_AUTORIZADO) {
+        alert('🚫 NO ERES DIGNO. Solo usuarios autorizados pueden actualizar el caché.');
+        return;
+    }
+
+    if (!confirm("¿Deseas actualizar el caché de base de datos? Esto procesará todas las filas y podría tardar unos segundos.")) {
+        return;
+    }
+
+    mostrarCarga(true, "Actualizando base de datos...");
+
+    google.script.run
+        .withSuccessHandler(function (msg) {
+            mostrarCarga(false);
+            alert("✅ Éxito: " + msg + "\nLa página se recargará para mostrar los nuevos datos.");
+            location.reload();
+        })
+        .withFailureHandler(function (err) {
+            mostrarCarga(false);
+            alert("❌ Error al actualizar: " + err);
+        })
+        .actualizarCacheDrive();
+}
+
+
+
+function cargarDatos() {
+    // 🔒 Validar si el usuario está autorizado
+    if (!ES_AUTORIZADO) {
+        alert("⛔ No tienes permiso para cargar los datos.");
+        return;
+    }
+
+    if (!confirm("¿Deseas cargar los datos en vivo? Esto NO modifica el caché.")) {
+        return;
+    }
+
+    mostrarCarga(true, "Cargando datos en vivo...");
+
+    google.script.run
+        .withSuccessHandler(function (data) {
+            mostrarCarga(false);
+            if (data && data.rawData && data.rawData.length > 0) {
+                initFromPayload(data);
+                alert("✅ Datos cargados exitosamente: " + data.rawData.length + " filas");
+            } else {
+                alert("⚠️ No se pudieron cargar datos.");
             }
+        })
+        .withFailureHandler(function (err) {
+            mostrarCarga(false);
+            alert("❌ Error al cargar: " + err);
+        })
+        .cargarDatosEnVivo();
+}
 
-            mostrarCarga(true, "Actualizando base de datos...");
-
-            google.script.run
-                .withSuccessHandler(function (msg) {
-                    mostrarCarga(false);
-                    alert("✅ Éxito: " + msg + "\nLa página se recargará para mostrar los nuevos datos.");
-                    location.reload(); // Recargar para obtener el nuevo payloadJson
-                })
-                .withFailureHandler(function (err) {
-                    mostrarCarga(false);
-                    alert("❌ Error al actualizar: " + err);
-                })
-                .actualizarCacheDrive();
-        }
 
         function mostrarCarga(mostrar, texto) {
             var loader = document.getElementById('global-loading');
@@ -1483,7 +1870,7 @@ NUEVAS CARACTERÍSTICAS:
             document.getElementById('metricFT').innerText = m.ft.toLocaleString();
             document.getElementById('metricCases').innerText = m.cases.toLocaleString();
             document.getElementById('metricCT').innerText = (m.ct * 100).toFixed(2) + '%';
-            document.getElementById('metricCR').innerText = (m.cr * 100).toFixed(2) + '%';
+            document.getElementById('metricCR').innerText = m.cr.toFixed(2) + '%';
 
             renderCurrentTab();
 
@@ -1522,135 +1909,155 @@ NUEVAS CARACTERÍSTICAS:
         // ============================================
         // PESTAÑA OUTLIERS UNIFICADO
         // ============================================
-        function renderOutliersUnificado(container) {
-            console.time('📊 Outliers Unificado');
+     function renderOutliersUnificado(container) {
+    console.time('📊 Outliers Unificado');
 
-            var filtros = getFiltros();
-            var filteredRaw = rawDataGlobal.filter(function (r) {
-                return aplicarFiltroFila(r, filtros);
-            });
+    var filtros = getFiltros();
+    var filteredRaw = rawDataGlobal.filter(function (r) {
+        return aplicarFiltroFila(r, filtros);
+    });
 
-            if (filteredRaw.length === 0) {
-                container.innerHTML = '<p style="text-align:center;padding:30px;">No hay datos para analizar.</p>';
-                return;
-            }
+    if (filteredRaw.length === 0) {
+        container.innerHTML = '<p style="text-align:center;padding:30px;">No hay datos para analizar.</p>';
+        return;
+    }
 
-            // Calcular métricas por agente
-            var resultado = calcularMetricasPorAgente(filteredRaw);
+    // Calcular métricas por agente
+    var resultado = calcularMetricasPorAgente(filteredRaw);
 
-            if (!resultado.agentes || resultado.agentes.length < 4) {
-                container.innerHTML = '<p style="text-align:center;padding:30px;">Insuficientes agentes para análisis de quartiles.</p>';
-                return;
-            }
+    if (!resultado.agentes || resultado.agentes.length < 4) {
+        container.innerHTML = '<p style="text-align:center;padding:30px;">Insuficientes agentes para análisis de quartiles.</p>';
+        return;
+    }
 
-            var agentes = resultado.agentes;
-            var stats = resultado.stats;
+    var agentes = resultado.agentes;
+    var stats = resultado.stats;
 
-            // Ordenar: Prioridad FT (Q4 primero), luego por outliers
-            agentes.sort(function (a, b) {
-                // Peso por FT Quartile (Q4 = 4, Q1 = 1)
-                var ftWeightA = parseInt(a.ftQuartile.replace('Q', ''));
-                var ftWeightB = parseInt(b.ftQuartile.replace('Q', ''));
+    // Ordenar: Prioridad FT (Q4 primero), luego por outliers
+    agentes.sort(function (a, b) {
+        // Peso por FT Quartile (Q4 = 4, Q1 = 1)
+        var ftWeightA = parseInt(a.ftQuartile.replace('Q', ''));
+        var ftWeightB = parseInt(b.ftQuartile.replace('Q', ''));
 
-                if (ftWeightA !== ftWeightB) return ftWeightB - ftWeightA;
+        if (ftWeightA !== ftWeightB) return ftWeightB - ftWeightA;
 
-                // Si empatan en FT, priorizar outliers
-                var outlierWeightA = (a.ftOutlier !== 'NONE' ? 2 : 0) +
-                    (a.ctOutlier !== 'NONE' ? 1 : 0) +
-                    (a.crOutlier !== 'NONE' ? 1 : 0);
-                var outlierWeightB = (b.ftOutlier !== 'NONE' ? 2 : 0) +
-                    (b.ctOutlier !== 'NONE' ? 1 : 0) +
-                    (b.crOutlier !== 'NONE' ? 1 : 0);
+        // Si empatan en FT, priorizar outliers
+        var outlierWeightA = (a.ftOutlier !== 'NONE' ? 2 : 0) +
+            (a.ctOutlier !== 'NONE' ? 1 : 0) +
+            (a.crOutlier !== 'NONE' ? 1 : 0);
+        var outlierWeightB = (b.ftOutlier !== 'NONE' ? 2 : 0) +
+            (b.ctOutlier !== 'NONE' ? 1 : 0) +
+            (b.crOutlier !== 'NONE' ? 1 : 0);
 
-                return outlierWeightB - outlierWeightA;
-            });
+        return outlierWeightB - outlierWeightA;
+    });
 
-            // Construir HTML
-            var html = '<h2 style="color:#667eea;text-align:center;margin-bottom:20px;">📊 Performance Unificada de Agentes</h2>';
+    // Construir HTML
+    var html = '<h2 style="color:#667eea;text-align:center;margin-bottom:20px;">📊 Performance Unificada de Agentes</h2>';
 
-            // Resumen de estadísticas
-            html += '<div style="background:#f8f9fa;padding:15px;border-radius:10px;margin-bottom:20px;">';
-            html += '<h3 style="color:#667eea;margin-bottom:10px;">📈 Estadísticas Globales</h3>';
-            html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;">';
+    // Resumen de estadísticas
+    html += '<div style="background:#f8f9fa;padding:15px;border-radius:10px;margin-bottom:20px;">';
+    html += '<h3 style="color:#667eea;margin-bottom:10px;">📈 Estadísticas Globales</h3>';
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;">';
 
-            var metricas = [
-                { label: 'FT Cases', stat: stats.ft, format: function (v) { return v.toFixed(0); } },
-                { label: 'CT %', stat: stats.ct, format: function (v) { return (v * 100).toFixed(2) + '%'; } },
-                { label: 'CR %', stat: stats.cr, format: function (v) { return (v * 100).toFixed(2) + '%'; } }
-            ];
+    var metricas = [
+        { label: 'FT Cases', stat: stats.ft, format: function (v) { return v.toFixed(0); } },
+        { label: 'CT %', stat: stats.ct, format: function (v) { return (v * 100).toFixed(2) + '%'; } },
+        { label: 'CR %', stat: stats.cr, format: function (v) { return (v * 100).toFixed(2) + '%'; } }
+    ];
 
-            metricas.forEach(function (m) {
-                html += '<div style="background:white;padding:10px;border-radius:5px;text-align:center;">';
-                html += '<strong>' + m.label + '</strong><br>';
-                html += '<small>Avg: ' + m.format(m.stat.mean) + ' | ';
-                html += 'Q1: ' + m.format(m.stat.q1) + ' | ';
-                html += 'Q3: ' + m.format(m.stat.q3) + '</small>';
-                html += '</div>';
-            });
+    metricas.forEach(function (m) {
+        html += '<div style="background:white;padding:10px;border-radius:5px;text-align:center;">';
+        html += '<strong>' + m.label + '</strong><br>';
+        html += '<small>Avg: ' + m.format(m.stat.mean) + ' | ';
+        html += 'Q1: ' + m.format(m.stat.q1) + ' | ';
+        html += 'Q3: ' + m.format(m.stat.q3) + '</small>';
+        html += '</div>';
+    });
 
-            html += '</div></div>';
+    html += '</div></div>';
 
-            // NUEVA FUNCIONALIDAD: Comparación de semanas
-            html += renderComparacionSemanal(container);
+    // Comparación de semanas
+    html += renderComparacionSemanal(container);
 
-            // Tabla unificada
-            html += '<table class="unified-table">';
-            html += '<thead><tr>';
-            html += '<th rowspan="2">Owner</th>';
-            html += '<th rowspan="2">Supervisor</th>';
-            html += '<th rowspan="2">Cases</th>';
-            html += '<th colspan="3" style="background:#e74c3c;">FT (Prioritario)</th>';
-            html += '<th colspan="3" style="background:#3498db;">CT %</th>';
-            html += '<th colspan="3" style="background:#2ecc71;">CR %</th>';
-            html += '</tr><tr>';
-            // FT
-            html += '<th style="background:#e74c3c;">Valor</th>';
-            html += '<th style="background:#e74c3c;">Q</th>';
-            html += '<th style="background:#e74c3c;">Out</th>';
-            // CT
-            html += '<th style="background:#3498db;">Valor</th>';
-            html += '<th style="background:#3498db;">Q</th>';
-            html += '<th style="background:#3498db;">Out</th>';
-            // CR
-            html += '<th style="background:#2ecc71;">Valor</th>';
-            html += '<th style="background:#2ecc71;">Q</th>';
-            html += '<th style="background:#2ecc71;">Out</th>';
-            html += '</tr></thead><tbody>';
+    // Tabla unificada - ESTRUCTURA CORREGIDA
+    html += '<table class="unified-table">';
+    html += '<thead><tr>';
+    
+    // ⭐ ENCABEZADOS CORREGIDOS
+    html += '<th rowspan="2">🎯 Acción</th>';
+    html += '<th rowspan="2">Owner</th>';
+    html += '<th rowspan="2">Supervisor</th>';
+    html += '<th rowspan="2">Cases</th>';
+    html += '<th colspan="3" style="background:#e74c3c;">FT (Prioritario)</th>';
+    html += '<th colspan="3" style="background:#3498db;">CT %</th>';
+    html += '<th colspan="3" style="background:#2ecc71;">CR %</th>';
+    html += '</tr><tr>';
+    
+    // FT
+    html += '<th style="background:#e74c3c;">Valor</th>';
+    html += '<th style="background:#e74c3c;">Q</th>';
+    html += '<th style="background:#e74c3c;">Out</th>';
+    
+    // CT
+    html += '<th style="background:#3498db;">Valor</th>';
+    html += '<th style="background:#3498db;">Q</th>';
+    html += '<th style="background:#3498db;">Out</th>';
+    
+    // CR
+    html += '<th style="background:#2ecc71;">Valor</th>';
+    html += '<th style="background:#2ecc71;">Q</th>';
+    html += '<th style="background:#2ecc71;">Out</th>';
+    
+    html += '</tr></thead><tbody>';
 
-            agentes.forEach(function (a) {
-                var rowClass = '';
-                if (a.ftOutlier !== 'NONE' || a.ctOutlier !== 'NONE' || a.crOutlier !== 'NONE') {
-                    rowClass = 'row-outlier-high';
-                }
-
-                html += '<tr class="' + rowClass + '">';
-                html += '<td style="text-align:left;font-weight:bold;">' + a.agent + '</td>'; // agent variable still has the ID/Name
-                html += '<td style="text-align:left;color:#7f8c8d;">' + a.supervisor + '</td>';
-                html += '<td>' + a.cases + '</td>';
-
-                // FT
-                html += '<td style="font-weight:bold;color:#c0392b;">' + a.ft + '</td>';
-                html += '<td>' + renderQuartileBadge(a.ftQuartile) + '</td>';
-                html += '<td>' + renderOutlierBadge(a.ftOutlier) + '</td>';
-
-                // CT
-                html += '<td>' + (a.ct * 100).toFixed(2) + '%</td>';
-                html += '<td>' + renderQuartileBadge(a.ctQuartile) + '</td>';
-                html += '<td>' + renderOutlierBadge(a.ctOutlier) + '</td>';
-
-                // CR
-                html += '<td>' + (a.cr * 100).toFixed(2) + '%</td>';
-                html += '<td>' + renderQuartileBadge(a.crQuartile) + '</td>';
-                html += '<td>' + renderOutlierBadge(a.crOutlier) + '</td>';
-
-                html += '</tr>';
-            });
-
-            html += '</tbody></table></div>';
-
-            container.innerHTML = html;
-            console.timeEnd('📊 Outliers Unificado');
+    // ⭐ FILAS DE DATOS CORREGIDAS
+    agentes.forEach(function (a) {
+        var rowClass = '';
+        if (a.ftOutlier !== 'NONE' || a.ctOutlier !== 'NONE' || a.crOutlier !== 'NONE') {
+            rowClass = 'row-outlier-high';
         }
+
+        html += '<tr class="' + rowClass + '">';
+        
+        // 1. BOTÓN VER MENSAJE
+        html += '<td><button class="btn-ver-mensaje" onclick="mostrarMensaje(\'' + a.ftQuartile + '\', \'' + a.agent.replace(/'/g, "\\'") + '\')">💬 Ver Mensaje</button></td>';
+        
+        // 2. OWNER
+        html += '<td style="text-align:left;font-weight:bold;">' + a.agent + '</td>';
+        
+        // 3. SUPERVISOR
+        html += '<td style="text-align:left;color:#7f8c8d;">' + a.supervisor + '</td>';
+        
+        // 4. CASES
+        html += '<td>' + a.cases + '</td>';
+
+        // 5-7. FT
+        html += '<td style="font-weight:bold;color:#c0392b;">' + a.ft + '</td>';
+        html += '<td>' + renderQuartileBadge(a.ftQuartile) + '</td>';
+        html += '<td>' + renderOutlierBadge(a.ftOutlier) + '</td>';
+
+        // 8-10. CT
+        html += '<td>' + (a.ct * 100).toFixed(2) + '%</td>';
+        html += '<td>' + renderQuartileBadge(a.ctQuartile) + '</td>';
+        html += '<td>' + renderOutlierBadge(a.ctOutlier) + '</td>';
+
+        // 11-13. CR
+        html += '<td>' + a.cr.toFixed(2) + '%</td>';
+        html += '<td>' + renderQuartileBadge(a.crQuartile) + '</td>';
+        html += '<td>' + renderOutlierBadge(a.crOutlier) + '</td>';
+
+        html += '</tr>';
+    });
+
+    html += '</tbody></table></div>';
+
+    container.innerHTML = html;
+    console.timeEnd('📊 Outliers Unificado');
+}
+
+
+
 
         function renderQuartileBadge(quartile) {
             var className = quartile.toLowerCase();
@@ -1881,19 +2288,17 @@ NUEVAS CARACTERÍSTICAS:
         }
 
         function aplicarFiltroFila(row, filtros) {
-            if (filtros.week && row[COLS.WEEK] !== filtros.week) return false;
-            // outreachType removido
-            if (filtros.caseOwner && row[COLS.OWNER] !== filtros.caseOwner) return false;
-            if (filtros.status && String(row[COLS.STATUS] || '').trim() !== filtros.status) return false;
-            if (filtros.begin && String(row[COLS.MONTH] || '').trim() !== filtros.begin) return false;
-            if (filtros.supervisor && String(row[COLS.SUP] || '').trim() !== filtros.supervisor) return false;
-            if (filtros.agent && String(row[COLS.AGENT] || '').trim() !== filtros.agent) return false;
-            if (filtros.colI && String(row[COLS.COUNTRY] || '').trim() !== filtros.colI) return false;
-            // AJ es el nuevo Stage
-            if (filtros.stageAJ && String(row[COLS.STAGE] || '').trim() !== filtros.stageAJ) return false;
-            return true;
-        }
-
+    if (filtros.week && row[COLS.WEEK] !== filtros.week) return false;
+    if (filtros.caseOwner && row[COLS.OWNER] !== filtros.caseOwner) return false;
+    if (filtros.status && String(row[COLS.STATUS] || '').trim() !== filtros.status) return false;
+    if (filtros.begin && String(row[COLS.MONTH] || '').trim() !== filtros.begin) return false;
+    if (filtros.supervisor && String(row[COLS.SUP] || '').trim() !== filtros.supervisor) return false;
+    if (filtros.agent && String(row[COLS.AGENT] || '').trim() !== filtros.agent) return false;
+    if (filtros.colI && String(row[COLS.COUNTRY] || '').trim() !== filtros.colI) return false;
+    if (filtros.stageAJ && String(row[COLS.STAGE] || '').trim() !== filtros.stageAJ) return false;
+    if (filtros.year && String(row[15] || '').trim() !== filtros.year) return false;  // ⭐ AGREGADO (índice 15 = YEAR)
+    return true;
+}
         function calculateStats(values) {
             values.sort(function (a, b) { return a - b; });
             var n = values.length;
@@ -1957,7 +2362,7 @@ NUEVAS CARACTERÍSTICAS:
                 html += '<td style="color:#667eea;font-weight:bold;">' + d.ft + '</td>';
                 html += '<td>' + d.cases + '</td>';
                 html += '<td>' + (d.ct * 100).toFixed(2) + '%</td>';
-                html += '<td>' + (d.cr * 100).toFixed(2) + '%</td>';
+                html += '<td>' + d.cr.toFixed(2) + '%</td>';
                 html += '</tr>';
             }
 
@@ -2018,7 +2423,7 @@ NUEVAS CARACTERÍSTICAS:
                     html += '<td style="color:#667eea;font-weight:bold;">' + d.ft + '</td>';
                     html += '<td>' + d.count + '</td>';
                     html += '<td style="color:#f39c12;font-weight:bold;">' + (d.ct * 100).toFixed(2) + '%</td>';
-                    html += '<td style="color:#e74c3c;font-weight:bold;">' + (d.cr * 100).toFixed(2) + '%</td>';
+html += '<td style="color:#e74c3c;font-weight:bold;">' + d.cr.toFixed(2) + '%</td>';
                     html += '</tr>';
                 });
                 html += '</tbody></table></div></div>';
@@ -2260,12 +2665,12 @@ NUEVAS CARACTERÍSTICAS:
             }
             html += '</tr></thead><tbody>';
 
-            var metrics = [
-                { label: 'FT Cases', key: 'ft', format: function (v) { return v; } },
-                { label: 'Total Cases', key: 'cases', format: function (v) { return v; } },
-                { label: 'CT %', key: 'ct', format: function (v) { return (v * 100).toFixed(2) + '%'; } },
-                { label: 'CR %', key: 'cr', format: function (v) { return (v * 100).toFixed(2) + '%'; } }
-            ];
+          var metrics = [
+    { label: 'FT Cases', key: 'ft', format: function (v) { return v; } },
+    { label: 'Total Cases', key: 'cases', format: function (v) { return v; } },
+    { label: 'CT %', key: 'ct', format: function (v) { return (v * 100).toFixed(2) + '%'; } },
+    { label: 'CR %', key: 'cr', format: function (v) { return v.toFixed(2) + '%'; } }  // ✅ SIN * 100
+];
 
             for (var m = 0; m < metrics.length; m++) {
                 var metric = metrics[m];
@@ -2302,7 +2707,7 @@ NUEVAS CARACTERÍSTICAS:
                 ftData.push(data[i].ft);
                 casesData.push(data[i].cases);
                 ctData.push(data[i].ct * 100);
-                crData.push(data[i].cr * 100);
+                 crData.push(data[i].cr); 
             }
 
             charts[id] = new Chart(ctx, {
@@ -2367,6 +2772,10 @@ NUEVAS CARACTERÍSTICAS:
             });
         }
 
+
+
+
+
         function cambiarTab(type) {
             var tabs = document.querySelectorAll('.tab');
             for (var i = 0; i < tabs.length; i++) {
@@ -2386,6 +2795,70 @@ NUEVAS CARACTERÍSTICAS:
 
             renderCurrentTab();
         }
+
+        // ============================================
+// FUNCIONES DE MENSAJES MOTIVACIONALES
+// ============================================
+
+function mostrarMensaje(quartil, agente) {
+    var modal = document.getElementById('mensaje-modal');
+    var icon = document.getElementById('mensaje-icon');
+    var text = document.getElementById('mensaje-text');
+    
+    // Cambiar icono según quartil
+    if (quartil === 'Q1' || quartil === 'Q2') {
+        icon.innerHTML = '🏆';
+    } else {
+        icon.innerHTML = '💪';
+    }
+    
+    text.innerHTML = 'Cargando mensaje para ' + agente + '...';
+    modal.style.display = 'flex';
+    
+    // Llamar al backend para obtener el mensaje
+    google.script.run
+        .withSuccessHandler(function(mensaje) {
+            text.innerHTML = mensaje;
+            lanzarConfetti(quartil);
+        })
+        .withFailureHandler(function(error) {
+            text.innerHTML = 'Error al cargar el mensaje. ¡Pero tú eres increíble! 🌟';
+            console.error('Error:', error);
+        })
+        .obtenerMensajeMotivacional(quartil);
+}
+
+function cerrarMensajeModal() {
+    var modal = document.getElementById('mensaje-modal');
+    modal.style.display = 'none';
+    
+    // Limpiar confetti
+    var confettis = document.querySelectorAll('.confetti');
+    confettis.forEach(function(c) {
+        c.remove();
+    });
+}
+
+function lanzarConfetti(quartil) {
+    var colores = ['#f093fb', '#f5576c', '#4facfe', '#00f2fe', '#43e97b', '#38f9d7', '#fa709a', '#fee140'];
+    var cantidad = quartil === 'Q1' || quartil === 'Q2' ? 50 : 30;
+    
+    for (var i = 0; i < cantidad; i++) {
+        setTimeout(function() {
+            var confetti = document.createElement('div');
+            confetti.className = 'confetti';
+            confetti.style.left = Math.random() * 100 + '%';
+            confetti.style.background = colores[Math.floor(Math.random() * colores.length)];
+            confetti.style.animationDuration = (Math.random() * 2 + 2) + 's';
+            confetti.style.animationDelay = Math.random() * 0.5 + 's';
+            document.body.appendChild(confetti);
+            
+            setTimeout(function() {
+                confetti.remove();
+            }, 4000);
+        }, i * 50);
+    }
+}
     </script>
 </body>
 

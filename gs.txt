@@ -1,18 +1,27 @@
 /**
  * =====================================================
- * Backend_Metricas.js - Google Apps Script (RESTAURADO & FIJADO)
+ * Backend_Metricas.js - Google Apps Script (v3 FINAL)
  * =====================================================
  * Dashboard de Métricas - Script de Backend
  * 
- * MEJORAS APLICADAS:
- * - Columna FT cambiada a AL (37).
- * - Ordenamiento DESCENDENTE para Meses (Columna U).
- * - Mantenimiento de toda la lógica de caché y filtros.
+ * CONFIGURACIÓN DE COLUMNAS:
+ * - FT Cases: Columna AL (índice 37) ✅
+ * - CR: Columna AI (índice 33) ✅
+ * - CT: Columna AJ (índice 34) ✅
+ * - Year: Columna AM (índice 38) ✅
+ * 
+ * NUEVAS MEJORAS v3:
+ * - Columna AM (Year) agregada a filtros
+ * - Validación de usuarios autorizados para actualización
+ * - Botón "Cargar" y "Actualizar" con permisos específicos
  * =====================================================
  */
 
-var CACHE_FILENAME = "dashboard_cache_metrics_v2.json";
+var CACHE_FILENAME = "dashboard_cache_metrics_v3.json";
 var CACHE_FOLDER_ID = "1SrPxDlsXxd-ohwiYh1QSaQx8R60kdji3";
+
+// ⭐ USUARIOS AUTORIZADOS PARA ACTUALIZAR (CORREOS REALES)
+var USUARIOS_AUTORIZADOS = ["mikenet11@gmail.com", "mospin@gmail.com"];
 
 /**
  * Punto de entrada de la Web App
@@ -34,14 +43,23 @@ function doGet() {
             var jsonContent = file.getBlob().getDataAsString();
             payload = JSON.parse(jsonContent);
             payload.source = "DRIVE CACHE";
+            
+            // ⭐ LOG DE VERIFICACIÓN
+            Logger.log("✅ Caché cargado desde Drive");
+            Logger.log("📊 Métricas del caché: FT=" + payload.metrics.ft + " | Cases=" + payload.metrics.cases + " | CR=" + payload.metrics.cr);
+            Logger.log("📦 Raw Data: " + (payload.rawData ? payload.rawData.length : 0) + " filas");
         }
     } catch (e) {
-        Logger.log("Error leyendo caché: " + e.toString());
+        Logger.log("⚠️ Error leyendo caché: " + e.toString());
     }
 
+    // ⭐ SI NO HAY CACHÉ O ESTÁ VACÍO, CARGAR EN VIVO
     if (!payload || !payload.rawData || payload.rawData.length === 0) {
+        Logger.log("📥 Caché vacío o inexistente. Cargando datos en vivo...");
         payload = obtenerDashboardEnVivo();
+        
         if (!payload || !payload.rawData || payload.rawData.length === 0) {
+            Logger.log("❌ ERROR CRÍTICO: No hay datos ni en caché ni en vivo");
             return HtmlService.createHtmlOutput(
                 '<html><body><h2 style="color:red;text-align:center;">Error: No se pudieron cargar los datos</h2>' +
                 '<p style="text-align:center;">Por favor, ejecuta <b>actualizarCacheDrive()</b> en el editor de Apps Script.</p></body></html>'
@@ -52,11 +70,58 @@ function doGet() {
     try {
         var template = HtmlService.createTemplateFromFile('Index');
         template.payloadJson = JSON.stringify(payload);
+        template.userEmail = Session.getActiveUser().getEmail();
+        
         return template.evaluate()
             .setTitle('Dashboard de Métricas')
             .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
     } catch (e) {
+        Logger.log("❌ Error renderizando template: " + e.toString());
         return HtmlService.createHtmlOutput('Error renderizado: ' + e.toString());
+    }
+}
+
+/**
+ * ⭐ NUEVA FUNCIÓN: VERIFICAR ESTRUCTURA DEL CACHÉ
+ * Ejecuta esta función manualmente para inspeccionar el JSON del caché
+ */
+function verificarEstructuraCache() {
+    try {
+        var folder = DriveApp.getFolderById(CACHE_FOLDER_ID);
+        var files = folder.getFilesByName(CACHE_FILENAME);
+        
+        if (!files.hasNext()) {
+            Logger.log("❌ No existe el archivo de caché: " + CACHE_FILENAME);
+            return "NO EXISTE CACHÉ";
+        }
+        
+        var file = files.next();
+        var jsonContent = file.getBlob().getDataAsString();
+        var payload = JSON.parse(jsonContent);
+        
+        Logger.log("========================================");
+        Logger.log("🔍 INSPECCIÓN DEL CACHÉ JSON");
+        Logger.log("========================================");
+        Logger.log("📅 Timestamp: " + payload.timestamp);
+        Logger.log("📍 Source: " + payload.source);
+        Logger.log("📊 Métricas:");
+        Logger.log("  - FT: " + payload.metrics.ft);
+        Logger.log("  - Cases: " + payload.metrics.cases);
+        Logger.log("  - CT: " + payload.metrics.ct);
+        Logger.log("  - CR: " + payload.metrics.cr);
+        Logger.log("📦 Raw Data:");
+        Logger.log("  - Total filas: " + (payload.rawData ? payload.rawData.length : 0));
+        if (payload.rawData && payload.rawData.length > 0) {
+            Logger.log("  - Primera fila (sample): " + JSON.stringify(payload.rawData[0]));
+        }
+        Logger.log("🔧 Filtros disponibles: " + Object.keys(payload.filters).join(", "));
+        Logger.log("========================================");
+        
+        return payload;
+    } catch (e) {
+        Logger.log("❌ Error verificando caché: " + e.toString());
+        Logger.log("Stack: " + e.stack);
+        return null;
     }
 }
 
@@ -64,26 +129,28 @@ function obtenerDashboardEnVivo() {
     try {
         var ss = SpreadsheetApp.getActiveSpreadsheet();
         var sheet = ss.getSheetByName('Data');
-        if (!sheet) return null;
+        if (!sheet) {
+            Logger.log("❌ ERROR: No se encontró la hoja 'Data'");
+            return null;
+        }
 
         var fullData = sheet.getDataRange().getValues();
+        Logger.log("✅ fullData obtenido: " + fullData.length + " filas totales");
+        
         var dataRows = fullData.slice(1);
+        Logger.log("✅ dataRows (sin headers): " + dataRows.length + " filas");
+        
+        if (dataRows.length === 0) {
+            Logger.log("⚠️ ADVERTENCIA: La hoja 'Data' no tiene filas de datos");
+            return null;
+        }
+        
         var headers = fullData[0];
 
-        // Función auxiliar para búsqueda dinámica
-        var findIdx = function (name) {
-            var idx = headers.indexOf(name);
-            if (idx === -1) {
-                for (var i = 0; i < headers.length; i++) {
-                    if (headers[i].toString().trim().toUpperCase() === name.toUpperCase()) return i;
-                }
-            }
-            return idx;
-        };
+        // ⭐ FT ESTÁ EN COLUMNA AL (índice 37) - FIJO
+        var idxFT = 37;
 
-        var idxFT = findIdx("FTS"); if (idxFT === -1) idxFT = findIdx("FT"); if (idxFT === -1) idxFT = 37;
-
-        // Búsqueda robusta para AJ: Priorizar búsqueda desde el final para evitar columna K (10)
+        // Búsqueda robusta para AJ/Stage
         var idxAJ = -1;
         for (var i = headers.length - 1; i >= 0; i--) {
             var h = headers[i].toString().trim().toUpperCase();
@@ -92,15 +159,17 @@ function obtenerDashboardEnVivo() {
                 break;
             }
         }
-        if (idxAJ === -1) idxAJ = 35; // Fallback a AJ real
+        if (idxAJ === -1) idxAJ = 35;
 
-        Logger.log("LIVE | FT: " + idxFT + " (" + headers[idxFT] + ") | AJ/Stage: " + idxAJ + " (" + headers[idxAJ] + ")");
+        Logger.log("LIVE | FT (AL): " + idxFT + " | Stage (AJ): " + idxAJ + " (" + headers[idxAJ] + ")");
+        
         var filters = {};
-        ['U', 'I', 'AJ', 'N', 'V', 'W', 'J', 'S'].forEach(function (colName) {
-            var colIdx = (colName === 'AJ') ? idxAJ : obtenerIndiceFijo(colName);
-            filters[colName] = obtenerValoresUnicosArray(dataRows, colIdx, colName); // Pass colName for sorting
+        ['U', 'I', 'AJ', 'N', 'V', 'W', 'J', 'S', 'AM'].forEach(function (colName) {
+            var colIdx = (colName === 'AJ') ? idxAJ : (colName === 'AM' ? 38 : obtenerIndiceFijo(colName));
+            filters[colName] = obtenerValoresUnicosArray(dataRows, colIdx, colName);
         });
 
+        Logger.log("🔄 Llamando a procesarFilas con " + dataRows.length + " filas...");
         var processed = procesarFilas(dataRows, idxFT, idxAJ);
 
         return {
@@ -111,15 +180,34 @@ function obtenerDashboardEnVivo() {
             source: "LIVE RAW (OPTIMIZED)"
         };
     } catch (e) {
-        Logger.log("Error en obtenerDashboardEnVivo: " + e.toString());
+        Logger.log("❌ Error en obtenerDashboardEnVivo: " + e.toString());
+        Logger.log("Stack: " + e.stack);
         return null;
     }
 }
 
 function procesarFilas(dataRows, idxFT, idxAJ) {
-    var totalFT = 0, totalCases = 0, sumCT = 0, countCT = 0, sumCR = 0, countCR = 0;
+    // ⭐ VALIDACIÓN CRÍTICA
+    if (!dataRows || !Array.isArray(dataRows) || dataRows.length === 0) {
+        Logger.log("⚠️ ERROR: dataRows está vacío o no es un array");
+        Logger.log("dataRows recibido: " + JSON.stringify(dataRows));
+        return {
+            rawData: [],
+            metrics: {
+                ft: 0,
+                cases: 0,
+                ct: 0,
+                cr: 0
+            }
+        };
+    }
+
+    Logger.log("✅ Procesando " + dataRows.length + " filas...");
+
+    var totalFT = 0, totalCases = 0, sumCT = 0, countCT = 0;
 
     var rawData = dataRows.map(function (row) {
+        // ⭐ FT ESTÁ EN COLUMNA AL (índice 37)
         var ftVal = row[idxFT];
         var ftNumeric = 0;
         if (typeof ftVal === 'number') {
@@ -140,37 +228,65 @@ function procesarFilas(dataRows, idxFT, idxAJ) {
         if (isFT) totalFT += ftNumeric;
         totalCases++;
 
-        var ctVal = parseFloat(row[34]); if (!isNaN(ctVal)) { sumCT += ctVal; countCT++; }
-        var crVal = parseFloat(row[33]); if (!isNaN(crVal)) { sumCR += crVal; countCR++; }
+        // ⭐ CT está en columna AJ (índice 34)
+        var ctVal = parseFloat(row[34]); 
+        if (!isNaN(ctVal)) { sumCT += ctVal; countCT++; }
 
         var monthVal = row[20];
         var monthStr = '';
         if (monthVal !== null && monthVal !== undefined) {
             if (typeof monthVal === 'number') {
-                monthStr = Math.floor(monthVal).toString(); // ⭐ Forzar ENTERO para meses
+                monthStr = Math.floor(monthVal).toString();
             } else {
                 monthStr = String(monthVal).trim();
             }
         }
 
+        // ⭐ YEAR está en columna AM (índice 38)
+        var yearVal = row[38];
+        var yearStr = '';
+        if (yearVal !== null && yearVal !== undefined) {
+            if (typeof yearVal === 'number') {
+                yearStr = Math.floor(yearVal).toString();
+            } else {
+                yearStr = String(yearVal).trim();
+            }
+        }
+
         return [
-            row[0],  // CASE
-            formatearFecha(row[6]),  // DATE
-            String(row[8] || '').trim(),  // COUNTRY
-            String(row[9] || '').trim(),  // OWNER (J)
-            String(row[idxAJ] || '').trim(), // STAGE (AJ)
-            String(row[13] || '').trim(), // STATUS
-            String(row[18] || '').trim(), // WEEK
-            monthStr, // ⭐ MONTH (U) - ENTERO
-            String(row[21] || '').trim(), // SUP
-            String(row[22] || '').trim(), // AGENT
-            formatearFecha(row[26]), // TRIP_DATE
-            ftNumeric, // FT
-            row[32], // TRIP_HOUR
-            row[33], // CR
-            row[34]  // CT
+            row[0],  // 0: CASE
+            formatearFecha(row[6]),  // 1: DATE
+            String(row[8] || '').trim(),  // 2: COUNTRY
+            String(row[9] || '').trim(),  // 3: OWNER (J)
+            String(row[idxAJ] || '').trim(), // 4: STAGE (AJ)
+            String(row[13] || '').trim(), // 5: STATUS
+            String(row[18] || '').trim(), // 6: WEEK
+            monthStr, // 7: MONTH (U)
+            String(row[21] || '').trim(), // 8: SUP
+            String(row[22] || '').trim(), // 9: AGENT
+            formatearFecha(row[26]), // 10: TRIP_DATE
+            ftNumeric, // 11: FT (AL - 37)
+            row[32], // 12: TRIP_HOUR
+            row[33], // 13: CR_PLACEHOLDER (Ya no se usa)
+            row[34], // 14: CT (AJ - 34)
+            yearStr  // 15: YEAR (AM - 38)
         ];
     });
+
+    // ⭐ CALCULAR CR = (FT / TOTAL_CASES) * 100
+    var crCalculado = totalCases > 0 ? (totalFT / totalCases) * 100 : 0;
+
+    // ⭐ LOGS DETALLADOS DEL CÁLCULO
+    Logger.log("========================================");
+    Logger.log("📊 CÁLCULO DE CR (Conversion Rate)");
+    Logger.log("========================================");
+    Logger.log("✅ Total FT Cases: " + totalFT);
+    Logger.log("✅ Total Cases: " + totalCases);
+    Logger.log("📐 Fórmula CR: (FT / CASES) * 100");
+    Logger.log("📐 Cálculo: (" + totalFT + " / " + totalCases + ") * 100");
+    Logger.log("📐 Resultado: " + (totalFT / totalCases) + " * 100");
+    Logger.log("🎯 CR FINAL: " + crCalculado.toFixed(2) + "%");
+    Logger.log("========================================");
 
     return {
         rawData: rawData,
@@ -178,7 +294,120 @@ function procesarFilas(dataRows, idxFT, idxAJ) {
             ft: totalFT,
             cases: totalCases,
             ct: countCT > 0 ? sumCT / countCT : 0,
-            cr: countCR > 0 ? sumCR / countCR : 0
+            cr: crCalculado  // ✅ YA ESTÁ EN PORCENTAJE (0-100)
+        }
+    };
+}
+
+function procesarFilas(dataRows, idxFT, idxAJ) {
+    // ⭐ VALIDACIÓN CRÍTICA
+    if (!dataRows || !Array.isArray(dataRows) || dataRows.length === 0) {
+        Logger.log("⚠️ ERROR: dataRows está vacío o no es un array");
+        Logger.log("dataRows recibido: " + JSON.stringify(dataRows));
+        return {
+            rawData: [],
+            metrics: {
+                ft: 0,
+                cases: 0,
+                ct: 0,
+                cr: 0
+            }
+        };
+    }
+
+    Logger.log("✅ Procesando " + dataRows.length + " filas...");
+
+    var totalFT = 0, totalCases = 0, sumCT = 0, countCT = 0;
+
+    var rawData = dataRows.map(function (row) {
+        // ⭐ FT ESTÁ EN COLUMNA AL (índice 37)
+        var ftVal = row[idxFT];
+        var ftNumeric = 0;
+        if (typeof ftVal === 'number') {
+            ftNumeric = ftVal;
+        } else if (typeof ftVal === 'string') {
+            var clean = ftVal.trim().toLowerCase();
+            if (clean === 'si' || clean === 'yes' || clean === 'true') {
+                ftNumeric = 1;
+            } else {
+                var parsed = parseFloat(clean);
+                if (!isNaN(parsed)) ftNumeric = parsed;
+            }
+        } else if (ftVal === true) {
+            ftNumeric = 1;
+        }
+
+        var isFT = ftNumeric > 0;
+        if (isFT) totalFT += ftNumeric;
+        totalCases++;
+
+        // ⭐ CT está en columna AJ (índice 34)
+        var ctVal = parseFloat(row[34]); 
+        if (!isNaN(ctVal)) { sumCT += ctVal; countCT++; }
+
+        var monthVal = row[20];
+        var monthStr = '';
+        if (monthVal !== null && monthVal !== undefined) {
+            if (typeof monthVal === 'number') {
+                monthStr = Math.floor(monthVal).toString();
+            } else {
+                monthStr = String(monthVal).trim();
+            }
+        }
+
+        // ⭐ YEAR está en columna AM (índice 38)
+        var yearVal = row[38];
+        var yearStr = '';
+        if (yearVal !== null && yearVal !== undefined) {
+            if (typeof yearVal === 'number') {
+                yearStr = Math.floor(yearVal).toString();
+            } else {
+                yearStr = String(yearVal).trim();
+            }
+        }
+
+        return [
+            row[0],  // 0: CASE
+            formatearFecha(row[6]),  // 1: DATE
+            String(row[8] || '').trim(),  // 2: COUNTRY
+            String(row[9] || '').trim(),  // 3: OWNER (J)
+            String(row[idxAJ] || '').trim(), // 4: STAGE (AJ)
+            String(row[13] || '').trim(), // 5: STATUS
+            String(row[18] || '').trim(), // 6: WEEK
+            monthStr, // 7: MONTH (U)
+            String(row[21] || '').trim(), // 8: SUP
+            String(row[22] || '').trim(), // 9: AGENT
+            formatearFecha(row[26]), // 10: TRIP_DATE
+            ftNumeric, // 11: FT (AL - 37)
+            row[32], // 12: TRIP_HOUR
+            row[33], // 13: CR_PLACEHOLDER (Ya no se usa)
+            row[34], // 14: CT (AJ - 34)
+            yearStr  // 15: YEAR (AM - 38)
+        ];
+    });
+
+    // ⭐ CALCULAR CR = (FT / TOTAL_CASES) * 100
+    var crCalculado = totalCases > 0 ? (totalFT / totalCases) * 100 : 0;
+
+    // ⭐ LOGS DETALLADOS DEL CÁLCULO
+    Logger.log("========================================");
+    Logger.log("📊 CÁLCULO DE CR (Conversion Rate)");
+    Logger.log("========================================");
+    Logger.log("✅ Total FT Cases: " + totalFT);
+    Logger.log("✅ Total Cases: " + totalCases);
+    Logger.log("📐 Fórmula CR: (FT / CASES) * 100");
+    Logger.log("📐 Cálculo: (" + totalFT + " / " + totalCases + ") * 100");
+    Logger.log("📐 Resultado: " + (totalFT / totalCases) + " * 100");
+    Logger.log("🎯 CR FINAL: " + crCalculado.toFixed(2) + "%");
+    Logger.log("========================================");
+
+    return {
+        rawData: rawData,
+        metrics: {
+            ft: totalFT,
+            cases: totalCases,
+            ct: countCT > 0 ? sumCT / countCT : 0,
+            cr: crCalculado
         }
     };
 }
@@ -188,9 +417,20 @@ function obtenerIndiceFijo(colName) {
     return map[colName] || -1;
 }
 
+/**
+ * ⭐ FUNCIÓN DE ACTUALIZACIÓN CON VALIDACIÓN DE USUARIO
+ */
 function actualizarCacheDrive() {
     try {
-        Logger.log("🚀 Iniciando actualización optimizada...");
+        // ⭐ VALIDAR USUARIO AUTORIZADO
+        var userEmail = Session.getActiveUser().getEmail();
+        Logger.log("Usuario intentando actualizar: " + userEmail);
+        
+        if (USUARIOS_AUTORIZADOS.indexOf(userEmail) === -1) {
+            throw new Error("🚫 NO ERES DIGNO. Solo usuarios autorizados pueden actualizar.");
+        }
+
+        Logger.log("🚀 Iniciando actualización optimizada por usuario autorizado: " + userEmail);
         var ss = SpreadsheetApp.getActiveSpreadsheet();
         var sheet = ss.getSheetByName('Data');
         if (!sheet) throw new Error("❌ Hoja 'Data' no encontrada");
@@ -200,19 +440,9 @@ function actualizarCacheDrive() {
         if (dataRows.length === 0) return "⚠️ La hoja 'Data' está vacía.";
         var headers = fullData[0];
 
-        var findIdx = function (name) {
-            var idx = headers.indexOf(name);
-            if (idx === -1) {
-                for (var i = 0; i < headers.length; i++) {
-                    if (headers[i].toString().trim().toUpperCase() === name.toUpperCase()) return i;
-                }
-            }
-            return idx;
-        };
+        // ⭐ FT ESTÁ EN COLUMNA AL (índice 37) - FIJO
+        var idxFT = 37;
 
-        var idxFT = findIdx("FTS"); if (idxFT === -1) idxFT = findIdx("FT"); if (idxFT === -1) idxFT = 37;
-
-        // Búsqueda robusta para AJ: Priorizar búsqueda desde el final para evitar columna K (10)
         var idxAJ = -1;
         for (var j = headers.length - 1; j >= 0; j--) {
             var hj = headers[j].toString().trim().toUpperCase();
@@ -221,20 +451,21 @@ function actualizarCacheDrive() {
                 break;
             }
         }
-        if (idxAJ === -1) idxAJ = 35; // Fallback a AJ real
+        if (idxAJ === -1) idxAJ = 35;
 
-        Logger.log("CACHE | FT: " + idxFT + " (" + headers[idxFT] + ") | AJ/Stage: " + idxAJ + " (" + headers[idxAJ] + ")");
-        var filtrosInit = { 'U': new Set(), 'I': new Set(), 'AJ': new Set(), 'N': new Set(), 'V': new Set(), 'W': new Set(), 'J': new Set(), 'S': new Set() };
+        Logger.log("CACHE | FT (AL): " + idxFT + " | Stage (AJ): " + idxAJ + " (" + headers[idxAJ] + ")");
+        
+        // ⭐ INCLUIR 'AM' (Year) EN FILTROS
+        var filtrosInit = { 'U': new Set(), 'I': new Set(), 'AJ': new Set(), 'N': new Set(), 'V': new Set(), 'W': new Set(), 'J': new Set(), 'S': new Set(), 'AM': new Set() };
 
-        // Cargar filtros
         dataRows.forEach(function (row) {
-            ['U', 'I', 'AJ', 'N', 'V', 'W', 'J', 'S'].forEach(function (key) {
-                var idx = (key === 'AJ') ? idxAJ : obtenerIndiceFijo(key);
+            ['U', 'I', 'AJ', 'N', 'V', 'W', 'J', 'S', 'AM'].forEach(function (key) {
+                var idx = (key === 'AJ') ? idxAJ : (key === 'AM' ? 38 : obtenerIndiceFijo(key));
                 var val = row[idx];
                 if (val instanceof Date) val = Utilities.formatDate(val, Session.getScriptTimeZone(), 'yyyy-MM-dd');
                 var valStr = '';
                 if (val !== null && val !== undefined) {
-                    if (key === 'U' && typeof val === 'number') valStr = Math.floor(val).toString(); // ⭐ MESES ENTEROS
+                    if ((key === 'U' || key === 'AM') && typeof val === 'number') valStr = Math.floor(val).toString();
                     else valStr = val.toString().trim();
                 }
                 if (valStr !== '') filtrosInit[key].add(valStr);
@@ -245,7 +476,8 @@ function actualizarCacheDrive() {
 
         for (var k in filtrosInit) {
             var arr = Array.from(filtrosInit[k]);
-            if (k === 'U') {
+            // ⭐ Ordenar descendente para U (Meses) y AM (Years)
+            if (k === 'U' || k === 'AM') {
                 arr.sort(function (a, b) { return b.localeCompare(a, undefined, { numeric: true }); });
             } else {
                 arr.sort();
@@ -258,7 +490,7 @@ function actualizarCacheDrive() {
             rawData: processed.rawData,
             metrics: processed.metrics,
             timestamp: new Date().toString(),
-            source: "DRIVE CACHE (SUM FT)"
+            source: "DRIVE CACHE (v3 - FT en AL)"
         };
 
         var jsonString = JSON.stringify(payload);
@@ -272,10 +504,31 @@ function actualizarCacheDrive() {
             folder.createFile(CACHE_FILENAME, jsonString, MimeType.PLAIN_TEXT);
         }
 
-        return "✅ Actualización exitosa: " + processed.rawData.length + " filas. FT Sumado.";
+        return "✅ Actualización exitosa: " + processed.rawData.length + " filas procesadas. FT desde columna AL.";
     } catch (e) {
         throw new Error("❌ Error en actualización: " + e.toString());
     }
+}
+
+/**
+ * ⭐ NUEVA FUNCIÓN: CARGAR DATOS (SIN RESTRICCIÓN)
+ * Esta función permite a cualquier usuario cargar los datos sin modificar el caché
+ */
+function cargarDatosEnVivo() {
+    try {
+        Logger.log("📥 Cargando datos en vivo (sin modificar caché)...");
+        return obtenerDashboardEnVivo();
+    } catch (e) {
+        throw new Error("❌ Error al cargar datos: " + e.toString());
+    }
+}
+
+/**
+ * ⭐ VERIFICAR SI EL USUARIO ACTUAL ESTÁ AUTORIZADO
+ */
+function esUsuarioAutorizado() {
+    var userEmail = Session.getActiveUser().getEmail();
+    return USUARIOS_AUTORIZADOS.indexOf(userEmail) !== -1;
 }
 
 function obtenerValoresUnicosArray(data, idx, colName) {
@@ -287,7 +540,8 @@ function obtenerValoresUnicosArray(data, idx, colName) {
         if (v && v.toString().trim() !== '') set.add(v.toString().trim());
     });
     var arr = Array.from(set);
-    if (colName === 'U') {
+    // ⭐ Ordenar descendente para U (Meses) y AM (Years)
+    if (colName === 'U' || colName === 'AM') {
         arr.sort(function (a, b) { return b.localeCompare(a, undefined, { numeric: true }); });
     } else {
         arr.sort();
@@ -314,4 +568,71 @@ function obtenerFechaDeSheet() {
         var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('FechaActualizacion');
         return sheet ? sheet.getRange('A2').getValue().toString() : '';
     } catch (e) { return ''; }
+}
+
+
+
+/**
+ * =====================================================
+ * Función para obtener mensajes motivacionales
+ * =====================================================
+ * Agrega esta función al archivo Backend_Metricas.js
+ */
+
+/**
+ * Obtiene un mensaje motivacional aleatorio según el quartil
+ * @param {string} quartil - 'Q1', 'Q2', 'Q3', o 'Q4'
+ * @return {string} Mensaje motivacional
+ */
+function obtenerMensajeMotivacional(quartil) {
+    try {
+        var ss = SpreadsheetApp.getActiveSpreadsheet();
+        var sheetMSG = ss.getSheetByName('MSG');
+        
+        if (!sheetMSG) {
+            Logger.log("❌ ERROR: No se encontró la hoja 'MSG'");
+            return "¡Sigue adelante! 💪";
+        }
+        
+        var columna = '';
+        
+        // Determinar qué columna usar según el quartil
+        if (quartil === 'Q1' || quartil === 'Q2') {
+            // Mejores performers: Columna D
+            columna = 'D';
+        } else if (quartil === 'Q3' || quartil === 'Q4') {
+            // Necesitan motivación: Columna A
+            columna = 'A';
+        } else {
+            columna = 'A'; // Default
+        }
+        
+        // Obtener todos los mensajes de la columna
+        var mensajes = sheetMSG.getRange(columna + '1:' + columna + '200').getValues();
+        
+        // Filtrar mensajes vacíos
+        var mensajesFiltrados = [];
+        for (var i = 0; i < mensajes.length; i++) {
+            var msg = mensajes[i][0];
+            if (msg && msg.toString().trim() !== '') {
+                mensajesFiltrados.push(msg.toString().trim());
+            }
+        }
+        
+        if (mensajesFiltrados.length === 0) {
+            return "¡Excelente trabajo! 🌟";
+        }
+        
+        // Seleccionar un mensaje aleatorio
+        var indiceAleatorio = Math.floor(Math.random() * mensajesFiltrados.length);
+        var mensajeSeleccionado = mensajesFiltrados[indiceAleatorio];
+        
+        Logger.log("✅ Mensaje seleccionado (" + quartil + ", Columna " + columna + "): " + mensajeSeleccionado);
+        
+        return mensajeSeleccionado;
+        
+    } catch (e) {
+        Logger.log("❌ Error obteniendo mensaje motivacional: " + e.toString());
+        return "¡Sigue así! 💪";
+    }
 }
