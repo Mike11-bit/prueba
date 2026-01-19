@@ -1,0 +1,1376 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expert - Calculadora de Bono</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root { 
+            --primary: #3498db; 
+            --success: #2ecc71; 
+            --danger: #e74c3c; 
+            --warning: #f39c12; 
+            --dark: #2c3e50; 
+            --light: #ecf0f1; 
+            --purple: #9b59b6;
+            --info: #3498db;
+        }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            min-height: 100vh; 
+            padding: 20px; 
+        }
+        .navbar { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            padding: 15px 30px; 
+            margin: -20px -20px 20px -20px; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            color: white; 
+        }
+        .navbar h1 { font-size: 1.5rem; font-weight: 600; }
+        .container { 
+            max-width: 1400px; 
+            margin: 0 auto; 
+            background: white; 
+            border-radius: 20px; 
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3); 
+            overflow: hidden; 
+        }
+        .user-card { 
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); 
+            padding: 25px; 
+            margin: 20px; 
+            border-radius: 15px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+        }
+        .user-info-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); 
+            gap: 15px; 
+        }
+        .user-info-item { display: flex; flex-direction: column; }
+        .user-info-label { 
+            font-weight: 600; 
+            color: #7f8c8d; 
+            font-size: 0.85rem; 
+            margin-bottom:5px; 
+        }
+        .user-info-value { color:#2c3e50; font-size:1rem; font-weight:500; }
+        
+        /* Alerta de actualización de LOB */
+        .lob-update-alert {
+            margin-top: 20px;
+            padding: 15px;
+            background: linear-gradient(135deg, #fff3cd 0%, #ffe69c 100%);
+            border-left: 4px solid #ffc107;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .lob-update-alert-content {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .lob-update-alert-icon {
+            font-size: 1.8rem;
+            flex-shrink: 0;
+        }
+        .lob-update-alert-text {
+            flex: 1;
+        }
+        .lob-update-alert-text strong {
+            color: #856404;
+            font-size: 1.1rem;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .lob-update-alert-text p {
+            margin: 0;
+            color: #856404;
+            font-size: 0.9rem;
+        }
+        .btn-update-lob {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #ffc107 0%, #ffb300 100%);
+            color: #000;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 2px 8px rgba(255, 193, 7, 0.3);
+            white-space: nowrap;
+        }
+        .btn-update-lob:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 193, 7, 0.5);
+        }
+        .btn-update-lob:active {
+            transform: translateY(0);
+        }
+        
+        /* Sección de configuración salarial */
+        .salary-config-card {
+            background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+            padding: 25px;
+            margin: 20px;
+            border-radius: 15px;
+            border-left: 5px solid var(--success);
+        }
+        .salary-config-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .salary-config-header h3 {
+            color: var(--dark);
+            font-size: 1.3rem;
+        }
+        .salary-config-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        .salary-input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .salary-input-group label {
+            font-weight: 600;
+            color: var(--dark);
+            font-size: 0.9rem;
+        }
+        .salary-input-group input {
+            padding: 12px;
+            border: 2px solid #a5d6a7;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+        .salary-input-group input:focus {
+            border-color: var(--success);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(46, 204, 113, 0.1);
+        }
+        .salary-info {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .salary-info-icon {
+            font-size: 2rem;
+        }
+        .salary-info-content {
+            flex: 1;
+        }
+        .salary-info-label {
+            font-size: 0.85rem;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        .salary-info-value {
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: var(--success);
+        }
+        
+        .content-section { padding:30px; }
+        .section-header { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            color:white; 
+            padding:20px; 
+            border-radius:10px; 
+            margin-bottom:25px; 
+            text-align:center; 
+        }
+        .section-header h2 { margin:0; font-size:1.8rem; }
+        .section-header p { margin-top:10px; opacity:0.9; }
+        
+        .kpi-category { 
+            background:#f8f9fa; 
+            padding:25px; 
+            border-radius:15px; 
+            margin-bottom:25px; 
+            border-left:5px solid; 
+        }
+        .kpi-category.keys { border-color:#3498db; }
+        .kpi-category.bonus { border-color:#2ecc71; }
+        .kpi-category.additional { border-color:#f39c12; }
+        .kpi-category.decreased { border-color:#e74c3c; }
+        .kpi-category-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .kpi-category h3 { 
+            color:#2c3e50; 
+            font-size:1.4rem; 
+            margin: 0;
+        }
+        
+        .kpi-item { 
+            background:white; 
+            padding:20px; 
+            border-radius:10px; 
+            margin-bottom:15px; 
+            box-shadow:0 2px 8px rgba(0,0,0,0.05); 
+            transition: all 0.3s;
+        }
+        .kpi-item:hover {
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+        .kpi-item-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr;
+            gap: 20px;
+            align-items: center;
+        }
+        .kpi-name-section {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .kpi-name { 
+            font-weight:600; 
+            color:#2c3e50; 
+            font-size:1.1rem; 
+        }
+        .kpi-comparator {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px;
+            background: #e3f2fd;
+            border-radius: 15px;
+            font-size: 0.85rem;
+            color: var(--info);
+            font-weight: 600;
+        }
+        .kpi-meta { 
+            font-size:0.9rem; 
+            color:#666; 
+        }
+        .kpi-meta strong { color:#2c3e50; }
+        .kpi-input-group { 
+            display:flex; 
+            flex-direction:column; 
+            gap:5px; 
+        }
+        .kpi-input-group label { 
+            font-size:0.85rem; 
+            color:#666; 
+            font-weight:600; 
+        }
+        .kpi-input-group input { 
+            padding:10px; 
+            border:2px solid #dee2e6; 
+            border-radius:8px; 
+            font-size:1rem; 
+            transition:all 0.3s; 
+        }
+        .kpi-input-group input:focus { 
+            border-color:var(--primary); 
+            outline:none; 
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        }
+        
+        .btn { 
+            padding:15px 40px; 
+            border:none; 
+            border-radius:10px; 
+            font-weight:600; 
+            cursor:pointer; 
+            transition:all 0.3s; 
+            display:inline-flex; 
+            align-items:center; 
+            gap:10px; 
+            font-size: 1.2rem;
+        }
+        .btn-calculate { 
+            background:linear-gradient(135deg, #2ecc71 0%, #27ae60 100%); 
+            color:white; 
+            box-shadow: 0 5px 20px rgba(46, 204, 113, 0.3);
+        }
+        .btn-calculate:hover { 
+            transform:translateY(-3px); 
+            box-shadow:0 8px 25px rgba(46, 204, 113, 0.4); 
+        }
+        .btn-calculate:active {
+            transform:translateY(0);
+        }
+        
+        .calculate-section {
+            text-align: center;
+            margin: 40px 0;
+        }
+        
+        /* Modal para resultado */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(5px);
+        }
+        
+        .modal-overlay.show {
+            display: flex;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .result-container {
+            max-width: 800px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            position: relative;
+            animation: slideUp 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(50px) scale(0.8);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+        
+        .modal-close {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: rgba(255, 255, 255, 0.3);
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            font-size: 1.5rem;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+        
+        .modal-close:hover {
+            background: rgba(255, 255, 255, 0.5);
+            transform: rotate(90deg) scale(1.1);
+        }
+        
+        /* Animación de VICTORIA */
+        .result-container.victory {
+            background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+            color: white;
+        }
+        
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: #ffd700;
+            animation: confetti-fall 3s linear;
+        }
+        
+        @keyframes confetti-fall {
+            0% {
+                top: -10%;
+                transform: translateX(0) rotateZ(0deg);
+            }
+            100% {
+                top: 100%;
+                transform: translateX(100px) rotateZ(720deg);
+            }
+        }
+        
+        .victory-emoji {
+            font-size: 6rem;
+            animation: bounce 1s infinite;
+        }
+        
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+        
+        /* Animación de DERROTA */
+        .result-container.defeat {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+        }
+        
+        .defeat-emoji {
+            font-size: 6rem;
+            animation: shake 0.5s infinite;
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+        
+        .rain {
+            position: absolute;
+            width: 2px;
+            height: 20px;
+            background: rgba(255,255,255,0.3);
+            animation: rain-fall 1s linear infinite;
+        }
+        
+        @keyframes rain-fall {
+            0% {
+                top: -10%;
+            }
+            100% {
+                top: 100%;
+            }
+        }
+        
+        .result-title {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin: 20px 0;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .result-amount {
+            font-size: 4rem;
+            font-weight: bold;
+            margin: 20px 0;
+            text-shadow: 3px 3px 6px rgba(0,0,0,0.3);
+        }
+        
+        .result-details {
+            background: rgba(255,255,255,0.2);
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .result-detail-item {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 8px;
+        }
+        
+        .result-detail-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            margin-bottom: 8px;
+        }
+        
+        .result-detail-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        
+        .toast { 
+            position:fixed; 
+            bottom:20px; 
+            right:20px; 
+            padding:15px 25px; 
+            background:white; 
+            border-radius:10px; 
+            box-shadow:0 5px 15px rgba(0,0,0,0.2); 
+            display:flex; 
+            align-items:center; 
+            gap:10px; 
+            transform:translateY(100px); 
+            transition:transform 0.3s cubic-bezier(0.68,-0.55,0.265,1.55); 
+            z-index:1000; 
+        }
+        .toast.show { transform:translateY(0); }
+        .toast.success { border-left:5px solid var(--success); }
+        .toast.danger { border-left:5px solid var(--danger); }
+        .toast.warning { border-left:5px solid var(--warning); }
+        .toast.info { border-left:5px solid var(--info); }
+        
+        .loading-overlay { 
+            position:fixed; 
+            top:0; 
+            left:0; 
+            width:100%; 
+            height:100%; 
+            background:rgba(255,255,255,0.9); 
+            display:none; 
+            justify-content:center; 
+            align-items:center; 
+            z-index:2000; 
+            flex-direction:column; 
+        }
+        .spinner { 
+            width:50px; 
+            height:50px; 
+            border:5px solid #f3f3f3; 
+            border-top:5px solid var(--primary); 
+            border-radius:50%; 
+            animation:spin 1s linear infinite; 
+            margin-bottom:20px; 
+        }
+        @keyframes spin { 
+            0% { transform:rotate(0deg); } 
+            100% { transform:rotate(360deg); } 
+        }
+        
+        .empty-state { 
+            text-align:center; 
+            padding:60px 20px; 
+            color:#95a5a6; 
+        }
+        .empty-state-icon { 
+            font-size:4rem; 
+            margin-bottom:20px; 
+        }
+        .empty-state h3 { 
+            margin-bottom:10px; 
+            color:#7f8c8d; 
+        }
+        
+        /* Tooltip */
+        .tooltip-container {
+            position: relative;
+            display: inline-block;
+        }
+        .tooltip {
+            visibility: hidden;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 8px 12px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            white-space: nowrap;
+            font-size: 0.85rem;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .tooltip::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #333 transparent transparent transparent;
+        }
+        .tooltip-container:hover .tooltip {
+            visibility: visible;
+            opacity: 1;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .kpi-item-grid {
+                grid-template-columns: 1fr;
+            }
+            .salary-config-grid {
+                grid-template-columns: 1fr;
+            }
+            .result-details {
+                grid-template-columns: 1fr;
+            }
+            .result-container {
+                width: 95%;
+                padding: 30px 20px;
+            }
+            .result-amount {
+                font-size: 3rem;
+            }
+            .lob-update-alert-content {
+                flex-direction: column;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="spinner"></div>
+        <h3 id="loadingText" style="color:var(--dark);">Cargando datos...</h3>
+    </div>
+    
+    <div id="toast" class="toast">
+        <span id="toastIcon"></span>
+        <span id="toastMessage"></span>
+    </div>
+    
+    <!-- MODAL PARA RESULTADO -->
+    <div id="modalOverlay" class="modal-overlay" onclick="cerrarModal(event)">
+        <div id="resultContainer" class="result-container" onclick="event.stopPropagation()">
+            <button class="modal-close" onclick="cerrarModal()">×</button>
+            <div id="animationContainer"></div>
+            <div class="victory-emoji" id="victoryEmoji" style="display:none;">🎉</div>
+            <div class="defeat-emoji" id="defeatEmoji" style="display:none;">😢</div>
+            <div class="result-title" id="resultTitle"></div>
+            <div class="result-amount" id="resultAmount"></div>
+            <div class="result-details">
+                <div class="result-detail-item">
+                    <div class="result-detail-label">Bono Máximo</div>
+                    <div class="result-detail-value" id="detailBonoMax">$0</div>
+                </div>
+                <div class="result-detail-item">
+                    <div class="result-detail-label">Total Bonus</div>
+                    <div class="result-detail-value" id="detailBonus">$0</div>
+                </div>
+                <div class="result-detail-item">
+                    <div class="result-detail-label">Total Additional</div>
+                    <div class="result-detail-value" id="detailAdditional">$0</div>
+                </div>
+                <div class="result-detail-item">
+                    <div class="result-detail-label">Penalizaciones</div>
+                    <div class="result-detail-value" id="detailDecreased">$0</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="navbar">
+        <h1>📊 Expert - Calculadora de Bono</h1>
+        <div style="display:flex; align-items:center; gap:15px;">
+            <span id="fechaActual"></span>
+        </div>
+    </div>
+    
+    <div class="container">
+        <!-- Información del Usuario -->
+
+
+
+        <div class="user-card">
+            <div class="user-info-grid">
+                <div class="user-info-item">
+                    <span class="user-info-label">Agente</span>
+                    <span class="user-info-value" id="nombreAgente">Cargando...</span>
+                </div>
+                <div class="user-info-item">
+                    <span class="user-info-label">BMS ID</span>
+                    <span class="user-info-value" id="bmsId">...</span>
+                </div>
+                <div class="user-info-item">
+                    <span class="user-info-label">LOB</span>
+                    <span class="user-info-value" id="lobAgente">...</span>
+                </div>
+                <div class="user-info-item">
+                    <span class="user-info-label">Mes Actual</span>
+                    <span class="user-info-value" id="mesActual">...</span>
+                </div>
+            </div>
+            
+            <!-- 🔥 ALERTA DE ACTUALIZACIÓN DE LOB -->
+            <div id="lobIncorrectaAlerta" class="lob-update-alert">
+                <div class="lob-update-alert-content">
+                    <span class="lob-update-alert-icon">⚠️</span>
+                    <div class="lob-update-alert-text">
+                        <strong>¿Esta no es tu LOB?</strong>
+                        <p>Si tu LOB cambió recientemente, haz clic en actualizar para cargar los datos más recientes.</p>
+                    </div>
+                    <button class="btn-update-lob" onclick="actualizarLOB()">
+                        🔄 Actualizar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+
+
+        
+        <!-- Configuración Salarial Opcional -->
+        <div class="salary-config-card">
+            <div class="salary-config-header">
+                <h3>💰 Configuración de Salario (Opcional)</h3>
+                <span class="tooltip-container">
+                    <span style="cursor:pointer; font-size:1.2rem;">ℹ️</span>
+                    <span class="tooltip">Si ingresas tu salario y horas, se recalculará el bono máximo automáticamente</span>
+                </span>
+            </div>
+            <div class="salary-config-grid">
+                <div class="salary-input-group">
+                    <label>💵 Salario Actual (Opcional)</label>
+                    <input type="number" id="salarioPersonalizado" placeholder="Ej: 2500000" oninput="recalcularConSalarioPersonalizado()">
+                </div>
+                <div class="salary-input-group">
+                    <label>⏰ Horas Trabajadas en el Mes (Opcional)</label>
+                    <input type="number" id="horasPersonalizadas" placeholder="Ej: 160" oninput="recalcularConSalarioPersonalizado()">
+                </div>
+                <div class="salary-info">
+                    <div class="salary-info-icon">🎯</div>
+                    <div class="salary-info-content">
+                        <div class="salary-info-label">Bono Máximo Calculado</div>
+                        <div class="salary-info-value" id="bonoMaximoDisplay">$0</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="content-section">
+            <div id="mensajeCarga" style="text-align:center; padding:50px;">
+                <div class="spinner" style="margin:0 auto;"></div>
+                <p style="margin-top:20px; color:#666;">Cargando estructura de tu LOB...</p>
+            </div>
+            
+            <div id="estructuraContainer" style="display:none;">
+                <div class="section-header">
+                    <h2>📋 Estructura de Bonos - <span id="lobTitulo"></span></h2>
+                    <p>Ingresa tus resultados mensuales</p>
+                </div>
+                
+                <!-- Secciones de KPIs -->
+                <div id="keysSection" class="kpi-category keys" style="display:none;">
+                    <div class="kpi-category-header">
+                        <h3>🔑 Key KPIs (Críticos)</h3>
+                    </div>
+                    <div id="keysContainer"></div>
+                </div>
+                
+                <div id="bonusSection" class="kpi-category bonus" style="display:none;">
+                    <div class="kpi-category-header">
+                        <h3>💰 Bonus Structure</h3>
+                    </div>
+                    <div id="bonusContainer"></div>
+                </div>
+                
+                <div id="additionalSection" class="kpi-category additional" style="display:none;">
+                    <div class="kpi-category-header">
+                        <h3>⭐ Additional Incentive</h3>
+                    </div>
+                    <div id="additionalContainer"></div>
+                </div>
+                
+                <div id="decreasedSection" class="kpi-category decreased" style="display:none;">
+                    <div class="kpi-category-header">
+                        <h3>🔴 Decreased (Penalizaciones)</h3>
+                    </div>
+                    <div id="decreasedContainer"></div>
+                </div>
+                
+                <!-- Botón Calcular -->
+                <div class="calculate-section">
+                    <button class="btn btn-calculate" onclick="calcularBono()">
+                        🎯 CALCULAR MI BONO
+                    </button>
+                </div>
+            </div>
+            
+            <div id="emptyState" class="empty-state" style="display:none;">
+                <div class="empty-state-icon">📋</div>
+                <h3>No se encontró estructura para tu LOB</h3>
+                <p>Contacta con tu supervisor si crees que esto es un error.</p>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+
+// ============================================================
+// 🔄 VERIFICAR Y MOSTRAR ALERTA DE LOB
+// ============================================================
+function verificarYMostrarAlertaLOB() {
+    const alerta = document.getElementById('lobIncorrectaAlerta');
+    
+    // Lógica para determinar si mostrar la alerta
+    // Aquí hay algunas opciones:
+    
+    // OPÇÃO 1: Mostrar siempre (para testing)
+    // alerta.style.display = 'block';
+    // return;
+    
+    // OPÇÃO 2: Verificar en localStorage si el usuario ya actualizó
+    const lobActual = datosAgente ? datosAgente.lob : null;
+    const ultimaLobGuardada = localStorage.getItem('ultima_lob_conocida');
+    const lobActualizadaRecientemente = localStorage.getItem('lob_actualizada_en');
+    
+    if (lobActual) {
+        // Guardar la LOB actual en localStorage
+        localStorage.setItem('ultima_lob_conocida', lobActual);
+        
+        // Si es la primera vez o la LOB cambió, mostrar alerta
+        if (!ultimaLobGuardada || ultimaLobGuardada !== lobActual) {
+            // Verificar si ya actualizó recientemente (últimos 30 días)
+            if (lobActualizadaRecientemente) {
+                const fechaActualizacion = new Date(lobActualizadaRecientemente);
+                const hoy = new Date();
+                const diasDesdeActualizacion = Math.floor((hoy - fechaActualizacion) / (1000 * 60 * 60 * 24));
+                
+                if (diasDesdeActualizacion > 30) {
+                    // Han pasado más de 30 días, mostrar alerta
+                    alerta.style.display = 'block';
+                } else {
+                    alerta.style.display = 'none';
+                }
+            } else {
+                // Nunca ha actualizado, mostrar alerta
+                alerta.style.display = 'block';
+            }
+        } else {
+            // Es la misma LOB, ocultar alerta
+            alerta.style.display = 'none';
+        }
+    }
+}
+
+// ============================================================
+// 🔄 FUNCIÓN ACTUALIZAR LOB COMPLETA
+// ============================================================
+function actualizarLOB() {
+    if (!confirm('¿Estás seguro de que quieres actualizar tu información?\n\nEsto limpiará el caché y recargará los datos más recientes desde Google Sheets.')) {
+        return;
+    }
+    
+    mostrarLoading('Actualizando información...');
+    
+    // 1. Limpiar caché
+    google.script.run
+        .withSuccessHandler(function(response) {
+            if (response.success) {
+                // 2. Marcar como actualizada en localStorage
+                localStorage.setItem('lob_actualizada_en', new Date().toISOString());
+                localStorage.setItem('ultima_lob_conocida', datosAgente ? datosAgente.lob : '');
+                
+                // 3. Mostrar mensaje de éxito
+                mostrarToast('✅ Información actualizada correctamente', 'success');
+                
+                // 4. Recargar página después de 1 segundo
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+                
+            } else {
+                ocultarLoading();
+                mostrarToast('❌ Error al actualizar: ' + (response.error || 'Error desconocido'), 'danger');
+            }
+        })
+        .withFailureHandler(function(error) {
+            ocultarLoading();
+            mostrarToast('❌ Error de conexión: ' + error, 'danger');
+        })
+        .limpiarCacheCompleto();
+}
+        // ============================================================
+        // 📊 VARIABLES GLOBALES
+        // ============================================================
+        var datosAgente = null;
+        var estructuraLOB = null;
+        var configSalarial = null;
+        var resultados = { keys: {}, bonus: {}, additional: {}, decreased: {} };
+        var usandoSalarioPersonalizado = false;
+
+        // ============================================================
+        // 🔄 INICIALIZACIÓN
+        // ============================================================
+        window.addEventListener('DOMContentLoaded', function () {
+            const fecha = new Date();
+            document.getElementById('fechaActual').textContent = fecha.toLocaleDateString('es-CO');
+            const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+            document.getElementById('mesActual').textContent = meses[fecha.getMonth()];
+            cargarDatosAgente();
+        });
+
+        // ============================================================
+        // 📥 CARGAR DATOS DEL AGENTE
+        // ============================================================
+    function cargarDatosAgente() {
+    mostrarLoading('Cargando tus datos...');
+    google.script.run
+        .withSuccessHandler(function (response) {
+            if (response.success) {
+                datosAgente = response.agente;
+                estructuraLOB = response.estructura;
+                configSalarial = response.configuracion;
+                
+                document.getElementById('nombreAgente').textContent = datosAgente.nombre;
+                document.getElementById('bmsId').textContent = datosAgente.bmsId;
+                document.getElementById('lobAgente').textContent = datosAgente.lob;
+                document.getElementById('lobTitulo').textContent = datosAgente.lob;
+                
+                // ✅ LLAMAR A LA VERIFICACIÓN DE LOB
+                setTimeout(() => {
+                    verificarYMostrarAlertaLOB();
+                }, 500);
+                
+                if (estructuraLOB) {
+                    renderizarEstructura();
+                    calcularBonoMaximo();
+                    document.getElementById('mensajeCarga').style.display = 'none';
+                    document.getElementById('estructuraContainer').style.display = 'block';
+                } else {
+                    document.getElementById('mensajeCarga').style.display = 'none';
+                    document.getElementById('emptyState').style.display = 'block';
+                }
+            } else {
+                mostrarToast('❌ ' + response.error, 'danger');
+                document.getElementById('mensajeCarga').style.display = 'none';
+                document.getElementById('emptyState').style.display = 'block';
+            }
+            ocultarLoading();
+        })
+        .withFailureHandler(function (error) {
+            ocultarLoading();
+            mostrarToast('❌ Error de conexión: ' + error, 'danger');
+        })
+        .obtenerDatosAgenteParaExpert();
+}
+
+
+// En verificarYMostrarAlertaLOB()
+function verificarYMostrarAlertaLOB() {
+    const alerta = document.getElementById('lobIncorrectaAlerta');
+    
+    // Para testing: Mostrar siempre
+    alerta.style.display = 'block';
+    return;
+    
+    // ... el resto de la lógica ...
+}
+        // ============================================================
+        // 🎨 RENDERIZAR ESTRUCTURA
+        // ============================================================
+        function renderizarEstructura() {
+            if (estructuraLOB.keys && estructuraLOB.keys.length) {
+                document.getElementById('keysSection').style.display = 'block';
+                renderizarKPIs('keys', estructuraLOB.keys, 'keysContainer');
+            }
+            if (estructuraLOB.bonus && estructuraLOB.bonus.length) {
+                document.getElementById('bonusSection').style.display = 'block';
+                renderizarKPIs('bonus', estructuraLOB.bonus, 'bonusContainer');
+            }
+            if (estructuraLOB.additional && estructuraLOB.additional.length) {
+                document.getElementById('additionalSection').style.display = 'block';
+                renderizarKPIs('additional', estructuraLOB.additional, 'additionalContainer');
+            }
+            if (estructuraLOB.decreased && estructuraLOB.decreased.length) {
+                document.getElementById('decreasedSection').style.display = 'block';
+                renderizarKPIs('decreased', estructuraLOB.decreased, 'decreasedContainer');
+            }
+        }
+
+        function renderizarKPIs(categoria, kpis, containerId) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            
+            kpis.forEach((kpi, index) => {
+                const kpiId = `${categoria}_${index}`;
+                // CORREGIR PORCENTAJE: 0.3 -> 30%
+                let porcentaje = parseFloat(kpi.porcentaje) || 0;
+                if (porcentaje < 1) {
+                    porcentaje = porcentaje * 100;
+                }
+                const comparacion = detectarComparador(kpi.comparacion || '>=');
+                const comparadorIcono = obtenerIconoComparador(comparacion);
+                
+                const html = `
+                <div class="kpi-item">
+                    <div class="kpi-item-grid">
+                        <div class="kpi-name-section">
+                            <div class="kpi-name">${kpi.nombre}</div>
+                            <span class="kpi-comparator">${comparadorIcono} ${comparacion} ${kpi.score || '-'}</span>
+                        </div>
+                        <div class="kpi-meta">
+                            ${categoria !== 'keys' ? `<strong>% Bono:</strong> ${porcentaje}%` : ''}
+                        </div>
+                        <div class="kpi-input-group">
+                            <label>Tu Resultado:</label>
+                            <input type="number" id="${kpiId}" step="0.01" placeholder="Ingresa valor">
+                        </div>
+                    </div>
+                </div>`;
+                container.innerHTML += html;
+            });
+        }
+
+        // ============================================================
+        // 🔍 DETECTAR Y MOSTRAR COMPARADORES
+        // ============================================================
+        function detectarComparador(comp) {
+            const comparadores = {
+                '>=': '>=',
+                '>': '>',
+                '<=': '<=',
+                '<': '<',
+                '=': '=',
+                '==': '='
+            };
+            return comparadores[comp] || '>=';
+        }
+
+        function obtenerIconoComparador(comp) {
+            const iconos = {
+                '>=': '⬆️',
+                '>': '⬆️',
+                '<=': '⬇️',
+                '<': '⬇️',
+                '=': '🎯'
+            };
+            return iconos[comp] || '⬆️';
+        }
+
+        // ============================================================
+        // 🧮 CALCULAR BONO MÁXIMO
+        // ============================================================
+        function calcularBonoMaximo() {
+            if (!configSalarial) return;
+            const salario = parseFloat(configSalarial.salario) || 0;
+            let porcentaje = parseFloat(configSalarial.porcentaje) || 0;
+            
+            // CORREGIR: Si porcentaje es 0.3, convertir a 30
+            if (porcentaje < 1) {
+                porcentaje = porcentaje * 100;
+            }
+            
+            const bonoMax = (salario * porcentaje) / 100;
+            
+            document.getElementById('bonoMaximoDisplay').textContent = formatearMoneda(bonoMax);
+        }
+
+        function recalcularConSalarioPersonalizado() {
+            const salarioInput = document.getElementById('salarioPersonalizado').value;
+            const horasInput = document.getElementById('horasPersonalizadas').value;
+            
+            if (salarioInput && horasInput) {
+                usandoSalarioPersonalizado = true;
+                const salario = parseFloat(salarioInput);
+                const horas = parseFloat(horasInput);
+                let porcentaje = parseFloat(configSalarial.porcentaje) || 0;
+                
+                // CORREGIR: Si porcentaje es 0.3, convertir a 30
+                if (porcentaje < 1) {
+                    porcentaje = porcentaje * 100;
+                }
+                
+                // Calcular salario proporcional según horas
+                const horasEstandar = 160;
+                const salarioProporcional = (salario / horasEstandar) * horas;
+                const bonoMax = (salarioProporcional * porcentaje) / 100;
+                
+                document.getElementById('bonoMaximoDisplay').textContent = formatearMoneda(bonoMax);
+                
+                mostrarToast('✅ Bono recalculado con tu salario y horas', 'success');
+            } else if (!salarioInput && !horasInput) {
+                usandoSalarioPersonalizado = false;
+                calcularBonoMaximo();
+            }
+        }
+
+        // ============================================================
+        // 🎯 CALCULAR BONO FINAL
+        // ============================================================
+        function calcularBono() {
+            // Recopilar todos los valores
+            resultados = { keys: {}, bonus: {}, additional: {}, decreased: {} };
+            
+            ['keys', 'bonus', 'additional', 'decreased'].forEach(categoria => {
+                if (estructuraLOB[categoria]) {
+                    estructuraLOB[categoria].forEach((kpi, index) => {
+                        const kpiId = `${categoria}_${index}`;
+                        const input = document.getElementById(kpiId);
+                        const valor = parseFloat(input.value);
+                        
+                        if (!isNaN(valor) && input.value !== '') {
+                            const comparacion = detectarComparador(kpi.comparacion || '>=');
+                            const meta = parseFloat(kpi.score);
+                            let cumple = false;
+                            
+                            switch (comparacion) {
+                                case '>=': cumple = valor >= meta; break;
+                                case '>': cumple = valor > meta; break;
+                                case '<=': cumple = valor <= meta; break;
+                                case '<': cumple = valor < meta; break;
+                                case '=': cumple = valor === meta; break;
+                            }
+                            
+                            resultados[categoria][index] = { cumple, valor };
+                        }
+                    });
+                }
+            });
+            
+            // Calcular totales
+            const bonoMaximoTexto = document.getElementById('bonoMaximoDisplay').textContent;
+            const bonoMaximo = parseFloat(bonoMaximoTexto.replace(/[^0-9.-]+/g, "")) || 0;
+            
+            // Verificar Keys
+            let keysOK = true;
+            if (estructuraLOB.keys && estructuraLOB.keys.length) {
+                for (let i = 0; i < estructuraLOB.keys.length; i++) {
+                    if (resultados.keys[i] && resultados.keys[i].valor !== null) {
+                        if (!resultados.keys[i].cumple) {
+                            keysOK = false;
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            // Calcular Bonus
+            let totalBonus = 0;
+            if (estructuraLOB.bonus) {
+                estructuraLOB.bonus.forEach((kpi, i) => {
+                    if (resultados.bonus[i] && resultados.bonus[i].cumple) {
+                        let pct = parseFloat(kpi.porcentaje) || 0;
+                        if (pct < 1) pct = pct * 100;
+                        totalBonus += (bonoMaximo * pct) / 100;
+                    }
+                });
+            }
+            
+            // Calcular Additional
+            let totalAdditional = 0;
+            if (estructuraLOB.additional) {
+                estructuraLOB.additional.forEach((kpi, i) => {
+                    if (resultados.additional[i] && resultados.additional[i].cumple) {
+                        let pct = parseFloat(kpi.porcentaje) || 0;
+                        if (pct < 1) pct = pct * 100;
+                        totalAdditional += (bonoMaximo * pct) / 100;
+                    }
+                });
+            }
+            
+            // Calcular Decreased
+            let totalDecreased = 0;
+            if (estructuraLOB.decreased) {
+                estructuraLOB.decreased.forEach((kpi, i) => {
+                    if (resultados.decreased[i] && resultados.decreased[i].cumple) {
+                        let pct = parseFloat(kpi.porcentaje) || 0;
+                        if (pct < 1) pct = pct * 100;
+                        totalDecreased += (bonoMaximo * pct) / 100;
+                    }
+                });
+            }
+            
+            // Calcular total final
+            let totalFinal = keysOK ? (totalBonus + totalAdditional - totalDecreased) : 0;
+            totalFinal = Math.max(0, totalFinal);
+            
+            // Mostrar resultado en modal
+            mostrarResultadoModal(keysOK, totalFinal, bonoMaximo, totalBonus, totalAdditional, totalDecreased);
+        }
+
+        // ============================================================
+        // 🎬 MOSTRAR RESULTADO EN MODAL
+        // ============================================================
+        function mostrarResultadoModal(gano, totalFinal, bonoMax, bonus, additional, decreased) {
+            const modalOverlay = document.getElementById('modalOverlay');
+            const container = document.getElementById('resultContainer');
+            const animContainer = document.getElementById('animationContainer');
+            const victoryEmoji = document.getElementById('victoryEmoji');
+            const defeatEmoji = document.getElementById('defeatEmoji');
+            const title = document.getElementById('resultTitle');
+            const amount = document.getElementById('resultAmount');
+            
+            // Limpiar animaciones anteriores
+            animContainer.innerHTML = '';
+            victoryEmoji.style.display = 'none';
+            defeatEmoji.style.display = 'none';
+            container.className = 'result-container';
+            
+            // Actualizar detalles
+            document.getElementById('detailBonoMax').textContent = formatearMoneda(bonoMax);
+            document.getElementById('detailBonus').textContent = formatearMoneda(bonus);
+            document.getElementById('detailAdditional').textContent = formatearMoneda(additional);
+            document.getElementById('detailDecreased').textContent = '-' + formatearMoneda(decreased);
+            
+            if (gano && totalFinal > 0) {
+                // ANIMACIÓN DE VICTORIA
+                container.classList.add('victory');
+                victoryEmoji.style.display = 'block';
+                title.textContent = '¡FELICITACIONES! 🎊';
+                amount.textContent = formatearMoneda(totalFinal);
+                
+                // Crear confetti
+                for (let i = 0; i < 30; i++) {
+                    setTimeout(() => {
+                        const confetti = document.createElement('div');
+                        confetti.className = 'confetti';
+                        confetti.style.left = Math.random() * 100 + '%';
+                        confetti.style.background = ['#ffd700', '#ff6b6b', '#4ecdc4', '#45b7d1'][Math.floor(Math.random() * 4)];
+                        confetti.style.animationDelay = Math.random() * 2 + 's';
+                        animContainer.appendChild(confetti);
+                        
+                        setTimeout(() => confetti.remove(), 3000);
+                    }, i * 50);
+                }
+                
+            } else {
+                // ANIMACIÓN DE DERROTA
+                container.classList.add('defeat');
+                defeatEmoji.style.display = 'block';
+                
+                // Detectar qué métricas NO cumplió
+                const metricasNoCumplidas = obtenerMetricasNoCumplidas();
+                
+                if (metricasNoCumplidas.length > 0) {
+                    title.innerHTML = 'No cumpliste los requisitos<br><span style="font-size:1.2rem; margin-top:10px; display:block;">Métricas no cumplidas:</span>';
+                    
+                    // Crear lista de métricas no cumplidas
+                    let listaHTML = '<div style="margin-top:20px; text-align:left; max-width:600px; margin-left:auto; margin-right:auto;">';
+                    metricasNoCumplidas.forEach(metrica => {
+                        listaHTML += `
+                            <div style="background:rgba(255,255,255,0.2); padding:12px; border-radius:8px; margin-bottom:10px; display:flex; align-items:center; gap:10px;">
+                                <span style="font-size:1.5rem;">❌</span>
+                                <div style="flex:1;">
+                                    <div style="font-weight:bold; font-size:1.1rem;">${metrica.nombre}</div>
+                                    <div style="font-size:0.9rem; opacity:0.9;">
+                                        Requerido: ${metrica.comparador} ${metrica.meta} | 
+                                        Tu resultado: ${metrica.valor !== null ? metrica.valor : 'No ingresado'}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    listaHTML += '</div>';
+                    
+                    amount.innerHTML = listaHTML;
+                } else {
+                    title.textContent = 'No cumpliste los requisitos';
+                    amount.textContent = '$0';
+                }
+                
+                // Crear lluvia
+                for (let i = 0; i < 20; i++) {
+                    setTimeout(() => {
+                        const rain = document.createElement('div');
+                        rain.className = 'rain';
+                        rain.style.left = Math.random() * 100 + '%';
+                        rain.style.animationDelay = Math.random() * 1 + 's';
+                        animContainer.appendChild(rain);
+                        
+                        setTimeout(() => rain.remove(), 1000);
+                    }, i * 30);
+                }
+            }
+            
+            // Mostrar modal
+            modalOverlay.classList.add('show');
+        }
+
+        // ============================================================
+        // ❌ CERRAR MODAL
+        // ============================================================
+        function cerrarModal(event) {
+            // Si se hace click en el overlay o en el botón X
+            if (!event || event.target.id === 'modalOverlay' || event.target.classList.contains('modal-close')) {
+                document.getElementById('modalOverlay').classList.remove('show');
+            }
+        }
+
+        // ============================================================
+        // 📋 OBTENER MÉTRICAS NO CUMPLIDAS
+        // ============================================================
+        function obtenerMetricasNoCumplidas() {
+            const noCumplidas = [];
+            
+            // Verificar Keys
+            if (estructuraLOB.keys) {
+                estructuraLOB.keys.forEach((kpi, i) => {
+                    const resultado = resultados.keys[i];
+                    if (!resultado || resultado.valor === null || !resultado.cumple) {
+                        noCumplidas.push({
+                            tipo: 'Key KPI',
+                            nombre: kpi.nombre,
+                            comparador: kpi.comparacion || '>=',
+                            meta: kpi.score,
+                            valor: resultado ? resultado.valor : null
+                        });
+                    }
+                });
+            }
+            
+            // Verificar Bonus
+            if (estructuraLOB.bonus) {
+                estructuraLOB.bonus.forEach((kpi, i) => {
+                    const resultado = resultados.bonus[i];
+                    if (resultado && resultado.valor !== null && !resultado.cumple) {
+                        noCumplidas.push({
+                            tipo: 'Bonus',
+                            nombre: kpi.nombre,
+                            comparador: kpi.comparacion || '>=',
+                            meta: kpi.score,
+                            valor: resultado.valor
+                        });
+                    }
+                });
+            }
+            
+            // Verificar Additional
+            if (estructuraLOB.additional) {
+                estructuraLOB.additional.forEach((kpi, i) => {
+                    const resultado = resultados.additional[i];
+                    if (resultado && resultado.valor !== null && !resultado.cumple) {
+                        noCumplidas.push({
+                            tipo: 'Additional',
+                            nombre: kpi.nombre,
+                            comparador: kpi.comparacion || '>=',
+                            meta: kpi.score,
+                            valor: resultado.valor
+                        });
+                    }
+                });
+            }
+            
+            return noCumplidas;
+        }
+
+        // ============================================================
+        // 🔧 UTILIDADES
+        // ============================================================
+        function mostrarLoading(txt) { 
+            document.getElementById('loadingOverlay').style.display = 'flex'; 
+            document.getElementById('loadingText').textContent = txt; 
+        }
+        
+        function ocultarLoading() { 
+            document.getElementById('loadingOverlay').style.display = 'none'; 
+        }
+        
+        function mostrarToast(msg, type) { 
+            const toast = document.getElementById('toast'); 
+            toast.className = 'toast show ' + type; 
+            document.getElementById('toastMessage').textContent = msg; 
+            setTimeout(() => toast.classList.remove('show'), 3000); 
+        }
+        
+        function formatearMoneda(val) { 
+            return '$' + (val || 0).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 }); 
+        }
+    </script>
+</body>
+</html>

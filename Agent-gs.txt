@@ -1,0 +1,947 @@
+
+/**
+ * BACKEND OPTIMIZADO - EXPERT
+ * Versión 3.0 - Optimizado para 200+ usuarios concurrentes
+ * 
+ * OPTIMIZACIONES IMPLEMENTADAS:
+ * 1. Cache de estructuras LOB (30 minutos)
+ * 2. Cache de configuración salarial (30 minutos)
+ * 3. Lectura única de toda la hoja Usuario
+ * 4. Batch processing para múltiples LOBs
+ * 5. Reducción de llamadas a Spreadsheet
+ */
+
+const SPREADSHEET_ID = '1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4';
+
+// Tiempos de caché (en segundos)
+const CACHE_TIME_ESTRUCTURAS = 1800; // 30 minutos
+const CACHE_TIME_CONFIG = 1800; // 30 minutos
+const CACHE_TIME_USUARIOS = 900; // 15 minutos
+
+function doGet() {
+  return HtmlService.createHtmlOutputFromFile('Expert')
+    .setTitle('Expert - Calculadora de Bono')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+// ============================================================
+// 📥 FUNCIÓN PRINCIPAL OPTIMIZADA
+// ============================================================
+function obtenerDatosAgenteParaExpert() {
+  try {
+    console.log('🔍 Iniciando carga de datos para agente...');
+    const startTime = new Date().getTime();
+    
+    // 1. Obtener correo de la sesión
+    const correo = Session.getActiveUser().getEmail();
+    console.log('📧 Correo de sesión:', correo);
+    
+    if (!correo) {
+      throw new Error('No se pudo obtener el correo de sesión');
+    }
+    
+    // 2. Buscar agente usando caché
+    const agenteEncontrado = buscarAgentePorCorreo(correo);
+    
+    if (!agenteEncontrado) {
+      throw new Error('No estás registrado en el sistema');
+    }
+    
+    console.log('✅ Agente encontrado:', agenteEncontrado.nombre);
+    
+    // 3. Obtener estructura de LOB (con caché)
+    const estructura = obtenerEstructuraLOBOptimizada(agenteEncontrado.lob);
+    
+    if (!estructura) {
+      throw new Error(`No hay estructura definida para tu LOB: ${agenteEncontrado.lob}`);
+    }
+    
+    // 4. Obtener configuración salarial (con caché)
+    const configuracion = obtenerConfiguracionSalarialOptimizada(agenteEncontrado.lob);
+    
+    const endTime = new Date().getTime();
+    console.log(`⏱️ Tiempo de ejecución: ${endTime - startTime}ms`);
+    
+    // 5. Preparar respuesta
+    return {
+      success: true,
+      agente: agenteEncontrado,
+      estructura: estructura,
+      configuracion: configuracion
+    };
+    
+  } catch (error) {
+    console.error('❌ Error:', error.message);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+// ============================================================
+// 🗄️ BUSCAR AGENTE CON CACHÉ
+// ============================================================
+function buscarAgentePorCorreo(correo) {
+  const cache = CacheService.getUserCache();
+  const cacheKey = `agente_${correo.toLowerCase()}`;
+  
+  // Intentar obtener del caché
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    console.log('✅ Agente obtenido del caché');
+    return JSON.parse(cached);
+  }
+  
+  // Si no está en caché, buscar en la hoja
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const hojaUsuario = ss.getSheetByName('Usuario');
+  
+  if (!hojaUsuario) {
+    throw new Error('No se encuentra la hoja "Usuario"');
+  }
+  
+  const datosUsuario = hojaUsuario.getDataRange().getValues();
+  const correoNormalizado = correo.toLowerCase().trim();
+  
+  // Buscar por correo (columna C)
+  for (let i = 1; i < datosUsuario.length; i++) {
+    const correoFila = String(datosUsuario[i][2] || '').trim().toLowerCase();
+    if (correoFila === correoNormalizado) {
+      const agente = {
+        bmsId: String(datosUsuario[i][0] || '').trim(),
+        nombre: String(datosUsuario[i][1] || '').trim(),
+        correo: String(datosUsuario[i][2] || '').trim(),
+        lob: String(datosUsuario[i][4] || '').trim()
+      };
+      
+      // Guardar en caché
+      cache.put(cacheKey, JSON.stringify(agente), CACHE_TIME_USUARIOS);
+      console.log('✅ Agente guardado en caché');
+      
+      return agente;
+    }
+  }
+  
+  return null;
+}
+
+// ============================================================
+// 🔍 OBTENER ESTRUCTURA LOB OPTIMIZADA (CON CACHÉ)
+// ============================================================
+function obtenerEstructuraLOBOptimizada(lob) {
+  const cache = CacheService.getScriptCache(); // Script cache es compartido
+  const cacheKey = `estructura_${lob.toLowerCase().trim()}`;
+  
+  // Intentar obtener del caché
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    console.log('✅ Estructura obtenida del caché para', lob);
+    return JSON.parse(cached);
+  }
+  
+  console.log('📥 Cargando estructura desde Google Sheets para', lob);
+  
+  // Si no está en caché, cargar desde Sheets
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const estructura = obtenerEstructuraLOB(ss, lob);
+  
+  if (estructura) {
+    // Guardar en caché
+    cache.put(cacheKey, JSON.stringify(estructura), CACHE_TIME_ESTRUCTURAS);
+    console.log('✅ Estructura guardada en caché');
+  }
+  
+  return estructura;
+}
+
+// ============================================================
+// 💰 OBTENER CONFIGURACIÓN SALARIAL OPTIMIZADA (CON CACHÉ)
+// ============================================================
+function obtenerConfiguracionSalarialOptimizada(lob) {
+  const cache = CacheService.getScriptCache();
+  const cacheKey = `config_${lob.toLowerCase().trim()}`;
+  
+  // Intentar obtener del caché
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    console.log('✅ Configuración obtenida del caché para', lob);
+    return JSON.parse(cached);
+  }
+  
+  console.log('📥 Cargando configuración desde Google Sheets para', lob);
+  
+  // Si no está en caché, cargar desde Sheets
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const config = obtenerConfiguracionSalarial(ss, lob);
+  
+  if (config) {
+    // Guardar en caché
+    cache.put(cacheKey, JSON.stringify(config), CACHE_TIME_CONFIG);
+    console.log('✅ Configuración guardada en caché');
+  }
+  
+  return config;
+}
+
+// ============================================================
+// 🗑️ LIMPIAR CACHÉ (Función de utilidad)
+// ============================================================
+function limpiarCacheCompletoDebug() {
+  // Método "brutal" pero efectivo para debugging
+  const cache = CacheService.getScriptCache();
+  
+  // Intentar obtener todas las claves posibles
+  const allPossibleKeys = [
+    // Estructuras
+    'estructura_', 'config_', 'agente_',
+    // LOBs comunes
+    'ventas', 'soporte', 'retention', 'telemarketing',
+    'customer_service', 'collections', 'sales', 'service'
+  ];
+  
+  // Crear combinaciones
+  const keysToRemove = [];
+  for (const prefix of ['estructura_', 'config_']) {
+    for (const lob of allPossibleKeys.slice(2)) {
+      keysToRemove.push(`${prefix}${lob}`);
+    }
+  }
+  
+  // Agregar correos comunes de prueba
+  const correos = Session.getActiveUser().getEmail().split('@')[0];
+  keysToRemove.push(`agente_${correos.toLowerCase()}`);
+  
+  // Intentar eliminar
+  cache.removeAll(keysToRemove);
+  
+  console.log(`🔧 Intentando limpiar ${keysToRemove.length} claves posibles`);
+  return {
+    success: true,
+    mensaje: 'Debug: Intentada limpieza masiva',
+    clavesIntentadas: keysToRemove.length
+  };
+}
+
+function limpiarCacheEstructuras() {
+  const cache = CacheService.getScriptCache();
+  const allKeys = Object.keys(cache.getAll() || {});
+  
+  const keysEstructura = allKeys.filter(key => key.startsWith('estructura_'));
+  keysEstructura.forEach(key => cache.remove(key));
+  
+  console.log(`✅ ${keysEstructura.length} estructuras eliminadas del caché`);
+  return { success: true, mensaje: `${keysEstructura.length} estructuras eliminadas` };
+}
+
+// ============================================================
+// 🔍 OBTENER ESTRUCTURA DE LOB (Función original sin cambios)
+// ============================================================
+function obtenerEstructuraLOB(ss, lob) {
+  console.log(`🔍 Buscando estructura para LOB: ${lob}`);
+  
+  // Intentar primero en Registro_pisos
+  const hojaPisos = ss.getSheetByName('Registro_pisos');
+  if (hojaPisos) {
+    const estructura = buscarEstructuraEnHoja(hojaPisos, lob, 'pisos');
+    if (estructura) {
+      console.log('✅ Estructura encontrada en Registro_pisos');
+      return estructura;
+    }
+  }
+  
+  // Si no, buscar en Registro normal
+  const hojaRegistro = ss.getSheetByName('Registro');
+  if (hojaRegistro) {
+    const estructura = buscarEstructuraEnHoja(hojaRegistro, lob, 'normal');
+    if (estructura) {
+      console.log('✅ Estructura encontrada en Registro');
+      return estructura;
+    }
+  }
+  
+  console.log('❌ No se encontró estructura para esta LOB');
+  return null;
+}
+
+function buscarEstructuraEnHoja(hoja, lobBuscado, tipo) {
+  const datos = hoja.getDataRange().getValues();
+  const lobNormalizado = lobBuscado.toLowerCase().trim();
+  
+  // Buscar la última fila para esta LOB
+  let ultimaFila = -1;
+  
+  for (let i = 1; i < datos.length; i++) {
+    const lobFila = String(datos[i][1] || '').toLowerCase().trim();
+    if (lobFila === lobNormalizado) {
+      ultimaFila = i;
+    }
+  }
+  
+  if (ultimaFila === -1) return null;
+  
+  const fila = datos[ultimaFila];
+  
+  // Parsear según tipo de hoja
+  if (tipo === 'normal') {
+    return parsearEstructuraNormal(fila);
+  } else {
+    return parsearEstructuraPisos(fila);
+  }
+}
+
+// ============================================================
+// 🔧 PARSEAR ESTRUCTURA NORMAL
+// ============================================================
+function parsearEstructuraNormal(fila) {
+  const estructura = {
+    tipo: 'normal',
+    mes: String(fila[0] || ''),
+    keys: [],
+    bonus: [],
+    additional: [],
+    decreased: []
+  };
+  
+  // Keys (columnas 5-8) - pares de nombre/score
+  for (let i = 5; i <= 8; i += 2) {
+    if (fila[i]) {
+      const kpi = parsearKPI(fila[i], fila[i + 1]);
+      if (kpi) estructura.keys.push(kpi);
+    }
+  }
+  
+  // Bonus (columnas 10-21) - tríos de nombre/score/porcentaje
+  for (let i = 10; i <= 21; i += 3) {
+    if (fila[i]) {
+      const kpi = parsearKPI(fila[i], fila[i + 1], fila[i + 2]);
+      if (kpi) estructura.bonus.push(kpi);
+    }
+  }
+  
+  // Additional (columnas 23-31)
+  for (let i = 23; i <= 31; i += 3) {
+    if (fila[i]) {
+      const kpi = parsearKPI(fila[i], fila[i + 1], fila[i + 2]);
+      if (kpi) estructura.additional.push(kpi);
+    }
+  }
+  
+  // Decreased (columnas 33-38)
+  for (let i = 33; i <= 38; i += 3) {
+    if (fila[i]) {
+      const kpi = parsearKPI(fila[i], fila[i + 1], fila[i + 2]);
+      if (kpi) estructura.decreased.push(kpi);
+    }
+  }
+  
+  return estructura;
+}
+
+// ============================================================
+// 🔧 PARSEAR ESTRUCTURA PISOS
+// ============================================================
+function parsearEstructuraPisos(fila) {
+  const estructura = {
+    tipo: 'pisos',
+    mes: String(fila[0] || ''),
+    keys: [],
+    bonus: [],
+    additional: [],
+    decreased: []
+  };
+  
+  // Keys (columnas 5-10)
+  for (let i = 5; i <= 10; i += 2) {
+    if (fila[i] && String(fila[i]) !== 'Bonus Structure') {
+      const kpi = parsearKPI(fila[i], fila[i + 1]);
+      if (kpi) estructura.keys.push(kpi);
+    }
+  }
+  
+  // Bonus (columnas 12-50)
+  for (let i = 12; i <= 50; i += 3) {
+    if (fila[i] && String(fila[i]) !== 'Additional Incentive') {
+      const kpi = parsearKPI(fila[i], fila[i + 1], fila[i + 2]);
+      if (kpi) estructura.bonus.push(kpi);
+    }
+  }
+  
+  // Additional (columnas 52-60)
+  for (let i = 52; i <= 60; i += 3) {
+    if (fila[i] && String(fila[i]) !== 'Decreased') {
+      const kpi = parsearKPI(fila[i], fila[i + 1], fila[i + 2]);
+      if (kpi) estructura.additional.push(kpi);
+    }
+  }
+  
+  // Decreased (columnas 62-73)
+  for (let i = 62; i <= 73; i += 3) {
+    if (fila[i]) {
+      const kpi = parsearKPI(fila[i], fila[i + 1], fila[i + 2]);
+      if (kpi) estructura.decreased.push(kpi);
+    }
+  }
+  
+  return estructura;
+}
+
+// ============================================================
+// 🎯 PARSEAR KPI INDIVIDUAL (CON DETECCIÓN DE COMPARADOR)
+// ============================================================
+function parsearKPI(nombre, scoreRaw, porcentajeRaw) {
+  if (!nombre) return null;
+  
+  const nombreStr = String(nombre).trim();
+  const scoreStr = String(scoreRaw || '').trim();
+  
+  // Detectar comparador en el score
+  const resultado = detectarComparadorYValor(scoreStr);
+  
+  const kpi = {
+    nombre: nombreStr,
+    comparacion: resultado.comparador,
+    score: resultado.valor,
+    scoreOriginal: scoreStr
+  };
+  
+  // Si hay porcentaje, agregarlo
+  if (porcentajeRaw !== undefined) {
+    kpi.porcentaje = String(porcentajeRaw || '0').trim();
+  }
+  
+  return kpi;
+}
+
+// ============================================================
+// 🔍 DETECTAR COMPARADOR Y VALOR
+// ============================================================
+function detectarComparadorYValor(scoreStr) {
+  if (!scoreStr) {
+    return { comparador: '>=', valor: '' };
+  }
+  
+  // Limpiar espacios
+  const str = scoreStr.trim();
+  
+  // Patrones de comparadores
+  const patrones = [
+    { regex: /^>=\s*(.+)$/, comparador: '>=' },
+    { regex: /^<=\s*(.+)$/, comparador: '<=' },
+    { regex: /^>\s*(.+)$/, comparador: '>' },
+    { regex: /^<\s*(.+)$/, comparador: '<' },
+    { regex: /^=\s*(.+)$/, comparador: '=' },
+    { regex: /^==\s*(.+)$/, comparador: '=' }
+  ];
+  
+  // Intentar cada patrón
+  for (const patron of patrones) {
+    const match = str.match(patron.regex);
+    if (match) {
+      return {
+        comparador: patron.comparador,
+        valor: match[1].trim()
+      };
+    }
+  }
+  
+  // Si empieza con número o %, asumir >= por defecto
+  if (/^[\d%]/.test(str)) {
+    return { comparador: '>=', valor: str };
+  }
+  
+  // Por defecto
+  return { comparador: '>=', valor: str };
+}
+
+// ============================================================
+// 💰 OBTENER CONFIGURACIÓN SALARIAL
+// ============================================================
+function obtenerConfiguracionSalarial(ss, lob) {
+  const hojaConfig = ss.getSheetByName('Configuracion');
+  if (!hojaConfig) {
+    console.warn('⚠️ No se encuentra hoja Configuracion');
+    return { salario: 0, porcentaje: 0 };
+  }
+  
+  const datos = hojaConfig.getDataRange().getValues();
+  const lobNormalizado = lob.toLowerCase().trim();
+  
+  for (let i = 1; i < datos.length; i++) {
+    const lobFila = String(datos[i][2] || '').toLowerCase().trim();
+    if (lobFila === lobNormalizado) {
+      let porcentaje = parseFloat(datos[i][4]) || 0;
+      
+      const config = {
+        salario: parseFloat(datos[i][3]) || 0,
+        porcentaje: porcentaje
+      };
+      console.log('✅ Configuración salarial encontrada:', config);
+      return config;
+    }
+  }
+  
+  console.warn('⚠️ No se encontró configuración salarial para', lob);
+  return { salario: 0, porcentaje: 0 };
+}
+
+// ============================================================
+// 🧪 FUNCIÓN DE PRUEBA
+// ============================================================
+function probarConexion() {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const hojas = ss.getSheets().map(s => s.getName());
+    
+    return {
+      success: true,
+      mensaje: 'Conexión exitosa',
+      hojas: hojas,
+      timestamp: new Date().toLocaleString('es-CO')
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+// ============================================================
+// 📊 ESTADÍSTICAS DE CACHÉ
+// ============================================================
+function obtenerEstadisticasCache() {
+  const scriptCache = CacheService.getScriptCache();
+  const allKeys = Object.keys(scriptCache.getAll() || {});
+  
+  const stats = {
+    total: allKeys.length,
+    estructuras: allKeys.filter(k => k.startsWith('estructura_')).length,
+    configuraciones: allKeys.filter(k => k.startsWith('config_')).length,
+    keys: allKeys
+  };
+  
+  return stats;
+}
+
+// ============================================================
+// 🗑️ LIMPIAR TODO EL CACHÉ (SOLUCIÓN QUE SÍ FUNCIONA)
+// ============================================================
+function limpiarTodoElCache() {
+  try {
+    const scriptCache = CacheService.getScriptCache();
+    const userCache = CacheService.getUserCache();
+    
+    // Obtener todas las claves actuales
+    const scriptKeys = scriptCache.getAll();
+    const userKeys = userCache.getAll();
+    
+    // Crear array con todas las claves
+    const allScriptKeys = Object.keys(scriptKeys);
+    const allUserKeys = Object.keys(userKeys);
+    
+    // Eliminar todas las claves del script cache
+    if (allScriptKeys.length > 0) {
+      scriptCache.removeAll(allScriptKeys);
+    }
+    
+    // Eliminar todas las claves del user cache
+    if (allUserKeys.length > 0) {
+      userCache.removeAll(allUserKeys);
+    }
+    
+    console.log(`✅ Caché limpiado completamente`);
+    console.log(`   - Script cache: ${allScriptKeys.length} claves eliminadas`);
+    console.log(`   - User cache: ${allUserKeys.length} claves eliminadas`);
+    
+    return {
+      success: true,
+      mensaje: 'Caché limpiado exitosamente',
+      scriptCacheKeys: allScriptKeys.length,
+      userCacheKeys: allUserKeys.length,
+      clavesEliminadas: [...allScriptKeys, ...allUserKeys]
+    };
+    
+  } catch (error) {
+    console.error('❌ Error limpiando caché:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+// Función específica para limpiar solo el LOB problemático
+function limpiarCacheLOB(lob) {
+  try {
+    const cache = CacheService.getScriptCache();
+    const lobNormalizado = lob.toLowerCase().trim();
+    
+    const keysAEliminar = [
+      `estructura_${lobNormalizado}`,
+      `config_${lobNormalizado}`
+    ];
+    
+    cache.removeAll(keysAEliminar);
+    
+    Logger.log(`✅ Caché limpiado para LOB: ${lob}`);
+    console.log(`✅ Caché limpiado para LOB: ${lob}`);
+    
+    return {
+      success: true,
+      mensaje: `Caché eliminado para LOB: ${lob}`,
+      claves: keysAEliminar
+    };
+    
+  } catch (error) {
+    Logger.log('❌ Error:', error);
+    console.error('❌ Error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+
+// ============================================================
+// 🔍 OBTENER TODOS LOS LOBS Y LIMPIAR CACHÉ DINÁMICAMENTE
+// ============================================================
+function limpiarCacheTodosLosLOBs() {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const cache = CacheService.getScriptCache();
+    
+    // Obtener LOBs únicos de la hoja Usuario
+    const hojaUsuario = ss.getSheetByName('Usuario');
+    if (!hojaUsuario) {
+      throw new Error('No se encuentra la hoja Usuario');
+    }
+    
+    const datos = hojaUsuario.getDataRange().getValues();
+    const lobsUnicos = new Set();
+    
+    // Recopilar todos los LOBs (columna E = índice 4)
+    for (let i = 1; i < datos.length; i++) {
+      const lob = String(datos[i][4] || '').trim();
+      if (lob) {
+        lobsUnicos.add(lob.toLowerCase());
+      }
+    }
+    
+    // Generar claves a eliminar
+    const keysAEliminar = [];
+    lobsUnicos.forEach(lob => {
+      keysAEliminar.push(`estructura_${lob}`);
+      keysAEliminar.push(`config_${lob}`);
+    });
+    
+    // Eliminar del caché
+    if (keysAEliminar.length > 0) {
+      cache.removeAll(keysAEliminar);
+    }
+    
+    console.log(`✅ Caché limpiado para ${lobsUnicos.size} LOBs`);
+    console.log(`   LOBs encontrados: ${Array.from(lobsUnicos).join(', ')}`);
+    
+    return {
+      success: true,
+      mensaje: `Caché limpiado para ${lobsUnicos.size} LOBs`,
+      lobs: Array.from(lobsUnicos),
+      clavesEliminadas: keysAEliminar.length
+    };
+    
+  } catch (error) {
+    console.error('❌ Error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+// Versión MEGA limpieza - elimina TODO sin importar qué
+function limpiarCacheForzado() {
+  try {
+    const cache = CacheService.getScriptCache();
+    
+    // Genera un rango amplio de posibles claves
+    const prefijos = ['estructura_', 'config_'];
+    const sufijos = [];
+    
+    // Generar combinaciones con letras
+    for (let i = 97; i <= 122; i++) { // a-z
+      sufijos.push(String.fromCharCode(i));
+      sufijos.push(String.fromCharCode(i) + String.fromCharCode(i));
+    }
+    
+    // Agregar términos comunes
+    sufijos.push(...[
+      'om', 'ventas', 'sales', 'service', 'support', 'tech',
+      'billing', 'collections', 'retention', 'inbound', 'outbound',
+      'telemarketing', 'customer', 'care'
+    ]);
+    
+    const keysAEliminar = [];
+    prefijos.forEach(prefijo => {
+      sufijos.forEach(sufijo => {
+        keysAEliminar.push(prefijo + sufijo);
+      });
+    });
+    
+    // Eliminar en lotes de 100 (límite de removeAll)
+    for (let i = 0; i < keysAEliminar.length; i += 100) {
+      const lote = keysAEliminar.slice(i, i + 100);
+      cache.removeAll(lote);
+    }
+    
+    console.log(`🔨 Limpieza forzada: ${keysAEliminar.length} claves intentadas`);
+    
+    return {
+      success: true,
+      mensaje: 'Limpieza forzada completada',
+      clavesIntentadas: keysAEliminar.length
+    };
+    
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+function limpiarMiCache() {
+  try {
+    const userCache = CacheService.getUserCache();
+    const correo = Session.getActiveUser().getEmail().toLowerCase();
+    userCache.remove(`agente_${correo}`);
+    
+    Logger.log(`✅ Tu caché ha sido limpiado: ${correo}`);
+    console.log(`✅ Tu caché ha sido limpiado: ${correo}`);
+    
+    return { 
+      success: true, 
+      mensaje: 'Caché personal eliminado',
+      correo: correo
+    };
+  } catch (error) {
+    Logger.log('❌ Error: ' + error.message);
+    console.log('❌ Error: ' + error.message);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+// ============================================================
+// 🔄 OBTENER DATOS CON AUTO-LIMPIEZA SI HAY CAMBIOS
+// ============================================================
+function obtenerDatosAgenteParaExpertV2() {
+  try {
+    console.log('🔍 Iniciando carga de datos para agente...');
+    const startTime = new Date().getTime();
+    
+    const correo = Session.getActiveUser().getEmail();
+    console.log('📧 Correo de sesión:', correo);
+    
+    if (!correo) {
+      throw new Error('No se pudo obtener el correo de sesión');
+    }
+    
+    // Buscar agente (primero en caché)
+    let agenteEncontrado = buscarAgentePorCorreo(correo);
+    
+    if (!agenteEncontrado) {
+      throw new Error('No estás registrado en el sistema');
+    }
+    
+    console.log('✅ Agente encontrado:', agenteEncontrado.nombre, '- LOB:', agenteEncontrado.lob);
+    
+    // Obtener estructura
+    let estructura = obtenerEstructuraLOBOptimizada(agenteEncontrado.lob);
+    
+    // Si no hay estructura, limpiar caché y reintentar UNA VEZ
+    if (!estructura) {
+      console.log('⚠️ No se encontró estructura, limpiando caché...');
+      
+      // Limpiar caché del agente y de la estructura
+      const userCache = CacheService.getUserCache();
+      const scriptCache = CacheService.getScriptCache();
+      
+      userCache.remove(`agente_${correo.toLowerCase()}`);
+      scriptCache.remove(`estructura_${agenteEncontrado.lob.toLowerCase()}`);
+      scriptCache.remove(`config_${agenteEncontrado.lob.toLowerCase()}`);
+      
+      // Reintentar búsqueda desde Sheets
+      agenteEncontrado = buscarAgentePorCorreo(correo);
+      estructura = obtenerEstructuraLOBOptimizada(agenteEncontrado.lob);
+      
+      if (!estructura) {
+        throw new Error(`No hay estructura definida para tu LOB: ${agenteEncontrado.lob}`);
+      }
+    }
+    
+    // Obtener configuración
+    const configuracion = obtenerConfiguracionSalarialOptimizada(agenteEncontrado.lob);
+    
+    const endTime = new Date().getTime();
+    console.log(`⏱️ Tiempo de ejecución: ${endTime - startTime}ms`);
+    
+    return {
+      success: true,
+      agente: agenteEncontrado,
+      estructura: estructura,
+      configuracion: configuracion
+    };
+    
+  } catch (error) {
+    console.error('❌ Error:', error.message);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+function verificarMiLOBActual() {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const hojaUsuario = ss.getSheetByName('Usuario');
+    const correo = Session.getActiveUser().getEmail().toLowerCase();
+    
+    Logger.log('🔍 Verificando LOB para: ' + correo);
+    console.log('🔍 Verificando LOB para: ' + correo);
+    
+    const datos = hojaUsuario.getDataRange().getValues();
+    
+    for (let i = 1; i < datos.length; i++) {
+      const correoFila = String(datos[i][2] || '').toLowerCase().trim();
+      if (correoFila === correo) {
+        const lobActual = String(datos[i][4] || '').trim();
+        
+        // Verificar si el LOB en caché es diferente
+        const userCache = CacheService.getUserCache();
+        const cacheKey = `agente_${correo}`;
+        const cached = userCache.get(cacheKey);
+        
+        let cacheLimpiado = false;
+        
+        if (cached) {
+          const agenteCache = JSON.parse(cached);
+          const lobCache = agenteCache.lob;
+          
+          if (lobCache !== lobActual) {
+            Logger.log('⚠️ CAMBIO DETECTADO:');
+            Logger.log(`   LOB en caché: ${lobCache}`);
+            Logger.log(`   LOB actual: ${lobActual}`);
+            Logger.log('🧹 Limpiando todo el caché...');
+            
+            console.log('⚠️ CAMBIO DETECTADO - Limpiando caché...');
+            
+            // Limpiar TODO el caché
+            limpiarCacheCompleto();
+            cacheLimpiado = true;
+            
+            Logger.log('✅ Caché limpiado por cambio de LOB');
+            console.log('✅ Caché limpiado por cambio de LOB');
+          } else {
+            Logger.log('✅ LOB sin cambios - Caché válido');
+            console.log('✅ LOB sin cambios - Caché válido');
+          }
+        } else {
+          Logger.log('ℹ️ No hay caché previo');
+          console.log('ℹ️ No hay caché previo');
+        }
+        
+        const resultado = {
+          bmsId: datos[i][0],
+          nombre: datos[i][1],
+          correo: datos[i][2],
+          lob: lobActual,
+          cacheLimpiado: cacheLimpiado
+        };
+        
+        Logger.log('✅ DATOS ACTUALES EN GOOGLE SHEETS:');
+        Logger.log('   Nombre: ' + resultado.nombre);
+        Logger.log('   LOB: ' + resultado.lob);
+        Logger.log('   BMS ID: ' + resultado.bmsId);
+        
+        console.log('✅ DATOS ACTUALES EN GOOGLE SHEETS:');
+        console.log('   Nombre: ' + resultado.nombre);
+        console.log('   LOB: ' + resultado.lob);
+        
+        return resultado;
+      }
+    }
+    
+    Logger.log('❌ No se encontró el usuario en la hoja');
+    console.log('❌ No se encontró el usuario en la hoja');
+    return { error: 'No encontrado' };
+    
+  } catch (error) {
+    Logger.log('❌ Error: ' + error.message);
+    console.log('❌ Error: ' + error.message);
+    return { error: error.message };
+  }
+}
+
+
+function limpiarCacheCompleto() {
+  try {
+    Logger.log('🧹 Iniciando limpieza completa de caché...');
+    console.log('🧹 Iniciando limpieza completa de caché...');
+    
+    // 1. Limpiar caché de script (estructuras y configs)
+    const scriptCache = CacheService.getScriptCache();
+    const userCache = CacheService.getUserCache();
+    
+    // LOBs conocidos + variaciones
+    const lobsConocidos = [
+      'om', 'ventas', 'soporte', 'retention', 'telemarketing',
+      'customer_service', 'collections', 'sales', 'service',
+      'tech_support', 'billing', 'inbound', 'outbound', 'care',
+      'tech', 'customer', 'support', 'us fnl spa', 'fnl', 'spa'
+    ];
+    
+    const keysAEliminar = [];
+    
+    lobsConocidos.forEach(lob => {
+      keysAEliminar.push(`estructura_${lob}`);
+      keysAEliminar.push(`config_${lob}`);
+    });
+    
+    scriptCache.removeAll(keysAEliminar);
+    Logger.log(`✅ Script cache: ${keysAEliminar.length} claves eliminadas`);
+    console.log(`✅ Script cache: ${keysAEliminar.length} claves eliminadas`);
+    
+    // 2. Limpiar caché del agente actual
+    const correo = Session.getActiveUser().getEmail().toLowerCase();
+    userCache.remove(`agente_${correo}`);
+    Logger.log(`✅ User cache: agente eliminado (${correo})`);
+    console.log(`✅ User cache: agente eliminado (${correo})`);
+    
+    Logger.log('🎉 CACHÉ COMPLETAMENTE LIMPIADO');
+    Logger.log('⚠️ IMPORTANTE: Recarga la página de Expert para ver los cambios');
+    console.log('🎉 CACHÉ COMPLETAMENTE LIMPIADO');
+    console.log('⚠️ IMPORTANTE: Recarga la página de Expert para ver los cambios');
+    
+    // 3. Resultado
+    return {
+      success: true,
+      mensaje: 'Caché completamente limpiado',
+      scriptCache: keysAEliminar.length,
+      userCache: 1,
+      correo: correo,
+      recomendacion: 'Recarga la página para ver los cambios'
+    };
+    
+  } catch (error) {
+    Logger.log('❌ Error:', error);
+    console.error('❌ Error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
