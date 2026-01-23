@@ -1,0 +1,2391 @@
+
+// ========================================
+// 1. OBTENCIÓN DE LOBs Y DATOS (OPTIMIZADO CON CACHE)
+// ========================================
+
+function obtenerLobsPorOM(nombreOM) {
+    const cacheKey = `lobs_om_${normalizarKey(nombreOM)}`;
+    return getCached(cacheKey, () => filtrarLobsPorColumna('H_C', 6, nombreOM), 3600);
+}
+
+function obtenerLobsPorACCM(nombreACCM) {
+    const cacheKey = `lobs_accm_${normalizarKey(nombreACCM)}`;
+    return getCached(cacheKey, () => filtrarLobsPorColumna('H_C', 5, nombreACCM), 3600);
+}
+
+function obtenerLobsPorSupervisor(nombreSupervisor) {
+    const cacheKey = `lobs_sup_${normalizarKey(nombreSupervisor)}`;
+    return getCached(cacheKey, () => filtrarLobsPorColumna('H_C', 4, nombreSupervisor), 3600);
+}
+
+function obtenerLobsPorRegion(region) {
+    const cacheKey = `lobs_region_${normalizarKey(region)}`;
+    return getCached(cacheKey, function () {
+        console.log(`🔍 Obteniendo LOBs para región: ${region}`);
+        const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+        const hojaHC = ss.getSheetByName('H_C');
+        if (!hojaHC) return [];
+
+        const data = hojaHC.getDataRange().getValues();
+        const lobsSet = new Set();
+        const regionNorm = normalizarKey(region);
+
+        for (let i = 1; i < data.length; i++) {
+            const regionFila = normalizarKey(data[i][8]); // Col I
+            const lobFila = String(data[i][1] || '').trim(); // Col B
+            if (regionFila === regionNorm && lobFila) {
+                lobsSet.add(lobFila);
+            }
+        }
+
+        return Array.from(lobsSet).sort();
+    }, 3600);
+}
+
+function obtenerTodasLasLobs() {
+    return getCached('all_lobs', function () {
+        const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+        const hoja = ss.getSheetByName('H_C');
+        const data = hoja.getDataRange().getValues();
+        const lobs = new Set();
+        for (let i = 1; i < data.length; i++) {
+            const lob = String(data[i][1]).trim();
+            if (lob) lobs.add(lob);
+        }
+        return Array.from(lobs).sort();
+    }, 21600);
+}
+
+function contarAgentesPorLob(lob) {
+    const cacheKey = `count_agentes_${normalizarKey(lob)}`;
+    return getCached(cacheKey, function () {
+        const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+        const hojaHC = ss.getSheetByName('H_C');
+        const data = hojaHC.getDataRange().getValues();
+        const lobNorm = normalizarKey(lob);
+        let count = 0;
+
+        const headers = data[0].map(h => String(h).toLowerCase());
+        const colStatus = headers.findIndex(h => h.includes('status') || h.includes('estado'));
+
+        for (let i = 1; i < data.length; i++) {
+            if (normalizarKey(data[i][1]) === lobNorm) {
+                if (colStatus > -1) {
+                    const estado = String(data[i][colStatus]).toLowerCase();
+                    if (estado === 'activo' || estado === 'active' || estado === 'alta') count++;
+                } else {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }, 3600);
+}
+
+function filtrarLobsPorColumna(nombreHoja, colIndex, valorBusqueda) {
+    const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+    const hoja = ss.getSheetByName(nombreHoja);
+    const data = hoja.getDataRange().getValues();
+    const lobs = new Set();
+    const valNorm = normalizarKey(valorBusqueda);
+
+    for (let i = 1; i < data.length; i++) {
+        const valFila = normalizarKey(data[i][colIndex]);
+        if (valFila === valNorm) {
+            const lob = String(data[i][1]).trim();
+            if (lob) lobs.add(lob);
+        }
+    }
+    return Array.from(lobs).sort();
+}
+
+function normalizarKey(str) {
+    return String(str || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, '');
+}
+
+// ========================================
+// 2. OBTENCIÓN DE RESPONSABLES (CACHE + VALIDACIÓN)
+// ========================================
+
+function obtenerResponsablesPorLob(lob) {
+    try {
+        console.log(`🔍 [Optimizado] Buscando responsables para LOB: ${lob}`);
+
+        const cacheKey = `resp_lob_${normalizarKey(lob)}`;
+        const datosLOB = getCached(cacheKey, function () {
+            const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+            const hojaHC = ss.getSheetByName('H_C');
+            const dataHC = hojaHC.getDataRange().getValues();
+            const lobNorm = normalizarKey(lob);
+
+            for (let i = 1; i < dataHC.length; i++) {
+                if (normalizarKey(dataHC[i][1]) === lobNorm) {
+                    return {
+                        encontrado: true,
+                        supervisor: String(dataHC[i][4] || '').trim(),
+                        accm: String(dataHC[i][5] || '').trim(),
+                        om: String(dataHC[i][6] || '').trim()
+                    };
+                }
+            }
+            return { encontrado: false };
+        }, 3600);
+
+        if (!datosLOB.encontrado) {
+            return { supervisor: '', accm: '', om: '', error: 'LOB no encontrada en H_C' };
+        }
+
+        const usuario = obtenerDatosUsuarioActivo();
+        if (usuario.rol === 'OM') {
+            const omAsignadoNorm = normalizarKey(datosLOB.om);
+            const usuarioNombreNorm = normalizarKey(usuario.nombre);
+
+            if (omAsignadoNorm !== usuarioNombreNorm) {
+                return {
+                    supervisor: '', accm: '', om: '',
+                    error: `Esta LOB está asignada a otro OM (${datosLOB.om}).`
+                };
+            }
+        }
+        return datosLOB;
+
+    } catch (error) {
+        return { supervisor: '', accm: '', om: '', error: error.toString() };
+    }
+}
+
+// ========================================
+// 3. ORQUESTADORES DE CARGA
+// ========================================
+
+function obtenerDatosParaFormularioRegistro() {
+    try {
+        console.log('🔍 [Optimizado] Obteniendo datos iniciales...');
+        const usuario = obtenerDatosUsuarioActivo();
+        if (!usuario) return { success: false, error: 'Usuario no encontrado' };
+
+        console.log(`👤 Usuario: ${usuario.nombre}, Rol: ${usuario.rol}`);
+
+        // ⭐ OBTENER LOBs SEGÚN ROL
+        let lobs = [];
+        
+        if (usuario.rol === 'Reporting Analyst' || usuario.rol === 'Audit') {
+            lobs = obtenerTodasLasLobs();
+            console.log(`📊 Reporting/Audit - Total LOBs: ${lobs.length}`);
+        } else if (usuario.rol === 'OM') {
+            lobs = obtenerLobsPorOM(usuario.nombre);
+            console.log(`📊 OM - LOBs asignadas: ${lobs.length}`);
+            console.log(`📋 LOBs: ${lobs.join(', ')}`);
+        } else if (usuario.rol === 'ACCM') {
+            lobs = obtenerLobsPorACCM(usuario.nombre);
+            console.log(`📊 ACCM - LOBs asignadas: ${lobs.length}`);
+        } else if (usuario.rol === 'Supervisor') {
+            lobs = obtenerLobsPorSupervisor(usuario.nombre);
+            console.log(`📊 Supervisor - LOBs asignadas: ${lobs.length}`);
+        }
+
+        if (lobs.length === 0) {
+            console.log(`⚠️ No se encontraron LOBs para ${usuario.rol}`);
+        }
+
+        return {
+            success: true,
+            usuario: usuario,
+            lobs: lobs
+        };
+    } catch (error) {
+        console.log(`❌ Error: ${error.toString()}`);
+        return { success: false, error: error.toString() };
+    }
+}
+
+function obtenerSalarioPorLob(lob) {
+    const cacheKey = `salario_lob_${normalizarKey(lob)}`;
+    return getCached(cacheKey, function () {
+        const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+        const hojaConfig = ss.getSheetByName('Configuracion');
+        if (!hojaConfig) return { encontrado: false };
+
+        const data = hojaConfig.getDataRange().getValues();
+        const lobNorm = normalizarKey(lob);
+
+        for (let i = 1; i < data.length; i++) {
+            if (normalizarKey(data[i][2]) === lobNorm) {
+                return {
+                    encontrado: true,
+                    salario: data[i][3],
+                    porcentaje: data[i][4],
+                    mes: data[i][0]
+                };
+            }
+        }
+        return { encontrado: false };
+    }, 600);
+}
+
+function obtenerTodosLosKPIsDisponibles() {
+    return getCached('global_kpis_list', function () {
+        console.log('🔍 Obteniendo KPIs únicos de hojas CDM...');
+        const ssCDM = SpreadsheetApp.openById('1PtYuAb5C2kIoX8sE7dOvt1nVS-aLamZLOJQUSbTBBCw');
+        const hojas = ssCDM.getSheets();
+        const kpisUnicos = new Set();
+
+        hojas.forEach(hoja => {
+            if (hoja.getName().startsWith('CDM')) {
+                const data = hoja.getDataRange().getValues();
+                const kpiCol = 3;
+                for (let i = 1; i < data.length; i++) {
+                    const kpi = String(data[i][kpiCol] || '').trim();
+                    if (kpi) kpisUnicos.add(kpi);
+                }
+            }
+        });
+
+        const lista = Array.from(kpisUnicos).sort();
+        return {
+            keys: lista,
+            bonusStructure: lista,
+            additionalIncentives: lista,
+            decreasedKPIs: lista
+        };
+    }, 21600);
+}
+
+function obtenerMesesRegistrados(lob, usuario) {
+    Logger.log(`\n🔍 ========== OBTENIENDO MESES PARA LOB ==========`);
+    Logger.log(`📋 LOB recibida: "${lob}"`);
+    Logger.log(`   Tipo: ${typeof lob}`);
+    Logger.log(`   Longitud: ${lob ? lob.length : 0}`);
+    Logger.log(`👤 Usuario: ${usuario.nombre} (${usuario.rol})`);
+    
+    const cacheKey = `meses_reg_${normalizarKey(lob)}_${normalizarKey(usuario.nombre)}`;
+    
+    // ⭐ DESHABILITAR CACHE TEMPORALMENTE PARA DEBUG
+    // return getCached(cacheKey, function () {
+    
+    try {
+        const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+        const hojas = [ss.getSheetByName('Registro'), ss.getSheetByName('Registro_pisos')];
+        const meses = new Set();
+        const lobNorm = normalizarKey(lob);
+        const userNorm = normalizarKey(usuario.nombre);
+        
+        Logger.log(`\n🔑 Claves de búsqueda normalizadas:`);
+        Logger.log(`   LOB normalizada: "${lobNorm}"`);
+        Logger.log(`   Usuario normalizado: "${userNorm}"`);
+        Logger.log(`   Rol: ${usuario.rol}`);
+
+        hojas.forEach(hoja => {
+            if (!hoja) {
+                Logger.log(`\n⚠️ Hoja no encontrada`);
+                return;
+            }
+            
+            const nombreHoja = hoja.getName();
+            const data = hoja.getDataRange().getValues();
+            
+            Logger.log(`\n📊 ========== ESCANEANDO HOJA: ${nombreHoja} ==========`);
+            Logger.log(`   Total filas (incluyendo encabezado): ${data.length}`);
+            Logger.log(`   Filas de datos: ${data.length - 1}`);
+            
+            // Mostrar encabezados
+            Logger.log(`\n📋 Encabezados de la hoja:`);
+            data[0].forEach((header, idx) => {
+                Logger.log(`   Col ${String.fromCharCode(65 + idx)} (${idx}): "${header}"`);
+            });
+            
+            let filasProcesadas = 0;
+            let filasCoincidentesLOB = 0;
+            let filasCoincidentesPermiso = 0;
+            
+            for (let i = 1; i < data.length; i++) {
+                filasProcesadas++;
+                
+                // Obtener valores de la fila
+                const mesFila = data[i][0];           // Columna A
+                const lobFila = data[i][1];           // Columna B
+                const accmFila = data[i][2];          // Columna C
+                const omFila = data[i][3];            // Columna D
+                
+                // Normalizar
+                const lobFilaNorm = normalizarKey(lobFila);
+                const omFilaNorm = normalizarKey(omFila);
+                const accmFilaNorm = normalizarKey(accmFila);
+                
+                // ⭐ VERIFICAR COINCIDENCIA DE LOB
+                if (lobFilaNorm === lobNorm) {
+                    filasCoincidentesLOB++;
+                    
+                    Logger.log(`\n  ✅ Fila ${i+1}: LOB coincide`);
+                    Logger.log(`     Columna A (Mes): "${mesFila}" (Tipo: ${typeof mesFila}, Es Date: ${mesFila instanceof Date})`);
+                    Logger.log(`     Columna B (LOB): "${lobFila}" → Normalizada: "${lobFilaNorm}"`);
+                    Logger.log(`     Columna C (ACCM): "${accmFila}" → Normalizada: "${accmFilaNorm}"`);
+                    Logger.log(`     Columna D (OM): "${omFila}" → Normalizada: "${omFilaNorm}"`);
+                    
+                    // ⭐ VERIFICAR PERMISOS SEGÚN ROL
+                    let tienePermiso = false;
+                    let razonPermiso = '';
+                    
+                    if (usuario.rol === 'Reporting Analyst' || usuario.rol === 'Audit') {
+                        tienePermiso = true;
+                        razonPermiso = 'Rol tiene acceso total';
+                    } else if (usuario.rol === 'OM') {
+                        if (omFilaNorm === userNorm) {
+                            tienePermiso = true;
+                            razonPermiso = `OM coincide: "${omFila}" = "${usuario.nombre}"`;
+                        } else {
+                            razonPermiso = `OM NO coincide: "${omFila}" (${omFilaNorm}) ≠ "${usuario.nombre}" (${userNorm})`;
+                        }
+                    } else if (usuario.rol === 'ACCM') {
+                        if (accmFilaNorm === userNorm) {
+                            tienePermiso = true;
+                            razonPermiso = `ACCM coincide: "${accmFila}" = "${usuario.nombre}"`;
+                        } else {
+                            razonPermiso = `ACCM NO coincide: "${accmFila}" (${accmFilaNorm}) ≠ "${usuario.nombre}" (${userNorm})`;
+                        }
+                    } else if (usuario.rol === 'Supervisor') {
+                        tienePermiso = true;
+                        razonPermiso = 'Supervisor tiene acceso';
+                    }
+                    
+                    Logger.log(`     🔐 Verificación de permisos: ${tienePermiso ? '✅ PERMITIDO' : '❌ DENEGADO'}`);
+                    Logger.log(`        Razón: ${razonPermiso}`);
+                    
+                    if (tienePermiso) {
+                        filasCoincidentesPermiso++;
+                        
+                        // ⭐ FORMATEAR FECHA
+                        let mesFinal = mesFila;
+                        
+                        if (mesFila instanceof Date) {
+                            mesFinal = Utilities.formatDate(mesFila, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+                            Logger.log(`        📅 Fecha convertida: "${mesFila}" → "${mesFinal}"`);
+                        } else if (mesFila) {
+                            mesFinal = String(mesFila).trim();
+                            Logger.log(`        📅 Ya es String: "${mesFinal}"`);
+                        } else {
+                            Logger.log(`        ⚠️ Mes/Fecha VACÍO en columna A`);
+                            continue;
+                        }
+                        
+                        meses.add(mesFinal);
+                        Logger.log(`        ✅ MES AGREGADO: "${mesFinal}"`);
+                    }
+                } else if (i <= 5) {
+                    // Mostrar las primeras 5 filas que NO coinciden para debugging
+                    Logger.log(`\n  ❌ Fila ${i+1}: LOB NO coincide`);
+                    Logger.log(`     Esperado: "${lob}" (normalizado: "${lobNorm}")`);
+                    Logger.log(`     Encontrado: "${lobFila}" (normalizado: "${lobFilaNorm}")`);
+                }
+            }
+            
+            Logger.log(`\n📊 Resumen de hoja ${nombreHoja}:`);
+            Logger.log(`   Filas procesadas: ${filasProcesadas}`);
+            Logger.log(`   Filas con LOB coincidente: ${filasCoincidentesLOB}`);
+            Logger.log(`   Filas con permiso: ${filasCoincidentesPermiso}`);
+        });
+        
+        const resultado = Array.from(meses).sort();
+        
+        Logger.log(`\n🎯 ========== RESULTADO FINAL ==========`);
+        Logger.log(`✅ Total meses encontrados: ${resultado.length}`);
+        
+        if (resultado.length > 0) {
+            Logger.log(`📅 Meses encontrados:`);
+            resultado.forEach((mes, idx) => {
+                Logger.log(`   ${idx + 1}. "${mes}"`);
+            });
+        } else {
+            Logger.log(`\n⚠️ ========== NO SE ENCONTRARON MESES ==========`);
+            Logger.log(`\n🔍 POSIBLES CAUSAS:`);
+            Logger.log(`   1. La LOB "${lob}" no existe en las hojas Registro/Registro_pisos`);
+            Logger.log(`   2. El usuario "${usuario.nombre}" no tiene permisos sobre esta LOB`);
+            Logger.log(`   3. La columna A (Mes/Fecha) está vacía en todos los registros`);
+            Logger.log(`   4. Hay un problema de normalización de nombres`);
+            Logger.log(`\n💡 VERIFICAR:`);
+            Logger.log(`   - Abrir manualmente las hojas Registro y Registro_pisos`);
+            Logger.log(`   - Buscar la LOB "${lob}" en la columna B`);
+            Logger.log(`   - Verificar que la columna D (OM) tenga el valor "${usuario.nombre}"`);
+            Logger.log(`   - Verificar que la columna A tenga fechas/meses`);
+        }
+        
+        Logger.log(`=========================================\n`);
+        
+        return resultado;
+        
+    } catch (error) {
+        Logger.log(`\n❌ ========== ERROR ==========`);
+        Logger.log(`Mensaje: ${error.message}`);
+        Logger.log(`Stack: ${error.stack}`);
+        Logger.log(`================================\n`);
+        return [];
+    }
+    
+    // }, 300); // ⭐ Comentado temporalmente para debug
+}
+function obtenerLobsRegistradas() {
+    return getCached('all_lobs_registered_scan', function () {
+        const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+        const hojas = [ss.getSheetByName('Registro'), ss.getSheetByName('Registro_pisos')];
+        const lobs = new Set();
+        hojas.forEach(h => {
+            if (h) {
+                const d = h.getDataRange().getValues();
+                for (let i = 1; i < d.length; i++) if (d[i][1]) lobs.add(String(d[i][1]).trim());
+            }
+        });
+        return Array.from(lobs).sort();
+    }, 300);
+}
+
+// ========================================
+// 4. GUARDADO SEGURO (CON LOCK SERVICE)
+// ========================================
+
+function guardarRegistroMetricas(datos) {
+    const lock = LockService.getScriptLock();
+    try {
+        if (!lock.tryLock(30000)) {
+            return { success: false, error: '⚠️ Servidor ocupado. Intente nuevamente.' };
+        }
+        console.log('🔒 Guardado seguro iniciado...');
+
+        // Validaciones
+        if (!datos || !datos.mes || !datos.lob || !datos.tipoHoja) {
+            return { success: false, error: 'Faltan campos obligatorios' };
+        }
+        if (datos.bonus) {
+            let totalPct = datos.bonus.reduce((sum, kpi) => sum + (parseFloat(kpi.porcentaje) || 0), 0);
+            if (totalPct > 100) return { success: false, error: `Bonus (${totalPct}%) excede 100%` };
+        }
+
+        // Guardar config si existe
+        if (datos.salario && datos.porcentaje) {
+            guardarConfiguracion(datos.mes, datos.om, datos.lob, datos.salario, datos.porcentaje);
+        }
+
+        const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+        const hoja = ss.getSheetByName(datos.tipoHoja);
+        if (!hoja) return { success: false, error: 'Hoja no encontrada' };
+
+        // Buscar fila
+        const data = hoja.getDataRange().getValues();
+        const mesNorm = normalizarKey(datos.mes);
+        const lobNorm = normalizarKey(datos.lob);
+        let filaIndex = -1;
+
+        for (let i = 1; i < data.length; i++) {
+            if (normalizarKey(data[i][0]) === mesNorm && normalizarKey(data[i][1]) === lobNorm) {
+                filaIndex = i + 1;
+                break;
+            }
+        }
+
+        // Construir fila según tipo de hoja
+        const fila = _construirFila(datos, hoja);
+
+        if (filaIndex > 0) {
+            hoja.getRange(filaIndex, 1, 1, fila.length).setValues([fila]);
+            return { success: true, mensaje: 'Registro actualizado correctamente' };
+        } else {
+            hoja.appendRow(fila);
+            return { success: true, mensaje: 'Nuevo registro creado exitosamente' };
+        }
+
+    } catch (error) {
+        console.error('❌ Error guardando:', error);
+        return { success: false, error: error.toString() };
+    } finally {
+        lock.releaseLock();
+        console.log('🔓 Bloqueo liberado');
+    }
+}
+
+
+function _construirFila(datos, hoja) {
+    let fila = [];
+    
+    // ⭐ FUNCIÓN HELPER MEJORADA - INCLUYE PARTICIPACIÓN
+    const norm = (arr, i) => {
+        const k = (arr && arr[i]) ? arr[i] : {};
+        let sc = k.score || '';
+        
+        // Normalizar score con comparación
+        if (k.comparacion && sc) {
+            sc = k.comparacion + sc.replace('%', '');
+        }
+        
+        return { 
+            n: k.nombre || '',
+            s: sc,
+            p: (k.porcentaje || '').toString().replace('%', ''),
+            part: (k.participacion || '').toString().replace('%', '')
+        };
+    };
+
+    if (datos.tipoHoja === 'Registro') {
+        fila.push(datos.mes, datos.lob, datos.accm || '', datos.om || '');
+        fila.push('');
+        
+        for (let i = 0; i < 2; i++) { 
+            const k = norm(datos.keys, i); 
+            fila.push(k.n, k.s); 
+        }
+        
+        fila.push('');
+        
+        for (let i = 0; i < 4; i++) { 
+            const k = norm(datos.bonus, i); 
+            fila.push(k.n, k.s, k.p); 
+        }
+        
+        fila.push('');
+        
+        for (let i = 0; i < 3; i++) { 
+            const k = norm(datos.additional, i); 
+            fila.push(k.n, k.s, k.p); 
+        }
+        
+        fila.push('');
+        
+        for (let i = 0; i < 2; i++) { 
+            const k = norm(datos.decreased, i); 
+            fila.push(k.n, k.s, k.p); 
+        }
+    } 
+    else if (datos.tipoHoja === 'Registro_pisos') {
+        // Columnas A-D: Mes, LOB, ACCM, Director
+        fila.push(datos.mes, datos.lob, datos.accm || '', datos.om || '');
+        
+        // Columna E: H_c
+        const numAgentes = contarAgentesPorLob(datos.lob);
+        fila.push(numAgentes || '');
+        
+        // ⭐ Columnas F-K: 3 KEYS (cada una con Nombre + Score)
+        for (let i = 0; i < 3; i++) { 
+            const k = norm(datos.keys, i); 
+            fila.push(k.n, k.s); 
+        }
+        
+        // Columna L: "Bonus Structure"
+        fila.push('Bonus Structure');
+        
+        // ⭐ Columnas M-BT: 17 KPIs de Bonus (cada uno con 4 columnas)
+        for (let i = 0; i < 17; i++) { 
+            const k = norm(datos.bonus, i); 
+            fila.push(k.n, k.s, k.p, k.part);
+        }
+        
+        // Columna BU (81): "Additional Incentive"
+        fila.push('Additional Incentive');
+        
+        // ⭐ Columnas BV-CW: 5 KPIs Additional (cada uno con 4 columnas)
+        for (let i = 0; i < 5; i++) { 
+            const k = norm(datos.additional, i); 
+            fila.push(k.n, k.s, k.p, k.part);
+        }
+        
+        // Columna CX (102): "Decreased"
+        fila.push('Decreased');
+        
+        // ⭐ Columnas CY-DR: 5 KPIs Decreased (cada uno con 4 columnas)
+        for (let i = 0; i < 5; i++) { 
+            const k = norm(datos.decreased, i); 
+            fila.push(k.n, k.s, k.p, k.part);
+        }
+    }
+    
+    return fila;
+}
+
+function guardarConfiguracion(mes, om, lob, salarioBase, porcentajeBono) {
+    try {
+        const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+        let hojaConfig = ss.getSheetByName('Configuracion');
+        if (!hojaConfig) {
+            hojaConfig = ss.insertSheet('Configuracion');
+            hojaConfig.appendRow(['Mes', 'OM', 'LOB', 'Salario_Base', '%_Bono', 'Timestamp']);
+        }
+        const data = hojaConfig.getDataRange().getValues();
+        const mesNorm = normalizarKey(mes);
+        const lobNorm = normalizarKey(lob);
+        let filaExistente = -1;
+        for (let i = 1; i < data.length; i++) {
+            if (normalizarKey(data[i][0]) === mesNorm && normalizarKey(data[i][2]) === lobNorm) {
+                filaExistente = i + 1;
+                break;
+            }
+        }
+        const nuevaFila = [mes, om, lob, salarioBase, porcentajeBono, new Date()];
+        if (filaExistente > 0) hojaConfig.getRange(filaExistente, 1, 1, 6).setValues([nuevaFila]);
+        else hojaConfig.appendRow(nuevaFila);
+        return { success: true };
+    } catch (error) {
+        console.error(error);
+        return { success: false, error: error.toString() };
+    }
+}
+
+// ========================================
+// 5. MÓDULO DE SIMULACIÓN Y EXPORTACIÓN
+// ========================================
+
+function obtenerConfiguracionPorMesYLob(mes, lob) {
+    try {
+        const res = obtenerSalarioPorLob(lob);
+        if (res.encontrado) {
+            return {
+                success: true,
+                configuracion: { salarioBase: res.salario, porcentajeBono: res.porcentaje }
+            };
+        }
+        return { success: false, mensaje: 'No config found' };
+    } catch (e) { return { success: false, error: e.toString() }; }
+}
+
+function obtenerUltimaEstructuraParaSimulacion(lob) {
+    const usuario = obtenerDatosUsuarioActivo();
+    const meses = obtenerMesesRegistrados(lob, usuario);
+    if (!meses.length) return null;
+    const ultimoMes = meses[meses.length - 1];
+    const est = obtenerEstructuraRegistrada(lob, ultimoMes, usuario);
+    if (est.encontrado) return est;
+    return null;
+}
+
+
+
+function obtenerEstructuraRegistrada(lob, mes, usuario) {
+    try {
+        const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+        const hojas = [ss.getSheetByName('Registro'), ss.getSheetByName('Registro_pisos')];
+        const lobNorm = normalizarKey(lob);
+        const mesNorm = normalizarKey(mes);
+
+        for (const hoja of hojas) {
+            if (!hoja) continue;
+            const nombre = hoja.getName();
+            const data = hoja.getDataRange().getValues();
+            
+            for (let i = 1; i < data.length; i++) {
+                if (normalizarKey(data[i][0]) === mesNorm && normalizarKey(data[i][1]) === lobNorm) {
+                    const kpis = { keys: [], bonusStructure: [], additionalIncentives: [], decreasedKPIs: [] };
+                    const isPisos = (nombre === 'Registro_pisos');
+
+                    if (!isPisos) {
+                        // ========================================
+                        // 📋 REGISTRO ESTÁNDAR (3 columnas por KPI)
+                        // ========================================
+                        for (let c = 5; c <= 8; c += 2) {
+                            if (data[i][c]) {
+                                kpis.keys.push({ 
+                                    nombre: String(data[i][c]).trim(),
+                                    score: String(data[i][c + 1] || '').trim()
+                                });
+                            }
+                        }
+                        
+                        for (let c = 10; c <= 21; c += 3) {
+                            if (data[i][c]) {
+                                kpis.bonusStructure.push({
+                                    nombre: String(data[i][c]).trim(),
+                                    score: String(data[i][c + 1] || '').trim(),
+                                    porcentaje: String(data[i][c + 2] || '').trim()
+                                });
+                            }
+                        }
+                        
+                        for (let c = 23; c <= 31; c += 3) {
+                            if (data[i][c]) {
+                                kpis.additionalIncentives.push({
+                                    nombre: String(data[i][c]).trim(),
+                                    score: String(data[i][c + 1] || '').trim(),
+                                    porcentaje: String(data[i][c + 2] || '').trim()
+                                });
+                            }
+                        }
+                        
+                        for (let c = 33; c <= 38; c += 3) {
+                            if (data[i][c]) {
+                                kpis.decreasedKPIs.push({
+                                    nombre: String(data[i][c]).trim(),
+                                    score: String(data[i][c + 1] || '').trim(),
+                                    porcentaje: String(data[i][c + 2] || '').trim()
+                                });
+                            }
+                        }
+                        
+                    } else {
+                        // ========================================
+                        // 📋 REGISTRO_PISOS (4 columnas: Nombre + Score + % + Participación)
+                        // ========================================
+                        
+                        // Keys (F-K): 3 KPIs × 2 columnas
+                        for (let c = 5; c <= 10; c += 2) {
+                            if (data[i][c]) {
+                                kpis.keys.push({
+                                    nombre: String(data[i][c]).trim(),
+                                    score: String(data[i][c + 1] || '').trim()
+                                });
+                            }
+                        }
+                        
+                        // ⭐ Bonus Structure (M-BT): 17 KPIs × 4 columnas
+                        let bonusCount = 0;
+                        for (let c = 12; c <= 80 && bonusCount < 17; c += 4) {
+                            const nombreCol = data[i][c];
+                            
+                            if (nombreCol === 'Bonus Structure' || !nombreCol) continue;
+                            
+                            kpis.bonusStructure.push({
+                                nombre: String(nombreCol).trim(),
+                                score: String(data[i][c + 1] || '').trim(),
+                                porcentaje: String(data[i][c + 2] || '').trim(),
+                                participacion: String(data[i][c + 3] || '').trim() // ⭐ PARTICIPACIÓN
+                            });
+                            bonusCount++;
+                        }
+                        
+                        // ⭐ Additional (BV-CW): 5 KPIs × 4 columnas
+                        let additionalCount = 0;
+                        for (let c = 73; c <= 93 && additionalCount < 5; c += 4) {
+                            const nombreCol = data[i][c];
+                            
+                            if (nombreCol === 'Additional Incentive' || !nombreCol) continue;
+                            
+                            kpis.additionalIncentives.push({
+                                nombre: String(nombreCol).trim(),
+                                score: String(data[i][c + 1] || '').trim(),
+                                porcentaje: String(data[i][c + 2] || '').trim(),
+                                participacion: String(data[i][c + 3] || '').trim() // ⭐ PARTICIPACIÓN
+                            });
+                            additionalCount++;
+                        }
+                        
+                        // ⭐ Decreased (CY-DR): 5 KPIs × 4 columnas
+                        let decreasedCount = 0;
+                        for (let c = 102; c <= 122 && decreasedCount < 5; c += 4) {
+                            const nombreCol = data[i][c];
+                            
+                            if (nombreCol === 'Decreased' || !nombreCol) continue;
+                            
+                            kpis.decreasedKPIs.push({
+                                nombre: String(nombreCol).trim(),
+                                score: String(data[i][c + 1] || '').trim(),
+                                porcentaje: String(data[i][c + 2] || '').trim(),
+                                participacion: String(data[i][c + 3] || '').trim() // ⭐ PARTICIPACIÓN
+                            });
+                            decreasedCount++;
+                        }
+                    }
+
+                    const configSalario = obtenerSalarioPorLob(lob);
+                    
+                    let fechaFormateada = data[i][0];
+                    if (fechaFormateada instanceof Date) {
+                        fechaFormateada = Utilities.formatDate(fechaFormateada, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+                    } else {
+                        fechaFormateada = String(fechaFormateada).trim();
+                    }
+                    
+                    return {
+                        encontrado: true,
+                        tipoHoja: nombre,
+                        kpis: kpis,
+                        salario: configSalario.encontrado ? configSalario.salario : 0,
+                        porcentaje: configSalario.encontrado ? configSalario.porcentaje : 0,
+                        hc: data[i][4],
+                        lob: String(data[i][1]).trim(),
+                        mes: String(data[i][0]).trim(),
+                        fecha: fechaFormateada,
+                        accm: String(data[i][2]).trim(),
+                        om: String(data[i][3]).trim()
+                    };
+                }
+            }
+        }
+        return { encontrado: false };
+    } catch (e) { 
+        return { encontrado: false, error: e.toString() }; 
+    }
+}
+function simularTodasLasLOBsDelUsuario() {
+    try {
+        console.log('🚀 Iniciando simulación de todas las LOBs...');
+        const usuario = obtenerDatosUsuarioActivo();
+        if (!usuario) return { success: false, error: 'Usuario no encontrado' };
+
+        const lobsRegistradas = obtenerLobsRegistradas();
+        if (lobsRegistradas.length === 0) return { success: false, error: 'No se encontraron LOBs registradas' };
+
+        const lobsSimuladas = [];
+        let totalGeneral = 0;
+        let totalAgentesGeneral = 0;
+        let totalBonoMaximo = 0;
+
+        lobsRegistradas.forEach(lob => {
+            const meses = obtenerMesesRegistrados(lob, usuario);
+            if (meses.length === 0) return;
+            const mesReciente = meses[meses.length - 1];
+            const estructura = obtenerEstructuraRegistrada(lob, mesReciente, usuario);
+
+            if (!estructura.encontrado) return;
+
+            const resConfig = obtenerSalarioPorLob(lob);
+            const salario = parseFloat(resConfig.salario) || 0;
+            const porcentaje = parseFloat(resConfig.porcentaje) || 0;
+            const hc = parseInt(estructura.hc) || contarAgentesPorLob(lob);
+
+            if (salario === 0 || porcentaje === 0) return;
+
+            const bonoMaximo = (salario * porcentaje) / 100;
+            let totalBonus = 0;
+            let totalAdditional = 0;
+
+            if (estructura.kpis.bonusStructure) {
+                estructura.kpis.bonusStructure.forEach(kpi => {
+                    const pct = parseFloat(kpi.porcentaje) || 0;
+                    totalBonus += (bonoMaximo * pct) / 100;
+                });
+            }
+            if (estructura.kpis.additionalIncentives) {
+                estructura.kpis.additionalIncentives.forEach(kpi => {
+                    const pct = parseFloat(kpi.porcentaje) || 0;
+                    totalAdditional += (bonoMaximo * pct) / 100;
+                });
+            }
+
+            const totalPorAgente = totalBonus + totalAdditional;
+            const totalLOB = totalPorAgente * hc;
+
+            lobsSimuladas.push({
+                lob: lob,
+                mes: mesReciente,
+                hc: hc,
+                bonoPorAgente: totalPorAgente,
+                totalBonus: totalBonus * hc,
+                totalAdditional: totalAdditional * hc,
+                totalLOB: totalLOB
+            });
+
+            totalGeneral += totalLOB;
+            totalAgentesGeneral += hc;
+            totalBonoMaximo += (bonoMaximo * hc);
+        });
+
+        return {
+            success: true,
+            lobsSimuladas: lobsSimuladas,
+            totalGeneral: totalGeneral,
+            resumen: {
+                totalAgentes: totalAgentesGeneral,
+                bonoMaximoTotal: totalBonoMaximo,
+                totalBonus: lobsSimuladas.reduce((sum, l) => sum + l.totalBonus, 0),
+                totalAdditional: lobsSimuladas.reduce((sum, l) => sum + l.totalAdditional, 0)
+            },
+            usuario: { nombre: usuario.nombre, rol: usuario.rol }
+        };
+    } catch (error) { return { success: false, error: error.toString() }; }
+}
+
+function simularTodasLOBsPorOM(nombreOM) {
+    try {
+        Logger.log(`\n🚀 ========== SIMULACIÓN MASIVA PARA OM: ${nombreOM} ==========`);
+        
+        const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+        const normalizar = s => s ? s.toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() : "";
+        const omNorm = normalizar(nombreOM);
+        
+        // ========================================
+        // ⭐ PASO 1: OBTENER LOBs DESDE CONFIGURACION (del OM)
+        // ========================================
+        const hojaConfig = ss.getSheetByName('Configuracion');
+        
+        if (!hojaConfig) {
+            Logger.log('❌ No existe la hoja Configuracion');
+            return { success: false, error: 'Hoja Configuracion no encontrada' };
+        }
+        
+        const dataConfig = hojaConfig.getDataRange().getValues();
+        const lobsDelOM = [];
+        const configPorLOB = {};
+        
+        Logger.log('\n📊 PASO 1: Buscando LOBs en Configuracion...');
+        
+        for (let i = 1; i < dataConfig.length; i++) {
+            const omFila = String(dataConfig[i][1] || '').trim();     // Columna B = OM
+            const lobFila = String(dataConfig[i][2] || '').trim();    // Columna C = LOB
+            const salario = parseFloat(dataConfig[i][3]) || 0;        // Columna D = Salario
+            const porcentaje = parseFloat(dataConfig[i][4]) || 0;     // Columna E = %
+            const mes = String(dataConfig[i][0] || '').trim();        // Columna A = Mes
+            
+            if (normalizar(omFila) === omNorm && lobFila && salario > 0 && porcentaje > 0) {
+                if (!lobsDelOM.includes(lobFila)) {
+                    lobsDelOM.push(lobFila);
+                    Logger.log(`  ✅ LOB encontrada: ${lobFila}`);
+                }
+                configPorLOB[lobFila] = { salario, porcentaje, mes };
+            }
+        }
+        
+        if (lobsDelOM.length === 0) {
+            Logger.log('❌ No se encontraron LOBs en Configuracion para el OM');
+            return { success: false, error: `No se encontraron LOBs para el OM "${nombreOM}" en Configuracion` };
+        }
+        
+        Logger.log(`📋 Total LOBs en Configuracion: ${lobsDelOM.length}`);
+        Logger.log(`📋 LOBs: ${lobsDelOM.join(', ')}`);
+        
+        const usuario = obtenerDatosUsuarioActivo();
+        const resultadosMap = new Map();
+        let totalAgentesGeneral = 0;
+        let totalBonoMaximo = 0;
+        
+        // ========================================
+        // ⭐ PASO 2: PROCESAR CADA LOB (buscar en Registro/Registro_pisos)
+        // ========================================
+        Logger.log('\n📊 PASO 2: Procesando cada LOB...');
+        
+        for (const lob of lobsDelOM) {
+            Logger.log(`\n🔍 Procesando: ${lob}`);
+            
+            // ✅ Buscar en Registro/Registro_pisos
+            const meses = obtenerMesesRegistrados(lob, usuario);
+            
+            if (!meses.length) {
+                Logger.log(`  ⚠️ LOB "${lob}" no tiene registros en Registro/Registro_pisos, se omite`);
+                continue; // ✅ Saltar esta LOB
+            }
+            
+            const mesReciente = meses[meses.length - 1];
+            Logger.log(`  📅 Mes más reciente: ${mesReciente}`);
+            
+            // ✅ Obtener estructura (incluye la FECHA de columna A)
+            const estructura = obtenerEstructuraRegistrada(lob, mesReciente, usuario);
+            
+            if (!estructura.encontrado) {
+                Logger.log(`  ⚠️ No se encontró estructura para ${lob}`);
+                continue;
+            }
+            
+            Logger.log(`  📅 Fecha encontrada: ${estructura.fecha}`);
+            
+            // Usar configuración
+            const config = configPorLOB[lob];
+            const salario = config.salario;
+            const porcentaje = config.porcentaje;
+            const hc = contarAgentesPorLob(lob) || 0;
+            
+            Logger.log(`  💰 Salario: $${salario.toLocaleString()}`);
+            Logger.log(`  📊 % Bono: ${porcentaje}%`);
+            Logger.log(`  👥 HC: ${hc}`);
+            
+            if (hc === 0) {
+                Logger.log(`  ⚠️ HC = 0, se omite`);
+                continue;
+            }
+            
+            const bonoMaximo = (salario * porcentaje) / 100;
+            
+            let totalBonus = 0;
+            let totalAdditional = 0;
+            const kpisBonus = [];
+            const kpisAdditional = [];
+            
+            // Calcular Bonus
+            if (estructura.kpis.bonusStructure) {
+                estructura.kpis.bonusStructure.forEach(k => {
+                    const pctRaw = parseFloat(k.porcentaje) || 0;
+                    const pct = pctRaw > 1 ? pctRaw / 100 : pctRaw;
+                    const monto = bonoMaximo * pct;
+                    totalBonus += monto;
+                    kpisBonus.push({
+                        nombre: k.nombre,
+                        score: k.score,
+                        porcentaje: pct * 100,
+                        montoPorAgente: monto
+                    });
+                });
+            }
+            
+            // Calcular Additional
+            if (estructura.kpis.additionalIncentives) {
+                estructura.kpis.additionalIncentives.forEach(k => {
+                    const pctRaw = parseFloat(k.porcentaje) || 0;
+                    const pct = pctRaw > 1 ? pctRaw / 100 : pctRaw;
+                    const monto = bonoMaximo * pct;
+                    totalAdditional += monto;
+                    kpisAdditional.push({
+                        nombre: k.nombre,
+                        score: k.score,
+                        porcentaje: pct * 100,
+                        montoPorAgente: monto
+                    });
+                });
+            }
+            
+            const totalPorAgente = totalBonus + totalAdditional;
+            const totalLOB = totalPorAgente * hc;
+            const eficiencia = bonoMaximo > 0 ? ((totalPorAgente / bonoMaximo) * 100) : 0;
+            
+            Logger.log(`  💰 Total LOB: $${totalLOB.toLocaleString()}`);
+            
+            // ✅ Guardar con FECHA
+            resultadosMap.set(lob, {
+                lob: lob,
+                mes: mesReciente,
+                fecha: estructura.fecha || mesReciente, // ✅ FECHA DE REGISTRO/REGISTRO_PISOS
+                hc: hc,
+                salarioBase: salario,
+                porcentajeBono: porcentaje,
+                bonoMaximoPorAgente: bonoMaximo,
+                bonoPorAgente: totalPorAgente,
+                totalBonus: totalBonus * hc,
+                totalAdditional: totalAdditional * hc,
+                totalLOB: totalLOB,
+                eficiencia: eficiencia.toFixed(1) + '%',
+                kpisBonus: kpisBonus,
+                kpisAdditional: kpisAdditional,
+                kpisKeys: estructura.kpis.keys || [],
+                kpisDecreased: estructura.kpis.decreasedKPIs || []
+            });
+            
+            totalAgentesGeneral += hc;
+            totalBonoMaximo += (bonoMaximo * hc);
+        }
+        
+        const resultados = Array.from(resultadosMap.values());
+        const totalGeneral = resultados.reduce((sum, lob) => sum + lob.totalLOB, 0);
+        
+        // ✅ LOGS FINALES
+        Logger.log(`\n🎯 ========== RESULTADO FINAL SIMULACIÓN ==========`);
+        Logger.log(`📊 OM: ${nombreOM}`);
+        Logger.log(`📊 LOBs en Configuracion: ${lobsDelOM.length}`);
+        Logger.log(`📊 LOBs procesadas (con registros): ${resultados.length}`);
+        Logger.log(`👥 Total Agentes: ${totalAgentesGeneral}`);
+        Logger.log(`💰 Inversión Total: $${totalGeneral.toLocaleString()}`);
+        
+        Logger.log(`\n📅 FECHAS DE CADA LOB:`);
+        resultados.forEach((r, idx) => {
+            Logger.log(`\n  ${idx + 1}. LOB: ${r.lob}`);
+            Logger.log(`     📅 Fecha: "${r.fecha}" (Tipo: ${typeof r.fecha})`);
+            Logger.log(`     📋 Mes: "${r.mes}"`);
+            Logger.log(`     💰 Total: $${r.totalLOB.toLocaleString()}`);
+        });
+        
+        Logger.log(`\n==================================================\n`);
+        
+        return {
+            success: true,
+            om: nombreOM,
+            totalLOBs: lobsDelOM.length,
+            lobsProcesadas: resultados.length,
+            resultados: resultados.sort((a, b) => b.totalLOB - a.totalLOB),
+            resumen: {
+                totalAgentes: totalAgentesGeneral,
+                inversionTotal: totalGeneral,
+                bonoMaximoTotal: totalBonoMaximo,
+                promedioPorAgente: totalAgentesGeneral > 0 ? totalGeneral / totalAgentesGeneral : 0
+            },
+            fechaSimulacion: new Date().toISOString()
+        };
+        
+    } catch (error) {
+        Logger.log(`❌ Error: ${error.message}`);
+        return { success: false, error: error.toString() };
+    }
+}
+
+function simularTodasLOBsPorOMConPVE(nombreOM, pveTotal, porcPVE) {
+    const sim = simularTodasLOBsPorOM(nombreOM); // ⭐ Usa la nueva función
+    if (!sim.success) return sim;
+    
+    const presupuesto = (pveTotal * porcPVE) / 100;
+
+    sim.resultados = sim.resultados.map(r => ({
+        ...r,
+        pctDelPVE: presupuesto > 0 ? parseFloat((r.totalLOB / presupuesto * 100).toFixed(2)) : 0
+    }));
+
+    const totalInv = sim.resumen.inversionTotal;
+    const pctUsado = presupuesto > 0 ? (totalInv / presupuesto * 100) : 0;
+
+    sim.pveConfig = { pveTotal, porcPVE, presupuestoDisponible: presupuesto };
+    sim.estadoPresupuesto = {
+        texto: pctUsado > 100 ? '❌ EXCEDE' : '✅ DENTRO',
+        color: pctUsado > 100 ? '#e74c3c' : '#27ae60',
+        pctUsado: parseFloat(pctUsado.toFixed(1)),
+        inversionTotal: totalInv,
+        diferencia: presupuesto - totalInv
+    };
+    return sim;
+}
+
+function simularTodasLOBsPorRegion(region) {
+    try {
+        const lobsDeRegion = obtenerLobsPorRegion(region);
+        if (!lobsDeRegion.length) return { success: false, error: 'Sin LOBs en región' };
+
+        // El resto lógica es idéntica a porOM pero iterando lobsDeRegion
+        // Replicando lógica simplificada
+        const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+        const usuario = obtenerDatosUsuarioActivo();
+        const resultadosMap = new Map();
+        let totalAgentes = 0;
+        let totalInv = 0;
+
+        for (const lob of lobsDeRegion) {
+            const meses = obtenerMesesRegistrados(lob, usuario);
+            if (!meses.length) continue;
+            const mes = meses[meses.length - 1];
+            const est = obtenerEstructuraRegistrada(lob, mes, usuario);
+            if (!est.encontrado) continue;
+
+            const conf = obtenerSalarioPorLob(lob);
+            const sal = parseFloat(conf.salario) || 0;
+            const por = parseFloat(conf.porcentaje) || 0;
+            const hc = contarAgentesPorLob(lob);
+
+            if (!sal || !por || !hc) continue;
+
+            const maxBono = (sal * por) / 100;
+            let totalBonus = 0;
+            let totalAdditional = 0;
+
+            if (est.kpis.bonusStructure) est.kpis.bonusStructure.forEach(k => totalBonus += (maxBono * (parseFloat(k.porcentaje) || 0)) / 100);
+            if (est.kpis.additionalIncentives) est.kpis.additionalIncentives.forEach(k => totalAdditional += (maxBono * (parseFloat(k.porcentaje) || 0)) / 100);
+
+            const totBono = totalBonus + totalAdditional;
+            const totLOB = totBono * hc;
+
+            resultadosMap.set(lob, {
+                lob, mes, hc, salarioBase: sal, porcentajeBono: por,
+                totalLOB: totLOB,
+                totalBonus: totalBonus * hc, // 🔥 FIX: Agregado
+                totalAdditional: totalAdditional * hc, // 🔥 FIX: Agregado
+                bonoPorAgente: totBono,
+                eficiencia: (maxBono > 0 ? (totBono / maxBono * 100) : 0).toFixed(2)
+            });
+            totalAgentes += hc;
+            totalInv += totLOB;
+        }
+
+        const resultados = Array.from(resultadosMap.values());
+        return {
+            success: true,
+            region,
+            resultados: resultados.sort((a, b) => b.totalLOB - a.totalLOB),
+            lobsProcesadas: resultados.length, // 🔥 FIX: Agregado para que no salga undefined
+            resumen: { totalAgentes, inversionTotal: totalInv }
+        };
+    } catch (e) { return { success: false, error: e.toString() }; }
+}
+
+function obtenerLobsRegistradasPorRegion(region) {
+    // 1. Obtener todas las LOBs de la región (H_C)
+    const lobsRegion = obtenerLobsPorRegion(region);
+
+    // 2. Obtener todas las LOBs registradas (Registro + Pisos)
+    const lobsRegistradas = obtenerLobsRegistradas(); // Usamos la func existente que ya tiene cache
+
+    // 3. Intersección: Solo devolver las que están en AMBAS listas
+    return lobsRegion.filter(lob => lobsRegistradas.includes(lob));
+}
+
+function simularTodasLOBsPorRegionConPVE(region, pve, porc) {
+    const sim = simularTodasLOBsPorRegion(region);
+    if (!sim.success) return sim;
+    const prep = (pve * porc) / 100;
+
+    sim.resultados = sim.resultados.map(r => ({
+        ...r,
+        pctDelPVE: prep > 0 ? parseFloat((r.totalLOB / prep * 100).toFixed(2)) : 0
+    }));
+
+    const inv = sim.resumen.inversionTotal;
+    const pct = prep > 0 ? (inv / prep * 100) : 0;
+
+    sim.pveConfig = { pveTotal: pve, porcPVE: porc, presupuestoDisponible: prep }; // 🔥 FIX: Agregado
+    sim.estadoPresupuesto = {
+        texto: pct > 100 ? '❌ EXCEDE' : '✅ DENTRO',
+        color: pct > 100 ? '#e74c3c' : '#27ae60', // 🔥 FIX: Agregado color
+        pctUsado: parseFloat(pct.toFixed(2)),
+        inversionTotal: inv,
+        diferencia: prep - inv
+    };
+    return sim;
+}
+
+function exportarSimulacionAExcel(datos) {
+    try {
+        const ss = SpreadsheetApp.getActiveSpreadsheet();
+        const nombreHoja = 'Exportacion_Simulacion_' + new Date().toISOString().slice(0, 10);
+        let hoja = ss.getSheetByName(nombreHoja);
+        if (!hoja) hoja = ss.insertSheet(nombreHoja);
+        else hoja.clear();
+
+        if (datos.encabezados && datos.encabezados.length > 0) {
+            hoja.getRange(1, 1, 1, datos.encabezados.length).setValues([datos.encabezados])
+                .setBackground('#667eea').setFontColor('white').setFontWeight('bold');
+        }
+        if (datos.filas && datos.filas.length > 0) {
+            hoja.getRange(2, 1, datos.filas.length, datos.filas[0].length).setValues(datos.filas);
+        }
+        hoja.autoResizeColumns(1, datos.encabezados ? datos.encabezados.length : 10);
+        return ss.getUrl() + '#gid=' + hoja.getSheetId();
+    } catch (error) { return null; }
+}
+
+function enviarReporteSimulacionPorCorreo(datos) {
+    try {
+        const { destinatarios, asunto, mensaje, simulacion } = datos;
+        if (!destinatarios || !destinatarios.length) return { success: false };
+
+        // Helpers de formato para el email
+        const fmt = (v) => '$' + (v || 0).toLocaleString('es-CO', { minimumFractionDigits: 0 });
+        const pct = (v) => (v || 0).toFixed(2) + '%';
+        const colorPVE = simulacion.estadoPresupuesto?.color || '#333';
+
+        // 1. Header y PVE
+        let htmlBody = `
+        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 900px; margin: 0 auto; background: #f4f6f9; padding: 20px;">
+            <div style="background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <h1 style="color: #2c3e50; text-align: center; margin-bottom: 5px;">📊 Reporte de Simulación de Bonos</h1>
+                <p style="text-align: center; color: #7f8c8d; margin-bottom: 25px;">${new Date().toLocaleDateString()} - Generado automáticamente</p>
+                
+                <div style="background: #f8f9fa; border-left: 5px solid #3498db; padding: 15px; margin-bottom: 25px; border-radius: 4px;">
+                    <p style="margin: 0; color: #34495e;">${mensaje || 'Adjunto encontrará el detalle de la simulación realizada.'}</p>
+                </div>`;
+
+        // PVE Section
+        if (simulacion.pveConfig && simulacion.estadoPresupuesto) {
+            htmlBody += `
+            <div style="background: ${simulacion.estadoPresupuesto.color}15; border: 2px solid ${simulacion.estadoPresupuesto.color}; 
+                        padding: 15px; border-radius: 8px; margin-bottom: 25px; text-align: center;">
+                <h2 style="color: ${simulacion.estadoPresupuesto.color}; margin: 0 0 15px 0;">
+                    ${simulacion.estadoPresupuesto.texto} PRESUPUESTO
+                </h2>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 10px; text-align: center;">
+                            <div style="font-size: 12px; color: #666;">PRESUPUESTO PVE</div>
+                            <div style="font-size: 18px; font-weight: bold; color: #2c3e50;">${fmt(simulacion.pveConfig.presupuestoDisponible)}</div>
+                        </td>
+                        <td style="padding: 10px; text-align: center;">
+                            <div style="font-size: 12px; color: #666;">INVERSIÓN TOTAL</div>
+                            <div style="font-size: 18px; font-weight: bold; color: #2c3e50;">${fmt(simulacion.resumen.inversionTotal)}</div>
+                        </td>
+                        <td style="padding: 10px; text-align: center;">
+                            <div style="font-size: 12px; color: #666;">% USADO</div>
+                            <div style="font-size: 18px; font-weight: bold; color: ${simulacion.estadoPresupuesto.color};">
+                                ${simulacion.estadoPresupuesto.pctUsado}%
+                            </div>
+                        </td>
+                        <td style="padding: 10px; text-align: center;">
+                            <div style="font-size: 12px; color: #666;">DISPONIBLE</div>
+                            <div style="font-size: 18px; font-weight: bold; color: ${simulacion.estadoPresupuesto.diferencia >= 0 ? '#27ae60' : '#e74c3c'};">
+                                ${fmt(simulacion.estadoPresupuesto.diferencia)}
+                            </div>
+                        </td>
+                    </tr>
+                </table>
+            </div>`;
+        }
+
+        // 2. Resumen Cards
+        htmlBody += `
+            <table style="width: 100%; margin-bottom: 25px; border-spacing: 10px 0;">
+                <tr>
+                    <td style="background: #3498db; color: white; padding: 15px; border-radius: 8px; text-align: center; width: 33%;">
+                        <div style="font-size: 14px; opacity: 0.9;">LOBs Simuladas</div>
+                        <div style="font-size: 24px; font-weight: bold;">${simulacion.lobsProcesadas}</div>
+                    </td>
+                    <td style="background: #2ecc71; color: white; padding: 15px; border-radius: 8px; text-align: center; width: 33%;">
+                        <div style="font-size: 14px; opacity: 0.9;">Total Agentes</div>
+                        <div style="font-size: 24px; font-weight: bold;">${simulacion.resumen.totalAgentes}</div>
+                    </td>
+                    <td style="background: #9b59b6; color: white; padding: 15px; border-radius: 8px; text-align: center; width: 33%;">
+                        <div style="font-size: 14px; opacity: 0.9;">Inversión Total</div>
+                        <div style="font-size: 24px; font-weight: bold;">${fmt(simulacion.resumen.inversionTotal)}</div>
+                    </td>
+                </tr>
+            </table>`;
+
+        // 3. Tabla Detallada
+        htmlBody += `
+            <h3 style="color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px;">📋 Detalle por LOB</h3>
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 25px;">
+                    <thead style="background: #f8f9fa;">
+                        <tr>
+                            <th style="padding: 10px; text-align: left; border-bottom: 2px solid #ddd;">LOB</th>
+                            <th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">HC</th>
+                            <th style="padding: 10px; text-align: right; border-bottom: 2px solid #ddd;">Salario</th>
+                            <th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">% Bono</th>
+                            <th style="padding: 10px; text-align: right; border-bottom: 2px solid #ddd;">T. Bonus</th>
+                            <th style="padding: 10px; text-align: right; border-bottom: 2px solid #ddd;">T. Add</th>
+                            <th style="padding: 10px; text-align: right; border-bottom: 2px solid #ddd;">Total</th>
+                            <th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">Efic.</th>
+                            ${simulacion.pveConfig ? '<th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">% PVE</th>' : ''}
+                        </tr>
+                    </thead>
+                    <tbody>`;
+
+        simulacion.resultados.forEach(r => {
+            const pveColor = (r.pctDelPVE || 0) > 10 ? '#e74c3c' : '#27ae60';
+            htmlBody += `
+                <tr style="border-bottom: 1px solid #eee;">
+                    <td style="padding: 8px;">${r.lob}</td>
+                    <td style="padding: 8px; text-align: center;">${r.hc}</td>
+                    <td style="padding: 8px; text-align: right;">${fmt(r.salarioBase)}</td>
+                    <td style="padding: 8px; text-align: center;">${r.porcentajeBono}%</td>
+                    <td style="padding: 8px; text-align: right; color: #666;">${fmt(r.totalBonus)}</td>
+                    <td style="padding: 8px; text-align: right; color: #666;">${fmt(r.totalAdditional)}</td>
+                    <td style="padding: 8px; text-align: right; font-weight: bold;">${fmt(r.totalLOB)}</td>
+                    <td style="padding: 8px; text-align: center;">${r.eficiencia}%</td>
+                    ${simulacion.pveConfig ? `<td style="padding: 8px; text-align: center; font-weight: bold; color: ${pveColor};">${r.pctDelPVE}%</td>` : ''}
+                </tr>`;
+        });
+        htmlBody += `</tbody></table></div>`;
+
+        // 4. Análisis y Top 5
+        const top5 = simulacion.resultados.slice(0, 5); // Ya vienen ordenados
+        htmlBody += `
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 25px;">
+                <h3 style="color: #e74c3c; margin-top: 0;">🏆 Top 5 LOBs más Costosas</h3>
+                <table style="width: 100%;">`;
+        top5.forEach((r, i) => {
+            htmlBody += `
+                <tr>
+                    <td style="padding: 5px 0; border-bottom: 1px dashed #ddd;">${i + 1}. ${r.lob}</td>
+                    <td style="padding: 5px 0; border-bottom: 1px dashed #ddd; text-align: right; font-weight: bold; color: #c0392b;">${fmt(r.totalLOB)}</td>
+                </tr>`;
+        });
+        htmlBody += `</table></div>`;
+
+        // 5. Comparador Escenarios
+        const actual = simulacion.resumen.inversionTotal;
+        const cons = actual * 0.85;
+        const agr = actual * 1.20;
+
+        htmlBody += `
+            <h3 style="color: #2c3e50; text-align: center; margin-bottom: 15px;">🔄 Proyección de Escenarios</h3>
+            <table style="width: 100%; text-align: center; border-spacing: 10px 0;">
+                <tr>
+                    <td style="border: 1px solid #3498db; padding: 10px; border-radius: 8px; width: 33%;">
+                        <div style="color: #3498db; font-size: 12px; font-weight: bold;">CONSERVADOR (-15%)</div>
+                        <div style="font-size: 16px; font-weight: bold;">${fmt(cons)}</div>
+                    </td>
+                    <td style="border: 1px solid #2ecc71; padding: 10px; border-radius: 8px; width: 33%; background: #ebfbf0;">
+                        <div style="color: #2ecc71; font-size: 12px; font-weight: bold;">ACTUAL</div>
+                        <div style="font-size: 16px; font-weight: bold;">${fmt(actual)}</div>
+                    </td>
+                    <td style="border: 1px solid #e74c3c; padding: 10px; border-radius: 8px; width: 33%;">
+                        <div style="color: #e74c3c; font-size: 12px; font-weight: bold;">AGRESIVO (+20%)</div>
+                        <div style="font-size: 16px; font-weight: bold;">${fmt(agr)}</div>
+                    </td>
+                </tr>
+            </table>
+
+            <div style="text-align: center; margin-top: 30px; font-size: 12px; color: #95a5a6;">
+                <p>Este reporte es confidencial. Por favor no lo distribuya sin autorización.</p>
+            </div>
+            
+            </div>
+        </div>`;
+
+        destinatarios.forEach(email => MailApp.sendEmail({ to: email, subject: asunto, htmlBody: htmlBody }));
+        return { success: true, enviados: destinatarios.length };
+    } catch (error) { return { success: false, error: error.toString() }; }
+}
+
+/**
+ * Obtiene las LOBs registradas según el rol del usuario
+ */
+/**
+ * Obtiene las LOBs registradas según el rol del usuario
+ * Busca en Registro y Registro_pisos
+ */
+/**
+ * Obtiene las LOBs donde el OM está asignado en Registro/Registro_pisos
+ * Busca en columna D (OM)
+ */
+function obtenerLobsRegistradasPorUsuario() {
+    try {
+        const usuario = obtenerDatosUsuarioActivo();
+        if (!usuario) {
+            Logger.log('❌ Usuario no encontrado');
+            return [];
+        }
+        
+        Logger.log(`\n🔍 ========== OBTENIENDO LOBs REGISTRADAS ==========`);
+        Logger.log(`👤 Usuario: ${usuario.nombre}`);
+        Logger.log(`📋 Rol: ${usuario.rol}`);
+        
+        const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+        const hojas = [
+            ss.getSheetByName('Registro'),
+            ss.getSheetByName('Registro_pisos')
+        ];
+        
+        const lobsSet = new Set();
+        const normalizar = s => s ? s.toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() : "";
+        const usuarioNorm = normalizar(usuario.nombre);
+        
+        // ⭐ BUSCAR SEGÚN ROL
+        hojas.forEach(hoja => {
+            if (!hoja) return;
+            
+            const data = hoja.getDataRange().getValues();
+            Logger.log(`\n📊 Buscando en ${hoja.getName()}: ${data.length - 1} registros`);
+            
+            for (let i = 1; i < data.length; i++) {
+                const lobFila = String(data[i][1] || '').trim();   // Columna B - LOB
+                const accmFila = String(data[i][2] || '').trim();  // Columna C - ACCM
+                const omFila = String(data[i][3] || '').trim();    // Columna D - OM
+                
+                if (!lobFila) continue;
+                
+                let incluir = false;
+                
+                // ⭐ FILTRAR SEGÚN ROL
+                if (usuario.rol === 'Reporting Analyst' || usuario.rol === 'Audit') {
+                    incluir = true;
+                    
+                } else if (usuario.rol === 'OM') {
+                    // ⭐ COMPARACIÓN EXACTA NORMALIZADA
+                    const omFilaNorm = normalizar(omFila);
+                    
+                    if (omFilaNorm === usuarioNorm) {
+                        incluir = true;
+                        Logger.log(`✅ Fila ${i+1}: LOB="${lobFila}", OM="${omFila}" (Match: ${usuario.nombre})`);
+                    } else {
+                        Logger.log(`❌ Fila ${i+1}: LOB="${lobFila}", OM="${omFila}" (No match con ${usuario.nombre})`);
+                    }
+                    
+                } else if (usuario.rol === 'ACCM') {
+                    const accmFilaNorm = normalizar(accmFila);
+                    
+                    if (accmFilaNorm === usuarioNorm) {
+                        incluir = true;
+                        Logger.log(`✅ Fila ${i+1}: LOB="${lobFila}", ACCM="${accmFila}" ✓`);
+                    }
+                    
+                } else if (usuario.rol === 'Supervisor') {
+                    const lobsPermitidas = obtenerLobsPorSupervisor(usuario.nombre);
+                    if (lobsPermitidas.includes(lobFila)) {
+                        incluir = true;
+                    }
+                }
+                
+                if (incluir) {
+                    lobsSet.add(lobFila);
+                }
+            }
+        });
+        
+        const resultado = Array.from(lobsSet).sort();
+        
+        Logger.log(`\n📊 ========== RESUMEN ==========`);
+        Logger.log(`✅ Total LOBs encontradas: ${resultado.length}`);
+        Logger.log(`📋 LOBs: ${resultado.join(', ')}`);
+        Logger.log(`================================\n`);
+        
+        return resultado;
+        
+    } catch (error) {
+        Logger.log(`❌ Error en obtenerLobsRegistradasPorUsuario: ${error.message}`);
+        return [];
+    }
+}
+/**
+ * Obtiene configuración de salario y % bono desde la hoja Configuracion
+ * Busca por LOB (columna C)
+ */
+/**
+ * Obtiene configuración de salario y % bono desde Configuracion
+ * Columnas: A=Mes, B=OM, C=LOB, D=Salario_Base, E=%_Bono
+ */
+function obtenerConfiguracionDesdeCofiguracion(lob, nombreOM) {
+    try {
+        const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+        const hojaConfig = ss.getSheetByName('Configuracion');
+        
+        if (!hojaConfig) {
+            Logger.log('⚠️ No existe la hoja Configuracion');
+            return { encontrado: false };
+        }
+        
+        const data = hojaConfig.getDataRange().getValues();
+        const normalizar = s => s ? s.toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() : "";
+        
+        const lobNorm = normalizar(lob);
+        const omNorm = normalizar(nombreOM);
+        
+        Logger.log(`🔍 Buscando config: LOB="${lob}", OM="${nombreOM}"`);
+        
+        for (let i = 1; i < data.length; i++) {
+            const omFila = String(data[i][1] || '').trim();      // Columna B - OM
+            const lobFila = String(data[i][2] || '').trim();     // Columna C - LOB
+            
+            const omFilaNorm = normalizar(omFila);
+            const lobFilaNorm = normalizar(lobFila);
+            
+            // ⭐ BUSCAR POR OM Y LOB
+            if (omFilaNorm === omNorm && lobFilaNorm === lobNorm) {
+                const config = {
+                    encontrado: true,
+                    mes: String(data[i][0] || '').trim(),        // Columna A
+                    om: omFila,                                   // Columna B
+                    lob: lobFila,                                 // Columna C
+                    salario: parseFloat(data[i][3]) || 0,        // Columna D
+                    porcentaje: parseFloat(data[i][4]) || 0      // Columna E
+                };
+                
+                Logger.log(`✅ Config encontrada en fila ${i+1}:`);
+                Logger.log(`   Mes: ${config.mes}`);
+                Logger.log(`   OM: ${config.om}`);
+                Logger.log(`   LOB: ${config.lob}`);
+                Logger.log(`   Salario: $${config.salario.toLocaleString()}`);
+                Logger.log(`   % Bono: ${config.porcentaje}%`);
+                
+                return config;
+            }
+        }
+        
+        Logger.log(`⚠️ No se encontró config para LOB="${lob}" y OM="${nombreOM}"`);
+        return { encontrado: false };
+        
+    } catch (error) {
+        Logger.log(`❌ Error en obtenerConfiguracionDesdeCofiguracion: ${error.message}`);
+        return { encontrado: false, error: error.message };
+    }
+}
+
+
+/**
+ * ═══════════════════════════════════════════════════════════════
+ * 🎯 SIMULACIÓN REAL CON MÉTRICAS DEL CDM
+ * ═══════════════════════════════════════════════════════════════
+ * Calcula bonos reales basándose en cumplimiento de KPIs en CDM
+ * ⭐ CORREGIDO: Ahora considera el campo "participacion" de Registro_pisos
+ */
+
+/**
+ * ═══════════════════════════════════════════════════════════════
+ * 🎯 SIMULACIÓN REAL CON MÉTRICAS DEL CDM
+ * ═══════════════════════════════════════════════════════════════
+ * Calcula bonos reales basándose en cumplimiento de KPIs en CDM
+ * ✅ VERSIÓN CORREGIDA: Participación ya aplicada en validarKPI1()
+ */
+
+function simularConMetricasReales(lob, mes, numeroMes = null) {
+    try {
+        Logger.log(`\n🎯 ========== SIMULACIÓN REAL ==========`);
+        Logger.log(`📋 LOB: ${lob}`);
+        Logger.log(`📅 Mes: ${mes}`);
+        Logger.log(`🔢 Número Mes CDM: ${numeroMes || 'General'}`);
+        
+        const usuario = obtenerDatosUsuarioActivo();
+        if (!usuario) {
+            return { success: false, error: 'Usuario no encontrado' };
+        }
+        
+        // ========================================
+        // 1️⃣ OBTENER ESTRUCTURA REGISTRADA
+        // ========================================
+        const estructura = obtenerEstructuraRegistrada(lob, mes, usuario);
+        
+        if (!estructura.encontrado) {
+            return { 
+                success: false, 
+                error: `No se encontró estructura registrada para ${lob} en ${mes}` 
+            };
+        }
+        
+        Logger.log(`✅ Estructura cargada: ${estructura.tipoHoja}`);
+        
+        // ⭐ DETECTAR SI ES REGISTRO_PISOS (tiene campo participacion)
+        const esPisos = (estructura.tipoHoja === 'Registro_pisos');
+        Logger.log(`📊 Tipo de hoja: ${esPisos ? 'PISOS (con participación)' : 'ESTÁNDAR'}`);
+        
+        // ========================================
+        // 2️⃣ OBTENER DATOS DEL CDM
+        // ========================================
+        const dataCDM = obtenerDatosCDMPorMes(numeroMes);
+        
+        if (!dataCDM || dataCDM.length === 0) {
+            return { 
+                success: false, 
+                error: `No hay datos en CDM para el mes ${numeroMes || 'general'}` 
+            };
+        }
+        
+        Logger.log(`✅ Datos CDM cargados: ${dataCDM.length - 1} filas`);
+        
+        // ========================================
+        // 3️⃣ OBTENER AGENTES PERMITIDOS Y HC
+        // ========================================
+        const agentesPermitidos = obtenerAgentesPermitidos();
+        const hc = contarAgentesPorLob(lob) || 0;
+        
+        Logger.log(`✅ Agentes permitidos: ${Object.keys(agentesPermitidos).length}`);
+        Logger.log(`✅ HC de la LOB: ${hc}`);
+        
+        // ========================================
+        // 4️⃣ OBTENER CONFIGURACIÓN SALARIAL
+        // ========================================
+        const configSalario = obtenerSalarioPorLob(lob);
+        const salario = parseFloat(configSalario.salario) || parseFloat(estructura.salario) || 0;
+        const porcentaje = parseFloat(configSalario.porcentaje) || parseFloat(estructura.porcentaje) || 0;
+        
+        if (salario === 0 || porcentaje === 0) {
+            return { 
+                success: false, 
+                error: 'No se encontró configuración de salario/porcentaje para esta LOB' 
+            };
+        }
+        
+        const bonoMaximo = (salario * porcentaje) / 100;
+        
+        Logger.log(`💰 Salario: $${salario.toLocaleString()}`);
+        Logger.log(`📊 % Bono: ${porcentaje}%`);
+        Logger.log(`💵 Bono Máximo/Agente: $${bonoMaximo.toLocaleString()}`);
+        
+        // ========================================
+        // 5️⃣ VALIDAR KPIs CONTRA CDM (LÓGICA REAL)
+        // ========================================
+        const ssUsuario = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+        const dataUsuario = ssUsuario.getSheetByName('Usuario').getDataRange().getValues();
+        
+        const resultadosValidacion = {
+            keys: [],
+            bonusStructure: [],
+            additionalIncentives: [],
+            decreasedKPIs: []
+        };
+        
+        // ⭐ VALIDAR CADA CATEGORÍA
+        const categorias = ['keys', 'bonusStructure', 'additionalIncentives', 'decreasedKPIs'];
+        
+        categorias.forEach(categoria => {
+            const kpisCategoria = estructura.kpis[categoria] || [];
+            
+            Logger.log(`\n📂 Validando categoría: ${categoria} (${kpisCategoria.length} KPIs)`);
+            
+            kpisCategoria.forEach(kpi => {
+                const llave = formarLlave(estructura.om || usuario.nombre, lob, kpi.nombre);
+                
+                // Construir condición de score (comparación + valor)
+                let condicionScore = kpi.score || '';
+                
+                // Si ya tiene comparación, usarla; si no, agregar ">=" por defecto
+                if (!/^[<>=]+/.test(condicionScore)) {
+                    condicionScore = '>=' + condicionScore;
+                }
+                
+                const porcentajeKPI = parseFloat(kpi.porcentaje) || 0;
+                
+                // ⭐ OBTENER PARTICIPACIÓN (solo para referencia/logs)
+                const participacionKPI = esPisos ? (parseFloat(kpi.participacion) || 100) : 100;
+                
+                Logger.log(`   🔍 Validando: ${kpi.nombre}`);
+                Logger.log(`      Llave: ${llave}`);
+                Logger.log(`      Condición: ${condicionScore}`);
+                Logger.log(`      %: ${porcentajeKPI}`);
+                if (esPisos) {
+                    Logger.log(`      📊 Participación: ${participacionKPI}%`);
+                }
+                
+                // ⭐⭐⭐ CRÍTICO: Calcular porcentajePunto con participación AQUÍ
+                // validarKPI1 recibirá el valor ya multiplicado
+                let porcentajePunto = porcentajeKPI / 100;
+                
+                if (esPisos && participacionKPI !== 100) {
+                    porcentajePunto = porcentajePunto * (participacionKPI / 100);
+                    Logger.log(`      🔢 Porcentaje ajustado: ${porcentajeKPI}% × ${participacionKPI}% = ${(porcentajePunto * 100).toFixed(2)}%`);
+                }
+                
+                // ⭐ LLAMAR A validarKPI1 con el porcentaje YA ajustado
+                const validacion = validarKPI1(
+                    llave,
+                    condicionScore,
+                    porcentajePunto, // Ya incluye participación
+                    dataCDM,
+                    dataUsuario,
+                    agentesPermitidos,
+                    lob,
+                    numeroMes,
+                    mes
+                );
+                
+                resultadosValidacion[categoria].push({
+                    kpi: kpi.nombre,
+                    score: kpi.score,
+                    porcentaje: porcentajeKPI,
+                    participacion: participacionKPI,
+                    validacion: validacion
+                });
+                
+                Logger.log(`      ✅ Cumplen: ${validacion.totalCumplenCondicion}`);
+                Logger.log(`      ❌ No cumplen: ${validacion.empleadosNoCumplen?.length || 0}`);
+                Logger.log(`      ⚠️ Sin datos: ${validacion.empleadosSinDatos?.length || 0}`);
+            });
+        });
+        
+        // ========================================
+        // 6️⃣ CALCULAR BONOS REALES POR AGENTE
+        // ========================================
+        const agentesBonos = {};
+        const todosLosAgentes = obtenerTodosLosAgentesDeLOB(lob, agentesPermitidos);
+        
+        Logger.log(`\n💰 ========== CALCULANDO BONOS POR AGENTE ==========`);
+        
+        // Inicializar todos los agentes
+        todosLosAgentes.forEach(agente => {
+            agentesBonos[agente.bmsId] = {
+                nombre: agente.nombre,
+                bmsId: agente.bmsId,
+                keysOK: true,
+                tieneKeys: false,
+                totalKeys: 0,
+                totalBonus: 0,
+                totalAdditional: 0,
+                totalDecreased: 0,
+                bonoFinal: 0,
+                detalleKPIs: []
+            };
+        });
+        
+        // ⭐ PROCESAR KEYS (CRÍTICO)
+        resultadosValidacion.keys.forEach(resultado => {
+            const validacion = resultado.validacion;
+            
+            if (validacion.empleadosCumplen && validacion.empleadosCumplen.length > 0) {
+                validacion.empleadosCumplen.forEach(emp => {
+                    if (agentesBonos[emp.bmsId]) {
+                        agentesBonos[emp.bmsId].tieneKeys = true;
+                        agentesBonos[emp.bmsId].totalKeys += emp.bono || 0;
+                        agentesBonos[emp.bmsId].detalleKPIs.push({
+                            categoria: 'Keys',
+                            kpi: resultado.kpi,
+                            cumple: true,
+                            bono: emp.bono || 0
+                        });
+                    }
+                });
+            }
+            
+            // Marcar agentes que NO cumplen este key
+            if (validacion.empleadosNoCumplen && validacion.empleadosNoCumplen.length > 0) {
+                validacion.empleadosNoCumplen.forEach(emp => {
+                    if (agentesBonos[emp.bmsId]) {
+                        agentesBonos[emp.bmsId].keysOK = false;
+                        agentesBonos[emp.bmsId].tieneKeys = true;
+                        agentesBonos[emp.bmsId].detalleKPIs.push({
+                            categoria: 'Keys',
+                            kpi: resultado.kpi,
+                            cumple: false,
+                            bono: 0
+                        });
+                    }
+                });
+            }
+        });
+        
+        // ⭐⭐⭐ PROCESAR BONUS STRUCTURE ⭐⭐⭐
+        // ✅ NO APLICAR PARTICIPACIÓN - Ya viene incluida en emp.bono
+        resultadosValidacion.bonusStructure.forEach(resultado => {
+            const validacion = resultado.validacion;
+            const participacion = resultado.participacion;
+            
+            if (validacion.empleadosCumplen && validacion.empleadosCumplen.length > 0) {
+                validacion.empleadosCumplen.forEach(emp => {
+                    if (agentesBonos[emp.bmsId]) {
+                        // ✅ emp.bono YA incluye participación
+                        const bonoCalculado = emp.bono || 0;
+                        
+                        agentesBonos[emp.bmsId].totalBonus += bonoCalculado;
+                        agentesBonos[emp.bmsId].detalleKPIs.push({
+                            categoria: 'Bonus',
+                            kpi: resultado.kpi,
+                            cumple: true,
+                            bonoBase: emp.bono || 0,
+                            participacion: participacion,
+                            bonoFinal: bonoCalculado
+                        });
+                        
+                        // Log informativo
+                        if (esPisos && participacion !== 100) {
+                            Logger.log(`   💰 BMS ${emp.bmsId}: ${resultado.kpi} = $${bonoCalculado.toFixed(2)} (incluye ${participacion}% participación)`);
+                        }
+                    }
+                });
+            }
+        });
+        
+        // ⭐⭐⭐ PROCESAR ADDITIONAL INCENTIVES ⭐⭐⭐
+        // ✅ NO APLICAR PARTICIPACIÓN - Ya viene incluida en emp.bono
+        resultadosValidacion.additionalIncentives.forEach(resultado => {
+            const validacion = resultado.validacion;
+            const participacion = resultado.participacion;
+            
+            if (validacion.empleadosCumplen && validacion.empleadosCumplen.length > 0) {
+                validacion.empleadosCumplen.forEach(emp => {
+                    if (agentesBonos[emp.bmsId]) {
+                        // ✅ emp.bono YA incluye participación
+                        const bonoCalculado = emp.bono || 0;
+                        
+                        agentesBonos[emp.bmsId].totalAdditional += bonoCalculado;
+                        agentesBonos[emp.bmsId].detalleKPIs.push({
+                            categoria: 'Additional',
+                            kpi: resultado.kpi,
+                            cumple: true,
+                            bonoBase: emp.bono || 0,
+                            participacion: participacion,
+                            bonoFinal: bonoCalculado
+                        });
+                        
+                        // Log informativo
+                        if (esPisos && participacion !== 100) {
+                            Logger.log(`   💰 BMS ${emp.bmsId}: Additional ${resultado.kpi} = $${bonoCalculado.toFixed(2)} (incluye ${participacion}% participación)`);
+                        }
+                    }
+                });
+            }
+        });
+        
+        // ⭐⭐⭐ PROCESAR DECREASED (PENALIZACIONES) ⭐⭐⭐
+        // ✅ NO APLICAR PARTICIPACIÓN - Ya viene incluida en emp.bono
+        resultadosValidacion.decreasedKPIs.forEach(resultado => {
+            const validacion = resultado.validacion;
+            const participacion = resultado.participacion;
+            
+            if (validacion.empleadosCumplen && validacion.empleadosCumplen.length > 0) {
+                validacion.empleadosCumplen.forEach(emp => {
+                    if (agentesBonos[emp.bmsId]) {
+                        // ✅ emp.bono YA incluye participación
+                        const penalizacionCalculada = emp.bono || 0;
+                        
+                        agentesBonos[emp.bmsId].totalDecreased += penalizacionCalculada;
+                        agentesBonos[emp.bmsId].detalleKPIs.push({
+                            categoria: 'Decreased',
+                            kpi: resultado.kpi,
+                            cumple: true,
+                            bonoBase: emp.bono || 0,
+                            participacion: participacion,
+                            bonoFinal: -penalizacionCalculada
+                        });
+                        
+                        // Log informativo
+                        if (esPisos && participacion !== 100) {
+                            Logger.log(`   💰 BMS ${emp.bmsId}: Decreased ${resultado.kpi} = -$${penalizacionCalculada.toFixed(2)} (incluye ${participacion}% participación)`);
+                        }
+                    }
+                });
+            }
+        });
+        
+        // ========================================
+        // 7️⃣ APLICAR LÓGICA DE KEYS Y CALCULAR BONO FINAL
+        // ========================================
+        let totalGeneralReal = 0;
+        let agentesCobran = 0;
+        let agentesNoCobran = 0;
+        let agentesAfectadosPorKeys = 0;
+        
+        Object.keys(agentesBonos).forEach(bmsId => {
+            const agente = agentesBonos[bmsId];
+            
+            // ⭐ LÓGICA CRÍTICA DE KEYS
+            if (agente.tieneKeys) {
+                if (agente.keysOK) {
+                    // ✅ Todos los keys OK: suma todo
+                    agente.bonoFinal = agente.totalKeys + agente.totalBonus + agente.totalAdditional - agente.totalDecreased;
+                } else {
+                    // ❌ Falló algún key: bono = 0
+                    agente.bonoFinal = 0;
+                    agentesAfectadosPorKeys++;
+                    Logger.log(`❌ BMS ${bmsId}: Falló key → $0 (perdió $${(agente.totalBonus + agente.totalAdditional).toFixed(2)})`);
+                }
+            } else {
+                // Sin keys: solo bonus + additional - decreased
+                agente.bonoFinal = agente.totalBonus + agente.totalAdditional - agente.totalDecreased;
+            }
+            
+            // Garantizar no negativo
+            agente.bonoFinal = Math.max(0, agente.bonoFinal);
+            
+            if (agente.bonoFinal > 0) {
+                agentesCobran++;
+                totalGeneralReal += agente.bonoFinal;
+            } else {
+                agentesNoCobran++;
+            }
+        });
+        
+        // ========================================
+        // 8️⃣ ESTADÍSTICAS COMPARATIVAS
+        // ========================================
+        const inversionTeorica = bonoMaximo * hc;
+        const eficienciaReal = inversionTeorica > 0 ? (totalGeneralReal / inversionTeorica) * 100 : 0;
+        const ahorro = inversionTeorica - totalGeneralReal;
+        
+        Logger.log(`\n📊 ========== RESULTADOS FINALES ==========`);
+        Logger.log(`📋 Tipo de hoja: ${esPisos ? 'REGISTRO_PISOS (con participación)' : 'REGISTRO ESTÁNDAR'}`);
+        Logger.log(`💰 Inversión Teórica (100% cumplimiento): $${inversionTeorica.toLocaleString()}`);
+        Logger.log(`💰 Inversión Real (según CDM + participación): $${totalGeneralReal.toLocaleString()}`);
+        Logger.log(`📉 Ahorro vs Teórico: $${ahorro.toLocaleString()} (${(100 - eficienciaReal).toFixed(1)}%)`);
+        Logger.log(`👥 Agentes que cobran: ${agentesCobran} de ${hc}`);
+        Logger.log(`❌ Agentes afectados por Keys: ${agentesAfectadosPorKeys}`);
+        Logger.log(`=========================================\n`);
+        
+        // ========================================
+        // 9️⃣ RETORNAR RESULTADO
+        // ========================================
+        return {
+            success: true,
+            lob: lob,
+            mes: mes,
+            numeroMes: numeroMes,
+            tipoHoja: estructura.tipoHoja,
+            esPisos: esPisos,
+            hc: hc,
+            configuracion: {
+                salario: salario,
+                porcentaje: porcentaje,
+                bonoMaximo: bonoMaximo
+            },
+            inversionTeorica: inversionTeorica,
+            inversionReal: totalGeneralReal,
+            ahorro: ahorro,
+            eficienciaReal: eficienciaReal,
+            estadisticas: {
+                totalAgentes: hc,
+                agentesCobran: agentesCobran,
+                agentesNoCobran: agentesNoCobran,
+                agentesAfectadosPorKeys: agentesAfectadosPorKeys,
+                tasaCumplimiento: hc > 0 ? (agentesCobran / hc) * 100 : 0
+            },
+            desglosePorCategoria: {
+                keys: resultadosValidacion.keys.map(r => ({
+                    kpi: r.kpi,
+                    totalCumplen: r.validacion.totalCumplenCondicion,
+                    totalNoCumplen: r.validacion.empleadosNoCumplen?.length || 0,
+                    totalSinDatos: r.validacion.empleadosSinDatos?.length || 0
+                })),
+                bonusStructure: resultadosValidacion.bonusStructure.map(r => ({
+                    kpi: r.kpi,
+                    porcentaje: r.porcentaje,
+                    participacion: r.participacion,
+                    totalCumplen: r.validacion.totalCumplenCondicion,
+                    montoTotal: r.validacion.empleadosCumplen.reduce((sum, emp) => sum + (emp.bono || 0), 0)
+                })),
+                additionalIncentives: resultadosValidacion.additionalIncentives.map(r => ({
+                    kpi: r.kpi,
+                    porcentaje: r.porcentaje,
+                    participacion: r.participacion,
+                    totalCumplen: r.validacion.totalCumplenCondicion,
+                    montoTotal: r.validacion.empleadosCumplen.reduce((sum, emp) => sum + (emp.bono || 0), 0)
+                })),
+                decreasedKPIs: resultadosValidacion.decreasedKPIs.map(r => ({
+                    kpi: r.kpi,
+                    porcentaje: r.porcentaje,
+                    participacion: r.participacion,
+                    totalCumplen: r.validacion.totalCumplenCondicion,
+                    montoTotal: r.validacion.empleadosCumplen.reduce((sum, emp) => sum + (emp.bono || 0), 0)
+                }))
+            },
+            top10Ganadores: Object.values(agentesBonos)
+                .filter(a => a.bonoFinal > 0)
+                .sort((a, b) => b.bonoFinal - a.bonoFinal)
+                .slice(0, 10)
+                .map(a => ({
+                    nombre: a.nombre,
+                    bmsId: a.bmsId,
+                    bonoFinal: a.bonoFinal,
+                    totalKeys: a.totalKeys,
+                    totalBonus: a.totalBonus,
+                    totalAdditional: a.totalAdditional,
+                    detalleKPIs: a.detalleKPIs
+                })),
+            fechaSimulacion: new Date().toISOString()
+        };
+        
+    } catch (error) {
+        Logger.log(`❌ Error en simularConMetricasReales: ${error.message}`);
+        Logger.log(`Stack: ${error.stack}`);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+}
+
+// ============================================================
+// 📊 REPORTE EJECUTIVO CON MÉTRICAS REALES DEL CDM
+// ============================================================
+
+function generarReporteEjecutivo() {
+    if (!datosUsuario) {
+        mostrarToast('❌ Usuario no cargado', 'danger');
+        return;
+    }
+    
+    mostrarLoading('🔄 Generando reporte ejecutivo con métricas reales...');
+    
+    // Obtener LOBs según rol
+    let lobsAProcesar = [];
+    
+    if (datosUsuario.rol === 'Reporting Analyst' || datosUsuario.rol === 'Audit') {
+        const region = document.getElementById('simSelectRegion').value;
+        if (!region) {
+            ocultarLoading();
+            mostrarToast('⚠️ Selecciona una región primero', 'warning');
+            return;
+        }
+        
+        google.script.run
+            .withSuccessHandler(function(lobs) {
+                if (lobs && lobs.length > 0) {
+                    procesarReporteEjecutivoConCDM(lobs, region, null);
+                } else {
+                    ocultarLoading();
+                    mostrarToast('❌ No hay LOBs para procesar', 'danger');
+                }
+            })
+            .withFailureHandler(function(err) {
+                ocultarLoading();
+                mostrarToast('❌ Error: ' + err, 'danger');
+            })
+            .obtenerLobsRegistradasPorRegion(region);
+            
+    } else if (datosUsuario.rol === 'OM') {
+        google.script.run
+            .withSuccessHandler(function(lobs) {
+                if (lobs && lobs.length > 0) {
+                    procesarReporteEjecutivoConCDM(lobs, null, datosUsuario.nombre);
+                } else {
+                    ocultarLoading();
+                    mostrarToast('❌ No hay LOBs para procesar', 'danger');
+                }
+            })
+            .withFailureHandler(function(err) {
+                ocultarLoading();
+                mostrarToast('❌ Error: ' + err, 'danger');
+            })
+            .obtenerLobsRegistradasPorUsuario();
+    } else {
+        ocultarLoading();
+        mostrarToast('❌ Tu rol no permite simulación masiva', 'warning');
+    }
+}
+
+function procesarReporteEjecutivoConCDM(lobs, region, om) {
+    console.log(`📊 Procesando ${lobs.length} LOBs para reporte ejecutivo...`);
+    
+    const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
+                   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const mesActual = meses[new Date().getMonth()];
+    const numeroMes = new Date().getMonth() + 1;
+    
+    let simulacionesPendientes = lobs.length;
+    const resultados = [];
+    
+    lobs.forEach(function(lob) {
+        google.script.run
+            .withSuccessHandler(function(resultado) {
+                simulacionesPendientes--;
+                
+                if (resultado.success) {
+                    resultados.push(resultado);
+                    console.log(`✅ ${lob}: $${resultado.inversionReal.toLocaleString()}`);
+                } else {
+                    console.log(`⚠️ ${lob}: ${resultado.error}`);
+                }
+                
+                // Cuando todas terminen
+                if (simulacionesPendientes === 0) {
+                    ocultarLoading();
+                    if (resultados.length > 0) {
+                        mostrarReporteEjecutivoConCDM(resultados, region, om);
+                    } else {
+                        mostrarToast('❌ No se pudieron procesar las LOBs', 'danger');
+                    }
+                }
+            })
+            .withFailureHandler(function(err) {
+                simulacionesPendientes--;
+                console.error(`❌ Error en ${lob}:`, err);
+                
+                if (simulacionesPendientes === 0) {
+                    ocultarLoading();
+                    if (resultados.length > 0) {
+                        mostrarReporteEjecutivoConCDM(resultados, region, om);
+                    } else {
+                        mostrarToast('❌ Error procesando LOBs', 'danger');
+                    }
+                }
+            })
+            .simularConMetricasReales(lob, mesActual, numeroMes);
+    });
+}
+
+function mostrarReporteEjecutivoConCDM(resultados, region, om) {
+    const modal = document.getElementById('simulacionModal');
+    const content = document.getElementById('contenidoSimulacion');
+    
+    // ========================================
+    // 📊 CALCULAR KPIs EJECUTIVOS
+    // ========================================
+    const totalInversionTeorica = resultados.reduce((sum, r) => sum + r.inversionTeorica, 0);
+    const totalInversionReal = resultados.reduce((sum, r) => sum + r.inversionReal, 0);
+    const totalAgentes = resultados.reduce((sum, r) => sum + r.hc, 0);
+    const totalAhorro = totalInversionTeorica - totalInversionReal;
+    const eficienciaGlobal = totalInversionTeorica > 0 ? (totalInversionReal / totalInversionTeorica) * 100 : 0;
+    const promedioAgente = totalAgentes > 0 ? totalInversionReal / totalAgentes : 0;
+    
+    // Agentes que cobran
+    const totalAgentesCobran = resultados.reduce((sum, r) => sum + r.estadisticas.agentesCobran, 0);
+    const totalAgentesNoCobran = resultados.reduce((sum, r) => sum + r.estadisticas.agentesNoCobran, 0);
+    const tasaCumplimientoGlobal = totalAgentes > 0 ? (totalAgentesCobran / totalAgentes) * 100 : 0;
+    
+    // LOBs por eficiencia
+    const altaEficiencia = resultados.filter(r => r.eficienciaReal >= 90).length;
+    const mediaEficiencia = resultados.filter(r => r.eficienciaReal >= 70 && r.eficienciaReal < 90).length;
+    const bajaEficiencia = resultados.filter(r => r.eficienciaReal < 70).length;
+    
+    // Top 3 más costosas
+    const top3 = resultados.sort((a, b) => b.inversionReal - a.inversionReal).slice(0, 3);
+    const costoTop3 = top3.reduce((sum, r) => sum + r.inversionReal, 0);
+    const pctTop3 = totalInversionReal > 0 ? (costoTop3 / totalInversionReal) * 100 : 0;
+    
+    const titulo = region 
+        ? '📊 Reporte Ejecutivo (Métricas CDM): ' + region
+        : '📊 Reporte Ejecutivo (Métricas CDM): ' + (om || 'Usuario');
+    
+    let html = '<div style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 40px; border-radius: 15px 15px 0 0; margin: -30px -30px 30px -30px;">';
+    html += '<h1 style="text-align: center; margin: 0; font-size: 2.5rem; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">' + titulo + '</h1>';
+    html += '<p style="text-align: center; opacity: 0.95; margin-top: 15px; font-size: 1.1rem;">Análisis con Cumplimiento Real - ' + new Date().toLocaleDateString() + '</p>';
+    html += '</div>';
+    
+    // ========================================
+    // 💰 COMPARATIVA TEÓRICO VS REAL
+    // ========================================
+    html += '<div style="background: linear-gradient(135deg, #e8f5e9, #c8e6c9); border: 3px solid #27ae60; padding: 30px; border-radius: 15px; margin-bottom: 30px;">';
+    html += '<h2 style="color: #1b5e20; text-align: center; margin: 0 0 25px 0; font-size: 1.8rem;">💰 Inversión: Teórico vs Real (CDM)</h2>';
+    html += '<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;">';
+    
+    html += '<div style="text-align: center; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">';
+    html += '<div style="font-size: 0.95rem; color: #666; margin-bottom: 10px;">💸 Inversión Teórica</div>';
+    html += '<div style="font-size: 2.2rem; font-weight: bold; color: #95a5a6;">' + formatearMoneda(totalInversionTeorica) + '</div>';
+    html += '<div style="font-size: 0.85rem; color: #7f8c8d; margin-top: 8px;">(Si todos cumplen 100%)</div>';
+    html += '</div>';
+    
+    html += '<div style="text-align: center; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(39, 174, 96, 0.3); border: 2px solid #27ae60;">';
+    html += '<div style="font-size: 0.95rem; color: #666; margin-bottom: 10px;">💵 Inversión REAL</div>';
+    html += '<div style="font-size: 2.5rem; font-weight: bold; color: #27ae60;">' + formatearMoneda(totalInversionReal) + '</div>';
+    html += '<div style="font-size: 0.85rem; color: #229954; margin-top: 8px; font-weight: 600;">(Según cumplimiento CDM)</div>';
+    html += '</div>';
+    
+    html += '<div style="text-align: center; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">';
+    html += '<div style="font-size: 0.95rem; color: #666; margin-bottom: 10px;">📉 Ahorro</div>';
+    html += '<div style="font-size: 2.2rem; font-weight: bold; color: #f39c12;">' + formatearMoneda(totalAhorro) + '</div>';
+    html += '<div style="font-size: 0.85rem; color: #d68910; margin-top: 8px;">' + (100 - eficienciaGlobal).toFixed(1) + '% menos</div>';
+    html += '</div>';
+    
+    html += '<div style="text-align: center; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">';
+    html += '<div style="font-size: 0.95rem; color: #666; margin-bottom: 10px;">⚡ Eficiencia Real</div>';
+    html += '<div style="font-size: 2.5rem; font-weight: bold; color: #3498db;">' + eficienciaGlobal.toFixed(1) + '%</div>';
+    html += '<div style="font-size: 0.85rem; color: #2874a6; margin-top: 8px;">Cumplimiento CDM</div>';
+    html += '</div>';
+    
+    html += '</div></div>';
+    
+    // ========================================
+    // 📊 DASHBOARD DE KPIs
+    // ========================================
+    html += '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 25px; margin-bottom: 35px;">';
+    
+    html += '<div style="background: white; border-left: 6px solid #3498db; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">';
+    html += '<div style="font-size: 0.9rem; color: #666; margin-bottom: 10px; font-weight: 600;">📋 LOBs Procesadas</div>';
+    html += '<div style="font-size: 3rem; font-weight: bold; color: #3498db; line-height: 1;">' + resultados.length + '</div>';
+    html += '</div>';
+    
+    html += '<div style="background: white; border-left: 6px solid #2ecc71; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">';
+    html += '<div style="font-size: 0.9rem; color: #666; margin-bottom: 10px; font-weight: 600;">👥 Total Agentes (HC)</div>';
+    html += '<div style="font-size: 3rem; font-weight: bold; color: #2ecc71; line-height: 1;">' + totalAgentes.toLocaleString() + '</div>';
+    html += '<div style="font-size: 0.85rem; color: #27ae60; margin-top: 10px;">✅ Cobran: ' + totalAgentesCobran + ' (' + tasaCumplimientoGlobal.toFixed(1) + '%)</div>';
+    html += '</div>';
+    
+    html += '<div style="background: white; border-left: 6px solid #e67e22; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">';
+    html += '<div style="font-size: 0.9rem; color: #666; margin-bottom: 10px; font-weight: 600;">💰 Promedio/Agente</div>';
+    html += '<div style="font-size: 3rem; font-weight: bold; color: #e67e22; line-height: 1;">' + formatearMoneda(promedioAgente) + '</div>';
+    html += '</div>';
+    
+    html += '</div>';
+    
+    // ========================================
+    // 🏆 TOP 3 LOBs MÁS COSTOSAS
+    // ========================================
+    html += '<div style="background: white; border: 3px solid #e74c3c; border-radius: 15px; padding: 30px; margin-bottom: 30px;">';
+    html += '<h3 style="color: #e74c3c; margin-top: 0; text-align: center; font-size: 1.6rem;">🔴 Top 3 LOBs de Mayor Inversión Real (' + pctTop3.toFixed(1) + '% del total)</h3>';
+    html += '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 25px; margin-top: 20px;">';
+    
+    top3.forEach(function(lob, idx) {
+        const medalla = idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉';
+        const pctDelTotal = totalInversionReal > 0 ? (lob.inversionReal / totalInversionReal * 100) : 0;
+        
+        html += '<div style="background: #f8f9fa; padding: 25px; border-radius: 12px; text-align: center; border-left: 5px solid #e74c3c;">';
+        html += '<div style="font-size: 3.5rem; margin-bottom: 15px;">' + medalla + '</div>';
+        html += '<div style="font-weight: bold; font-size: 1.2rem; margin-bottom: 10px; color: #2c3e50;">' + lob.lob + '</div>';
+        html += '<div style="font-size: 2rem; font-weight: bold; color: #e74c3c; margin: 15px 0;">' + formatearMoneda(lob.inversionReal) + '</div>';
+        html += '<div style="font-size: 0.9rem; color: #666; margin-bottom: 5px;">HC: ' + lob.hc + '</div>';
+        html += '<div style="font-size: 0.9rem; color: #666; margin-bottom: 5px;">Efic: ' + lob.eficienciaReal.toFixed(1) + '%</div>';
+        html += '<div style="font-size: 0.9rem; color: #27ae60; font-weight: 600;">✅ Cobran: ' + lob.estadisticas.agentesCobran + ' (' + lob.estadisticas.tasaCumplimiento.toFixed(0) + '%)</div>';
+        html += '<div style="font-size: 0.85rem; color: #999; margin-top: 10px; background: white; padding: 8px; border-radius: 6px;">' + pctDelTotal.toFixed(1) + '% del total</div>';
+        html += '</div>';
+    });
+    
+    html += '</div></div>';
+    
+    // ========================================
+    // 📈 DISTRIBUCIÓN POR EFICIENCIA
+    // ========================================
+    html += '<div style="background: #f8f9fa; padding: 30px; border-radius: 15px; margin-bottom: 30px;">';
+    html += '<h3 style="color: #2c3e50; margin-top: 0; text-align: center; font-size: 1.6rem;">📈 Distribución por Eficiencia (Cumplimiento Real)</h3>';
+    html += '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 25px; margin-top: 25px;">';
+    
+    html += '<div style="text-align: center; padding: 30px; background: white; border-radius: 12px; border-top: 5px solid #27ae60; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">';
+    html += '<div style="font-size: 1rem; color: #666; margin-bottom: 15px; font-weight: 600;">✅ Alta (≥90%)</div>';
+    html += '<div style="font-size: 4rem; font-weight: bold; color: #27ae60; line-height: 1;">' + altaEficiencia + '</div>';
+    html += '<div style="font-size: 0.9rem; color: #999; margin-top: 15px;">' + (resultados.length > 0 ? ((altaEficiencia / resultados.length) * 100).toFixed(1) : 0) + '% del total</div>';
+    html += '</div>';
+    
+    html += '<div style="text-align: center; padding: 30px; background: white; border-radius: 12px; border-top: 5px solid #f39c12; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">';
+    html += '<div style="font-size: 1rem; color: #666; margin-bottom: 15px; font-weight: 600;">⚠️ Media (70-89%)</div>';
+    html += '<div style="font-size: 4rem; font-weight: bold; color: #f39c12; line-height: 1;">' + mediaEficiencia + '</div>';
+    html += '<div style="font-size: 0.9rem; color: #999; margin-top: 15px;">' + (resultados.length > 0 ? ((mediaEficiencia / resultados.length) * 100).toFixed(1) : 0) + '% del total</div>';
+    html += '</div>';
+    
+    html += '<div style="text-align: center; padding: 30px; background: white; border-radius: 12px; border-top: 5px solid #e74c3c; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">';
+    html += '<div style="font-size: 1rem; color: #666; margin-bottom: 15px; font-weight: 600;">❌ Baja (<70%)</div>';
+    html += '<div style="font-size: 4rem; font-weight: bold; color: #e74c3c; line-height: 1;">' + bajaEficiencia + '</div>';
+    html += '<div style="font-size: 0.9rem; color: #999; margin-top: 15px;">' + (resultados.length > 0 ? ((bajaEficiencia / resultados.length) * 100).toFixed(1) : 0) + '% del total</div>';
+    html += '</div>';
+    
+    html += '</div></div>';
+    
+    // ========================================
+    // 📋 TABLA CONSOLIDADA
+    // ========================================
+    html += '<div style="background: white; padding: 30px; border-radius: 15px; margin-bottom: 30px;">';
+    html += '<h3 style="color: #2c3e50; margin-top: 0; text-align: center; font-size: 1.6rem; margin-bottom: 25px;">📋 Resumen Consolidado por LOB</h3>';
+    html += '<div style="overflow-x: auto;"><table class="kpi-table" style="font-size: 0.95rem;"><thead><tr>';
+    html += '<th style="padding: 15px;">LOB</th>';
+    html += '<th style="padding: 15px; text-align: center;">HC</th>';
+    html += '<th style="padding: 15px; text-align: center;">Cobran</th>';
+    html += '<th style="padding: 15px; text-align: right;">$/Agente</th>';
+    html += '<th style="padding: 15px; text-align: right;">Total Real</th>';
+    html += '<th style="padding: 15px; text-align: center;">Efic. Real</th>';
+    html += '<th style="padding: 15px; text-align: center;">Estado</th>';
+    html += '</tr></thead><tbody>';
+    
+    resultados.sort((a, b) => b.inversionReal - a.inversionReal).forEach(function(r) {
+        const promAgente = r.hc > 0 ? r.inversionReal / r.hc : 0;
+        const efic = r.eficienciaReal;
+        const colorEfic = efic >= 90 ? '#27ae60' : efic >= 70 ? '#f39c12' : '#e74c3c';
+        const iconoEfic = efic >= 90 ? '✅' : efic >= 70 ? '⚠️' : '❌';
+        
+        html += '<tr>';
+        html += '<td style="font-weight: 600; padding: 12px;">' + r.lob + '</td>';
+        html += '<td style="text-align: center; padding: 12px;">' + r.hc + '</td>';
+        html += '<td style="text-align: center; padding: 12px; color: #27ae60; font-weight: 600;">' + r.estadisticas.agentesCobran + '</td>';
+        html += '<td style="text-align: right; padding: 12px;">' + formatearMoneda(promAgente) + '</td>';
+        html += '<td style="text-align: right; font-weight: bold; padding: 12px; font-size: 1.05rem;">' + formatearMoneda(r.inversionReal) + '</td>';
+        html += '<td style="text-align: center; color: ' + colorEfic + '; font-weight: bold; padding: 12px; font-size: 1.05rem;">' + efic.toFixed(1) + '%</td>';
+        html += '<td style="text-align: center; font-size: 1.4rem; padding: 12px;">' + iconoEfic + '</td>';
+        html += '</tr>';
+    });
+    
+    html += '</tbody></table></div></div>';
+    
+    // ========================================
+    // 🎯 BOTONES DE ACCIÓN
+    // ========================================
+    html += '<div style="text-align: center; margin-top: 35px;">';
+    html += '<button onclick="exportarReporteEjecutivoExcel(window.reporteEjecutivoActual)" class="btn btn-success" style="padding: 18px 45px; font-size: 1.2rem; margin-right: 20px;">📥 EXPORTAR EXCEL</button>';
+    html += '<button onclick="togglePanelCorreo()" class="btn btn-primary" style="padding: 18px 45px; font-size: 1.2rem;">📧 ENVIAR REPORTE</button>';
+    html += '</div>';
+    
+    content.innerHTML = html;
+    modal.style.display = 'block';
+    
+    // Guardar resultados globales
+    window.reporteEjecutivoActual = {
+        resultados: resultados,
+        region: region,
+        om: om,
+        resumen: {
+            totalLOBs: resultados.length,
+            totalAgentes: totalAgentes,
+            inversionTeorica: totalInversionTeorica,
+            inversionReal: totalInversionReal,
+            ahorro: totalAhorro,
+            eficienciaGlobal: eficienciaGlobal
+        }
+    };
+    
+    mostrarToast('✅ Reporte ejecutivo generado con éxito', 'success');
+}
+
+function exportarReporteEjecutivoExcel(data) {
+    if (!data) {
+        mostrarToast('⚠️ No hay datos para exportar', 'warning');
+        return;
+    }
+    
+    mostrarLoading('Generando Excel ejecutivo...');
+    
+    const datosExportar = {
+        encabezados: ['LOB', 'HC', 'Cobran', '$/Agente', 'Inv. Teórica', 'Inv. Real', 'Ahorro', 'Efic. Real %'],
+        filas: data.resultados.map(function(r) {
+            const promAgente = r.hc > 0 ? r.inversionReal / r.hc : 0;
+            const ahorro = r.inversionTeorica - r.inversionReal;
+            return [
+                r.lob, 
+                r.hc, 
+                r.estadisticas.agentesCobran,
+                promAgente,
+                r.inversionTeorica,
+                r.inversionReal,
+                ahorro,
+                r.eficienciaReal.toFixed(1)
+            ];
+        }),
+        resumen: [
+            ['TOTAL LOBs', data.resumen.totalLOBs],
+            ['TOTAL AGENTES', data.resumen.totalAgentes],
+            ['INVERSIÓN TEÓRICA', data.resumen.inversionTeorica],
+            ['INVERSIÓN REAL', data.resumen.inversionReal],
+            ['AHORRO TOTAL', data.resumen.ahorro],
+            ['EFICIENCIA GLOBAL', data.resumen.eficienciaGlobal.toFixed(1) + '%']
+        ]
+    };
+    
+    google.script.run.withSuccessHandler(function (url) {
+        ocultarLoading();
+        if (url) {
+            window.open(url, '_blank');
+            mostrarToast('✅ Excel exportado exitosamente', 'success');
+        } else {
+            mostrarToast('✅ Exportación simulada', 'success');
+        }
+    }).exportarSimulacionAExcel(datosExportar);
+}
+
+
+
+
+
+
