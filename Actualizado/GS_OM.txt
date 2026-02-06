@@ -24,6 +24,7 @@ function getUrl() {
 }
 
 function doPost(e) {
+
   try {
     if (!e || !e.parameter) {
       throw new Error('No se recibieron parámetros.');
@@ -82,6 +83,12 @@ function getUserEmail() {
 
 // EN EL DOCUMENTO 2 (.gs), línea ~50 aproximadamente
 
+// ========================================
+// FUNCIONES DE DATOS DE USUARIO
+// ========================================
+
+// EN EL DOCUMENTO 2 (.gs), línea ~50 aproximadamente
+
 function obtenerDatosUsuarioActivo() {
   const email = Session.getActiveUser().getEmail().toLowerCase().trim();
   const ssUsuario = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
@@ -89,22 +96,20 @@ function obtenerDatosUsuarioActivo() {
   const dataUsuario = hojaUsuario.getDataRange().getValues();
   
   for (let i = 1; i < dataUsuario.length; i++) {
-    // ⭐ CAMBIO: Columna C (índice 2) es el correo
-    if (String(dataUsuario[i][2]).toLowerCase().trim() === email) {
+    // ⭐ CORRECCIÓN: Columna B (índice 1) es el correo
+    if (String(dataUsuario[i][1]).toLowerCase().trim() === email) {
       return {
-        ccmsId: dataUsuario[i][0],    // A: ccmd id
-        nombre: dataUsuario[i][1],    // B: Agent
-        correo: dataUsuario[i][2],    // C: Ext (correo)
-        account: dataUsuario[i][3],   // D: Account
-        rol: dataUsuario[i][4],       // E: Roll
+        ccmsId: dataUsuario[i][0],    // A: BMS ID
+        nombreHC: dataUsuario[i][2],  // ⭐ C: Nombre de H_C
+        rol: dataUsuario[i][3],       // ⭐ D: Rol del agente
+        correo: dataUsuario[i][1],    // B: Correo
         lob: dataUsuario[i][5],       // F: LOB
-        perfil: dataUsuario[i][7]     // H: Usuario
+        perfil: dataUsuario[i][7]     // H: Perfil
       };
     }
   }
   return null;
 }
-
 
 
 // ========================================
@@ -185,11 +190,19 @@ function obtenerTipoAccesoActual() {
     return 'Registro';
   }
 }
-
-
+// ========================================
+// ⭐ FUNCIÓN BACKEND (GS): obtenerAgentesPermitidos()
+// CORREGIDA PARA CARGAR CORRECTAMENTE EL ROL
+// ========================================
 function obtenerAgentesPermitidos() {
   const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
   const hojaHC = ss.getSheetByName('H_C');
+  
+  if (!hojaHC) {
+    Logger.log('❌ ERROR: No se encontró la hoja H_C');
+    return {};
+  }
+  
   const dataHC = hojaHC.getDataRange().getValues();
   const agentes = {};
   
@@ -204,26 +217,67 @@ function obtenerAgentesPermitidos() {
   };
   
   Logger.log("📋 ========== CARGANDO AGENTES DE H_C ==========");
+  Logger.log("Headers H_C:", dataHC[0]);
   
   for (let i = 1; i < dataHC.length; i++) {
-    const bms = String(dataHC[i][0]).trim();
-    const lobOriginal = dataHC[i][1];
-    const nombre = String(dataHC[i][2]).trim();
+    const bms = String(dataHC[i][0]).trim();           // Columna A: BMS ID
+    const lobOriginal = dataHC[i][1];                  // Columna B: LOB
+    const nombreHC = String(dataHC[i][2]).trim();      // ⭐ Columna C: NOMBRE
+    const rolHC = String(dataHC[i][3]).trim();         // ⭐⭐⭐ Columna D: ROL
+    const horasSemanalesRaw = dataHC[i][9];            // ⭐ Columna J: HORAS SEMANALES
     
-    if (!bms || !lobOriginal || !nombre) {
-      Logger.log(`⚠️ Fila ${i+1} ignorada - Datos incompletos: BMS=${bms}, LOB=${lobOriginal}, Nombre=${nombre}`);
+    // ⭐ DEBUG: Primeras 5 filas
+    if (i <= 5) {
+      Logger.log(`\n🔍 Fila ${i+1}:`);
+      Logger.log(`  A (BMS): "${bms}"`);
+      Logger.log(`  B (LOB): "${lobOriginal}"`);
+      Logger.log(`  C (Nombre): "${nombreHC}"`);
+      Logger.log(`  D (ROL): "${rolHC}"   ⭐⭐⭐ DEBE CARGARSE`);
+      Logger.log(`  J (Horas): ${horasSemanalesRaw}h`);
+    }
+    
+    if (!bms || !lobOriginal) {
+      if (i <= 10) {
+        Logger.log(`⚠️ Fila ${i+1} ignorada - BMS o LOB vacío`);
+      }
       continue;
     }
     
-    const lobNormalizada = normalizar(lobOriginal);
+    // ⭐ Validar que nombreHC no esté vacío
+    if (!nombreHC || nombreHC === '') {
+      if (i <= 10) {
+        Logger.log(`⚠️ Fila ${i+1}: Nombre vacío, usando fallback "Agente ${bms}"`);
+      }
+    }
     
+    // ⭐ Validar que rolHC no esté vacío
+    if (!rolHC || rolHC === '') {
+      if (i <= 10) {
+        Logger.log(`⚠️ Fila ${i+1}: ROL vacío para BMS ${bms}`);
+      }
+    }
+    
+    const lobNormalizada = normalizar(lobOriginal);
+    const horasSemanales = parseFloat(horasSemanalesRaw) || 42;
+    
+    // ⭐⭐⭐ GUARDAR: NOMBRE (col C) Y ROL (col D)
     agentes[bms] = { 
-      nombre, 
+      nombre: nombreHC || `Agente ${bms}`,       // ⭐ Columna C
+      rol: rolHC || 'Sin rol',                   // ⭐⭐⭐ Columna D (ROL)
       lob: lobNormalizada,
-      lobOriginal: String(lobOriginal).trim()
+      lobOriginal: String(lobOriginal).trim(),
+      horasSemanales: horasSemanales             // ⭐ Columna J
     };
     
-    Logger.log(`✅ Fila ${i+1}: BMS=${bms} | LOB="${lobOriginal}" (norm: "${lobNormalizada}") | Nombre=${nombre}`);
+    // ⭐ DEBUG: Mostrar primeros 3 agentes agregados
+    if (Object.keys(agentes).length <= 3) {
+      Logger.log(`\n✅ Agente ${Object.keys(agentes).length} agregado:`);
+      Logger.log(`   BMS: ${bms}`);
+      Logger.log(`   NOMBRE: "${agentes[bms].nombre}"`);
+      Logger.log(`   ROL: "${agentes[bms].rol}"   ⭐⭐⭐ VERIFICAR`);
+      Logger.log(`   LOB: "${agentes[bms].lobOriginal}"`);
+      Logger.log(`   Horas: ${agentes[bms].horasSemanales}h`);
+    }
   }
   
   Logger.log(`\n📊 TOTAL AGENTES CARGADOS: ${Object.keys(agentes).length}`);
@@ -231,6 +285,9 @@ function obtenerAgentesPermitidos() {
   
   return agentes;
 }
+
+
+
 
 /**
  * Obtiene las LOBs asignadas a un OM específico desde H_C (columna G)
@@ -583,6 +640,12 @@ function formarLlave(nombre, lobHC, kpi) {
 
 
 
+// ========================================
+// ⭐ FUNCIÓN COMPLETA CORREGIDA: validarKPI1()
+// Calcula bonos Y ajusta por horas semanales ANTES de mostrar tabla
+// ========================================
+
+
 function validarKPI1(llave, condicionScore, porcentajePunto, dataCDM, dataUsuario, agentesPermitidos, lobActual, numeroMes = null, fechaSeleccionada = null, esDecrease = false) {
     const resultado = { 
         llave, 
@@ -608,7 +671,9 @@ function validarKPI1(llave, condicionScore, porcentajePunto, dataCDM, dataUsuari
     const llaveNorm = normalizar(llave);
     const lobActualNorm = normalizar(lobActual);
 
-    // Detectar si es bono fijo
+    // ========================================
+    // DETECTAR SI ES BONO FIJO
+    // ========================================
     const esBonoFijo = !condicionScore.match(/(<=|>=|<|>|=)/);
     let valorBonoFijo = 0;
     let operador = null;
@@ -633,19 +698,13 @@ function validarKPI1(llave, condicionScore, porcentajePunto, dataCDM, dataUsuari
     Logger.log(`   KPI: "${llave}"`);
     Logger.log(`   Condición: ${condicionScore}`);
     Logger.log(`   Es Decrease: ${esDecrease ? 'SÍ' : 'NO'}`);
-    Logger.log(`   porcentajePunto (PESO): ${porcentajePunto} (${(porcentajePunto * 100).toFixed(2)}%)`);
+    Logger.log(`   Peso KPI (porcentajePunto): ${(porcentajePunto * 100).toFixed(2)}%`);
     
     const agentesConDatos = new Set();
 
-    let diasLaborables = 22;
-    if (fechaSeleccionada && numeroMes && typeof obtenerDiasLaborablesMes === 'function') {
-        const anio = (fechaSeleccionada instanceof Date) ? 
-            fechaSeleccionada.getFullYear() : 
-            new Date(fechaSeleccionada).getFullYear();
-        diasLaborables = obtenerDiasLaborablesMes(numeroMes, isNaN(anio) ? new Date().getFullYear() : anio);
-    }
-
-    // Leer configuración
+    // ========================================
+    // ⭐ PASO 1: LEER CONFIGURACIÓN DE LA LOB
+    // ========================================
     let salarioBaseLOB = 0;
     let porcentajeBonoGlobal = 0;
     
@@ -654,7 +713,7 @@ function validarKPI1(llave, condicionScore, porcentajePunto, dataCDM, dataUsuari
         const hojaConfig = ssConfig.getSheetByName('Configuracion');
         
         if (!hojaConfig) {
-            Logger.log('❌ ERROR CRÍTICO: No se encontró la hoja Configuracion');
+            Logger.log('❌ ERROR: No se encontró la hoja Configuracion');
             return resultado;
         }
         
@@ -674,7 +733,7 @@ function validarKPI1(llave, condicionScore, porcentajePunto, dataCDM, dataUsuari
                 
                 if (salarioBaseLOB > 0 && porcentajeBonoGlobal > 0) {
                     encontrado = true;
-                    Logger.log(`✅ Config LOB: Salario=$${salarioBaseLOB}, %Bono=${porcentajeBonoGlobal}%`);
+                    Logger.log(`✅ Config LOB: Salario Base=$${salarioBaseLOB}, %Bono=${porcentajeBonoGlobal}%`);
                     break;
                 }
             }
@@ -690,7 +749,9 @@ function validarKPI1(llave, condicionScore, porcentajePunto, dataCDM, dataUsuari
         return resultado;
     }
 
-    // Leer horas semanales desde H_C
+    // ========================================
+    // ⭐ PASO 2: LEER HORAS SEMANALES DESDE H_C (COLUMNA J)
+    // ========================================
     const horasSemanalesPorAgente = {};
     
     try {
@@ -704,7 +765,7 @@ function validarKPI1(llave, condicionScore, porcentajePunto, dataCDM, dataUsuari
             for (let h = 1; h < dataHC.length; h++) {
                 const bmsHC = String(dataHC[h][0]).trim();
                 const lobHC = normalizar(String(dataHC[h][1] || ''));
-                const horasSemanalesRaw = dataHC[h][9];
+                const horasSemanalesRaw = dataHC[h][9]; // Columna J (índice 9)
                 
                 if (lobHC === lobNormHC && bmsHC) {
                     const horasSemanales = parseFloat(horasSemanalesRaw);
@@ -714,12 +775,16 @@ function validarKPI1(llave, condicionScore, porcentajePunto, dataCDM, dataUsuari
                     }
                 }
             }
+            
+            Logger.log(`✅ Horas semanales cargadas para ${Object.keys(horasSemanalesPorAgente).length} agentes`);
         }
     } catch (error) {
         Logger.log(`⚠️ Error al leer H_C: ${error.message}`);
     }
 
-    // Búsqueda de columnas en CDM
+    // ========================================
+    // BÚSQUEDA DE COLUMNAS EN CDM
+    // ========================================
     const headers = dataCDM[0];
     
     let idxBms = headers.indexOf('BMS ID');
@@ -741,13 +806,14 @@ function validarKPI1(llave, condicionScore, porcentajePunto, dataCDM, dataUsuari
     let idxSubLOB = headers.indexOf('SubLOB');
     if (idxSubLOB === -1) idxSubLOB = 2;
 
-    Logger.log(`📋 Índices CDM - BMS:${idxBms}, ValH:${idxValH}, Llave:${idxLlave}`);
-
-    // ⭐ SI ES BONO FIJO, ASIGNAR A TODOS SIN REVISAR CDM
+    // ========================================
+    // ⭐ SI ES BONO FIJO, ASIGNAR A TODOS
+    // ========================================
     if (esBonoFijo) {
         Logger.log(`💰 Asignando bono fijo a todos los agentes`);
         
         todosLosAgentes.forEach(ag => {
+            // Determinar salario (LOB o personalizado)
             let salario = salarioBaseLOB;
             let salarioPersonalizado = false;
             
@@ -766,14 +832,31 @@ function validarKPI1(llave, condicionScore, porcentajePunto, dataCDM, dataUsuari
                 }
             }
             
-            // ⭐⭐⭐ CORRECCIÓN CRÍTICA: APLICAR PESO, LUEGO PARTICIPACIÓN ⭐⭐⭐
-            const bonoBase = salario * (porcentajeBonoGlobal / 100);
-            let bonoFinal = bonoBase * porcentajePunto; // ← PRIMERO: aplicar peso del KPI
+            // ⭐⭐⭐ CÁLCULO CORRECTO CON PROPORCIÓN DE HORAS ⭐⭐⭐
             
-            // ⭐ SI ES DECREASE Y BONO FIJO, DEBE SER NEGATIVO
+            // 1. Obtener horas semanales
+            const horasSemanales = horasSemanalesPorAgente[ag.bmsId] || 42;
+            
+            // 2. Calcular salario proporcional
+            const salarioProporcional = salario * (horasSemanales / 42);
+            
+            // 3. Bono base (% global sobre salario proporcional)
+            const bonoBase = salarioProporcional * (porcentajeBonoGlobal / 100);
+            
+            // 4. Aplicar peso del KPI
+            let bonoFinal = bonoBase * porcentajePunto;
+            
+            // 5. Si es Decrease, debe ser negativo
             if (esDecrease) {
                 bonoFinal = -Math.abs(bonoFinal);
             }
+            
+            Logger.log(`💰 ${ag.nombre} (BMS ${ag.bmsId}):`);
+            Logger.log(`   Salario base: $${salario}${salarioPersonalizado ? ' (personalizado)' : ''}`);
+            Logger.log(`   Horas semanales: ${horasSemanales}h`);
+            Logger.log(`   Salario proporcional: $${salarioProporcional.toFixed(2)}`);
+            Logger.log(`   Bono base (${porcentajeBonoGlobal}%): $${bonoBase.toFixed(2)}`);
+            Logger.log(`   Con peso KPI (${(porcentajePunto * 100).toFixed(2)}%): $${bonoFinal.toFixed(2)}`);
             
             resultado.totalCoincidencias++;
             resultado.totalCumplenCondicion++;
@@ -781,7 +864,7 @@ function validarKPI1(llave, condicionScore, porcentajePunto, dataCDM, dataUsuari
             resultado.empleadosCumplen.push({
                 bmsId: ag.bmsId,
                 nombre: ag.nombre,
-                valorF: '-',
+                valorF: valorBonoFijo,
                 bono: bonoFinal,
                 salarioPersonalizado: salarioPersonalizado
             });
@@ -790,7 +873,9 @@ function validarKPI1(llave, condicionScore, porcentajePunto, dataCDM, dataUsuari
         return resultado;
     }
 
-    // ⭐ PROCESAR FILAS DE CDM
+    // ========================================
+    // ⭐ PROCESAR FILAS DE CDM (KPI CON CONDICIÓN)
+    // ========================================
     for (let row = 1; row < dataCDM.length; row++) {
         const llaveCDMRaw = String(dataCDM[row][idxLlave] || '').trim();
         const llaveCDM = normalizar(llaveCDMRaw);
@@ -844,7 +929,7 @@ function validarKPI1(llave, condicionScore, porcentajePunto, dataCDM, dataUsuari
             continue;
         }
 
-        // ⭐ CORRECCIÓN DECREASED: NO INVERTIR LA LÓGICA
+        // ⭐ VALIDAR CONDICIÓN
         let cumple = false;
         switch (operador) {
             case '>': cumple = valorNumerico > valorCondicion; break;
@@ -855,12 +940,11 @@ function validarKPI1(llave, condicionScore, porcentajePunto, dataCDM, dataUsuari
         }
 
         if (resultado.totalCoincidencias <= 5) {
-            Logger.log(`   ${bmsId}: ${valorNumerico} ${operador} ${valorCondicion} → ${cumple ? '✅ CUMPLE' : '❌ NO CUMPLE'}${esDecrease ? ' (PENALIZACIÓN)' : ''}`);
+            Logger.log(`   ${bmsId}: ${valorNumerico} ${operador} ${valorCondicion} → ${cumple ? '✅' : '❌'}`);
         }
 
-        // Leer salario
+        // ⭐ DETERMINAR SALARIO
         let salario = salarioBaseLOB;
-        let horasSemanales = horasSemanalesPorAgente[bmsId] || 0;
         let salarioPersonalizado = false;
         
         for (let u = 1; u < dataUsuario.length; u++) {
@@ -882,41 +966,59 @@ function validarKPI1(llave, condicionScore, porcentajePunto, dataCDM, dataUsuari
             salario = salarioBaseLOB;
         }
 
-        // ⭐⭐⭐ CORRECCIÓN CRÍTICA: CALCULAR BONO CORRECTAMENTE ⭐⭐⭐
+        // ========================================
+        // ⭐⭐⭐ CÁLCULO CORRECTO CON PROPORCIÓN DE HORAS ⭐⭐⭐
+        // ========================================
         
-        // PASO 1: Calcular bono base (salario × % global)
-        const bonoBase = salario * (porcentajeBonoGlobal / 100);
+        // 1. Obtener horas semanales
+        const horasSemanales = horasSemanalesPorAgente[bmsId] || 42;
         
-        // PASO 2: Aplicar PESO del KPI (porcentajePunto)
-        let bonoConPeso = bonoBase * porcentajePunto;
+        // 2. Calcular salario proporcional
+        const salarioProporcional = salario * (horasSemanales / 42);
         
-        Logger.log(`💰 BMS ${bmsId}:`);
-        Logger.log(`   Salario: $${salario}`);
-        Logger.log(`   %Bono Global: ${porcentajeBonoGlobal}%`);
-        Logger.log(`   Bono Base: $${bonoBase.toFixed(2)}`);
-        Logger.log(`   Peso KPI: ${(porcentajePunto * 100).toFixed(2)}%`);
-        Logger.log(`   Bono con Peso: $${bonoConPeso.toFixed(2)}`);
+        // 3. Bono base (% global sobre salario proporcional)
+        const bonoBase = salarioProporcional * (porcentajeBonoGlobal / 100);
         
-        // PASO 3: Aplicar prorrateo si corresponde
+        // 4. Aplicar peso del KPI
+        let bonoParcial = bonoBase * porcentajePunto;
+        
+        Logger.log(`\n💰 ${bmsId} (${cumple ? 'CUMPLE' : 'NO CUMPLE'}):`);
+        Logger.log(`   Salario base: $${salario}${salarioPersonalizado ? ' (personalizado)' : ''}`);
+        Logger.log(`   Horas semanales: ${horasSemanales}h`);
+        Logger.log(`   Salario proporcional: $${salarioProporcional.toFixed(2)}`);
+        Logger.log(`   Bono base (${porcentajeBonoGlobal}%): $${bonoBase.toFixed(2)}`);
+        Logger.log(`   Con peso KPI (${(porcentajePunto * 100).toFixed(2)}%): $${bonoParcial.toFixed(2)}`);
+        
+        // ⭐ PASO 5: Prorrateo SOLO por horas trabajadas (Horas_N - vacaciones/ausencias)
         let factorProrrateo = 1;
         const horasRealesPorAgente = (numeroMes && typeof obtenerHorasPorAgente === 'function') ? 
             obtenerHorasPorAgente(lobActual, numeroMes) : {};
             
-        if (numeroMes && horasRealesPorAgente[bmsId] && horasSemanales > 0) {
+        if (numeroMes && horasRealesPorAgente[bmsId]) {
             const hReales = horasRealesPorAgente[bmsId].horas || 0;
+            
+            // Calcular días laborables del mes
+            let diasLaborables = 22;
+            if (fechaSeleccionada && typeof obtenerDiasLaborablesMes === 'function') {
+                const anio = (fechaSeleccionada instanceof Date) ? 
+                    fechaSeleccionada.getFullYear() : 
+                    new Date(fechaSeleccionada).getFullYear();
+                diasLaborables = obtenerDiasLaborablesMes(numeroMes, isNaN(anio) ? new Date().getFullYear() : anio);
+            }
+            
             const hEsperadas = (horasSemanales / 5) * diasLaborables;
             factorProrrateo = hEsperadas > 0 ? hReales / hEsperadas : 0;
             if (factorProrrateo > 1.2) factorProrrateo = 1;
             
-            Logger.log(`   Prorrateo: ${hReales}h / ${hEsperadas.toFixed(0)}h = ${(factorProrrateo * 100).toFixed(1)}%`);
+            Logger.log(`   📊 Prorrateo Horas_N: ${hReales}h / ${hEsperadas.toFixed(0)}h = ${(factorProrrateo * 100).toFixed(1)}%`);
         }
 
-        // PASO 4: Aplicar prorrateo al bono con peso
-        let bonoFinal = bonoConPeso * factorProrrateo;
+        // ⭐ PASO 6: Aplicar prorrateo (solo si hubo ausencias)
+        let bonoFinal = bonoParcial * factorProrrateo;
         
-        Logger.log(`   Bono Final: $${bonoFinal.toFixed(2)}`);
+        Logger.log(`   ✅ Bono FINAL: $${bonoFinal.toFixed(2)}`);
         
-        // ⭐ Si es Decrease Y cumple → bono NEGATIVO (penalización)
+        // ⭐ Si es Decrease Y cumple → negativo
         if (esDecrease && cumple) {
             bonoFinal = -Math.abs(bonoFinal);
         }
@@ -937,7 +1039,9 @@ function validarKPI1(llave, condicionScore, porcentajePunto, dataCDM, dataUsuari
         }
     }
 
-    // Agentes sin datos
+    // ========================================
+    // AGENTES SIN DATOS
+    // ========================================
     todosLosAgentes.forEach(ag => {
         if (!agentesConDatos.has(ag.bmsId)) {
             resultado.empleadosSinDatos.push({ 
@@ -955,6 +1059,7 @@ function validarKPI1(llave, condicionScore, porcentajePunto, dataCDM, dataUsuari
 
     return resultado;
 }
+
 
 ///////////////////////
 
@@ -1378,191 +1483,195 @@ function obtenerMesesCDMDisponibles() {
 
 
 function obtenerDatosParaFrontend(lobSeleccionada = null, fechaSeleccionada = null, mesComparativo = null) {
-  try {
-    Logger.log("🔵 ========== INICIO obtenerDatosParaFrontend ==========");
-    Logger.log(`Parámetros: LOB="${lobSeleccionada}", Fecha="${fechaSeleccionada}", Mes=${mesComparativo}`);
-    
-    const usuario = obtenerDatosUsuarioActivo();
-    if (!usuario) {
-      Logger.log("❌ Usuario no encontrado");
-      return { error: "Usuario no encontrado" };
-    }
-    
-    Logger.log(`👤 Usuario: ${usuario.nombre}, Rol: ${usuario.rol}`);
-    
-    let lobs = [];
-    let todasLasLobs = [];
-    
-    // ⭐ Determinar LOBs según rol
-    if (usuario.rol === 'Reporting Analyst') {
-      todasLasLobs = obtenerTodasLasLobs();
-      lobs = lobSeleccionada ? [lobSeleccionada] : todasLasLobs;
-      Logger.log(`📊 Reporting Analyst - Todas las LOBs: ${todasLasLobs.length}`);
-      
-    } else if (usuario.rol === 'OM') {
-      todasLasLobs = obtenerLobsPorOM(usuario.nombre);
-      lobs = lobSeleccionada ? [lobSeleccionada] : todasLasLobs;
-      Logger.log(`📊 OM - LOBs asignadas: ${todasLasLobs.length}`);
-      if (lobs.length === 0) return { error: "OM sin LOBs asignadas" };
-      
-    } else if (usuario.rol === 'ACCM') {
-      todasLasLobs = obtenerLobsPorACCM(usuario.nombre);
-      lobs = lobSeleccionada ? [lobSeleccionada] : todasLasLobs;
-      Logger.log(`📊 ACCM - LOBs asignadas: ${todasLasLobs.length}`);
-      if (lobs.length === 0) {
-        Logger.log("⚠️ ACCM sin LOBs en H_C, usando LOB de Usuario");
-        lobs = [usuario.lob];
-        todasLasLobs = [usuario.lob];
-      }
-      
-    } else if (usuario.rol === 'Supervisor') {
-      todasLasLobs = obtenerLobsPorSupervisor(usuario.nombre);
-      lobs = lobSeleccionada ? [lobSeleccionada] : todasLasLobs;
-      Logger.log(`📊 Supervisor - LOBs asignadas: ${todasLasLobs.length}`);
-      if (lobs.length === 0) return { error: "Supervisor sin LOBs asignadas" };
-      
-    } else {
-      return { error: `Rol "${usuario.rol}" no soportado` };
-    }
-    
-    // Si no hay mes ni fecha, solo retornar info básica
-    if (!mesComparativo && !fechaSeleccionada) {
-      Logger.log("⚠️ Sin mes ni fecha - retornando solo info básica");
-      return {
-        usuario,
-        lobs,
-        todasLasLobs,
-        fechasPorLob: {},
-        metricasPorLob: {},
-        mesSeleccionado: null,
-        esperandoMes: true
-      };
-    }
-    
-    // ⭐ Cargar agentes permitidos
-    const agentesPermitidos = obtenerAgentesPermitidos();
-    Logger.log(`✅ Agentes permitidos cargados: ${Object.keys(agentesPermitidos).length}`);
-    
-    // Determinar qué CDM usar
-    const numeroMes = mesComparativo || (fechaSeleccionada ? obtenerNumeroMesDeFecha(fechaSeleccionada) : null);
-    const dataCDM = obtenerDatosCDMPorMes(numeroMes);
-    Logger.log(`📋 Usando CDM del mes: ${numeroMes || 'general'}`);
-    
-    const ssUsuario = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
-    const dataUsuario = ssUsuario.getSheetByName('Usuario').getDataRange().getValues();
-    
-    const resultado = {
-      usuario,
-      lobs,
-      todasLasLobs,
-      fechasPorLob: {},
-      metricasPorLob: {},
-      mesSeleccionado: numeroMes
-    };
-    
-    // ⭐ PROCESAR TODAS LAS LOBs
-    const lobsAProcesar = todasLasLobs.length > 0 ? todasLasLobs : lobs;
-    
-    for (const lob of lobsAProcesar) {
-      Logger.log(`\n🔹 ========== Procesando LOB: ${lob} ==========`);
+    try {
+        Logger.log("🔵 ========== INICIO obtenerDatosParaFrontend ==========");
+        Logger.log(`Parámetros: LOB="${lobSeleccionada}", Fecha="${fechaSeleccionada}", Mes=${mesComparativo}`);
 
-      const fechas = obtenerFechasPorLob(lob);
-      resultado.fechasPorLob[lob] = fechas;
-      Logger.log(`📅 Fechas disponibles: ${fechas.length}`);
-      
-      if (fechaSeleccionada && fechas.includes(fechaSeleccionada)) {
-        Logger.log(`📆 Buscando registros para fecha: ${fechaSeleccionada}`);
-        
-        const registrosFiltrados = obtenerRegistrosPorLobYFecha(lob, fechaSeleccionada, usuario.nombre, usuario.rol);
-        
-        if (!registrosFiltrados || registrosFiltrados.length === 0) {
-          Logger.log(`⚠️ No hay registros para esta fecha`);
-          resultado.metricasPorLob[lob] = { error: "No hay registros para esta fecha" };
-        } else {
-          Logger.log(`✅ Encontrados ${registrosFiltrados.length} registros`);
-          
-          const resultadosCombinados = {
-            keys: [],
-            bonusStructure: [],
-            additionalIncentives: [],
-            decreasedKPIs: []
-          };
-          
-          registrosFiltrados.forEach((regData, idx) => {
-            Logger.log(`\n🔸 Procesando registro ${idx + 1}/${registrosFiltrados.length}`);
-            
-            const validacion = validarKPIsPorCategoria(
-              regData.registro,
-              lob,
-              dataCDM,
-              dataUsuario,
-              regData.hoja,
-              agentesPermitidos
-            );
-            
-            ['keys', 'bonusStructure', 'additionalIncentives', 'decreasedKPIs'].forEach(cat => {
-              if (validacion[cat] && validacion[cat].length > 0) {
-                resultadosCombinados[cat] = resultadosCombinados[cat].concat(validacion[cat]);
-              }
-            });
-          });
-          
-          resultado.metricasPorLob[lob] = resultadosCombinados;
+        const usuario = obtenerDatosUsuarioActivo();
+        if (!usuario) {
+            Logger.log("❌ Usuario no encontrado");
+            return { error: "Usuario no encontrado" };
         }
-      } else {
-        Logger.log(`📋 Buscando registro por usuario y LOB`);
-        
-        const registroData = obtenerRegistroPorUsuarioYLob(usuario.nombre, lob, usuario.rol);
-        
-        if (!registroData) {
-          Logger.log(`⚠️ No se encontró registro`);
-          resultado.metricasPorLob[lob] = { error: "No se encontró registro para esta LOB" };
+
+        Logger.log(`👤 Usuario: ${usuario.nombre}, Rol: ${usuario.rol}`);
+
+        let lobs = [];
+        let todasLasLobs = [];
+
+        // ⭐ Determinar LOBs según rol
+        if (usuario.rol === 'Reporting Analyst') {
+            todasLasLobs = obtenerTodasLasLobs();
+            lobs = lobSeleccionada ? [lobSeleccionada] : todasLasLobs;
+            Logger.log(`📊 Reporting Analyst - Todas las LOBs: ${todasLasLobs.length}`);
+
+        } else if (usuario.rol === 'OM') {
+            todasLasLobs = obtenerLobsPorOM(usuario.nombre);
+            lobs = lobSeleccionada ? [lobSeleccionada] : todasLasLobs;
+            Logger.log(`📊 OM - LOBs asignadas: ${todasLasLobs.length}`);
+            if (lobs.length === 0) return { error: "OM sin LOBs asignadas" };
+
+        } else if (usuario.rol === 'ACCM') {
+            todasLasLobs = obtenerLobsPorACCM(usuario.nombre);
+            lobs = lobSeleccionada ? [lobSeleccionada] : todasLasLobs;
+            Logger.log(`📊 ACCM - LOBs asignadas: ${todasLasLobs.length}`);
+            if (lobs.length === 0) {
+                Logger.log("⚠️ ACCM sin LOBs en H_C, usando LOB de Usuario");
+                lobs = [usuario.lob];
+                todasLasLobs = [usuario.lob];
+            }
+
+        } else if (usuario.rol === 'Supervisor') {
+            todasLasLobs = obtenerLobsPorSupervisor(usuario.nombre);
+            lobs = lobSeleccionada ? [lobSeleccionada] : todasLasLobs;
+            Logger.log(`📊 Supervisor - LOBs asignadas: ${todasLasLobs.length}`);
+            if (lobs.length === 0) return { error: "Supervisor sin LOBs asignadas" };
+
         } else {
-          Logger.log(`✅ Registro encontrado en hoja: ${registroData.hoja}`);
-          
-          resultado.metricasPorLob[lob] = validarKPIsPorCategoria(
-            registroData.registro,
-            lob,
-            dataCDM,
-            dataUsuario,
-            registroData.hoja,
-            agentesPermitidos
-          );
+            return { error: `Rol "${usuario.rol}" no soportado` };
         }
-      }
+
+        // Si no hay mes ni fecha, solo retornar info básica
+        if (!mesComparativo && !fechaSeleccionada) {
+            Logger.log("⚠️ Sin mes ni fecha - retornando solo info básica");
+            return {
+                usuario,
+                lobs,
+                todasLasLobs,
+                fechasPorLob: {},
+                metricasPorLob: {},
+                mesSeleccionado: null,
+                esperandoMes: true
+            };
+        }
+
+        // ⭐ Cargar agentes permitidos
+        const agentesPermitidos = obtenerAgentesPermitidos();
+        Logger.log(`✅ Agentes permitidos cargados: ${Object.keys(agentesPermitidos).length}`);
+
+        // Determinar qué CDM usar
+        const numeroMes = mesComparativo || (fechaSeleccionada ? obtenerNumeroMesDeFecha(fechaSeleccionada) : null);
+        const dataCDM = obtenerDatosCDMPorMes(numeroMes);
+        Logger.log(`📋 Usando CDM del mes: ${numeroMes || 'general'}`);
+
+        const ssUsuario = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+        const dataUsuario = ssUsuario.getSheetByName('Usuario').getDataRange().getValues();
+
+        const resultado = {
+            usuario,
+            lobs,
+            todasLasLobs,
+            fechasPorLob: {},
+            metricasPorLob: {},
+            mesSeleccionado: numeroMes,
+            agentesPermitidos: agentesPermitidos // ⭐ CRÍTICO: Enviar esto al frontend
+        };
+
+        // ⭐ PROCESAR TODAS LAS LOBs
+        const lobsAProcesar = todasLasLobs.length > 0 ? todasLasLobs : lobs;
+
+        for (const lob of lobsAProcesar) {
+            Logger.log(`\n🔹 ========== Procesando LOB: ${lob} ==========`);
+
+            const fechas = obtenerFechasPorLob(lob);
+            resultado.fechasPorLob[lob] = fechas;
+            Logger.log(`📅 Fechas disponibles: ${fechas.length}`);
+
+            if (fechaSeleccionada && fechas.includes(fechaSeleccionada)) {
+                Logger.log(`📆 Buscando registros para fecha: ${fechaSeleccionada}`);
+
+                const registrosFiltrados = obtenerRegistrosPorLobYFecha(lob, fechaSeleccionada, usuario.nombre, usuario.rol);
+
+                if (!registrosFiltrados || registrosFiltrados.length === 0) {
+                    Logger.log(`⚠️ No hay registros para esta fecha`);
+                    resultado.metricasPorLob[lob] = { error: "No hay registros para esta fecha" };
+                } else {
+                    Logger.log(`✅ Encontrados ${registrosFiltrados.length} registros`);
+
+                    const resultadosCombinados = {
+                        keys: [],
+                        bonusStructure: [],
+                        additionalIncentives: [],
+                        decreasedKPIs: []
+                    };
+
+                    registrosFiltrados.forEach((regData, idx) => {
+                        Logger.log(`\n🔸 Procesando registro ${idx + 1}/${registrosFiltrados.length}`);
+
+                        const validacion = validarKPIsPorCategoria(
+                            regData.registro,
+                            lob,
+                            dataCDM,
+                            dataUsuario,
+                            regData.hoja,
+                            agentesPermitidos,
+                            numeroMes,
+                            fechaSeleccionada
+                        );
+
+                        ['keys', 'bonusStructure', 'additionalIncentives', 'decreasedKPIs'].forEach(cat => {
+                            if (validacion[cat] && validacion[cat].length > 0) {
+                                resultadosCombinados[cat] = resultadosCombinados[cat].concat(validacion[cat]);
+                            }
+                        });
+                    });
+
+                    resultado.metricasPorLob[lob] = resultadosCombinados;
+                }
+            } else {
+                Logger.log(`📋 Buscando registro por usuario y LOB`);
+
+                const registroData = obtenerRegistroPorUsuarioYLob(usuario.nombre, lob, usuario.rol);
+
+                if (!registroData) {
+                    Logger.log(`⚠️ No se encontró registro`);
+                    resultado.metricasPorLob[lob] = { error: "No se encontró registro para esta LOB" };
+                } else {
+                    Logger.log(`✅ Registro encontrado en hoja: ${registroData.hoja}`);
+
+                    resultado.metricasPorLob[lob] = validarKPIsPorCategoria(
+                        registroData.registro,
+                        lob,
+                        dataCDM,
+                        dataUsuario,
+                        registroData.hoja,
+                        agentesPermitidos,
+                        numeroMes,
+                        fechaSeleccionada
+                    );
+                }
+            }
+        }
+
+        // ⭐ CARGAR HORAS POR AGENTE
+        if (lobSeleccionada && numeroMes) {
+            Logger.log('🔄 Cargando horas para LOB: ' + lobSeleccionada + ', Mes: ' + numeroMes);
+            resultado.horasPorAgente = obtenerHorasPorAgente(lobSeleccionada, numeroMes);
+            Logger.log('✅ Horas cargadas: ' + Object.keys(resultado.horasPorAgente).length + ' agentes');
+        } else {
+            Logger.log('⚠️ No se cargaron horas (LOB o mes no especificado)');
+            resultado.horasPorAgente = {};
+        }
+
+        // ⭐ NUEVO: CARGAR PRORRATEOS APLICADOS
+        if (lobSeleccionada && fechaSeleccionada && numeroMes) {
+            Logger.log('🔄 Cargando prorrateos aplicados...');
+            resultado.agentesProrrateo = (typeof obtenerAgentesConProrrateo === 'function') ?
+                obtenerAgentesConProrrateo(lobSeleccionada, fechaSeleccionada, numeroMes) : {};
+            Logger.log('✅ Prorrateos cargados: ' + Object.keys(resultado.agentesProrrateo).length + ' agentes');
+        } else {
+            resultado.agentesProrrateo = {};
+        }
+
+        Logger.log("\n🔵 ========== FIN obtenerDatosParaFrontend ==========");
+        Logger.log(`📦 Resultado: ${Object.keys(resultado.metricasPorLob).length} LOBs procesadas`);
+
+        return resultado;
+
+    } catch (error) {
+        Logger.log('❌ Error en obtenerParaFrontend: ' + error.message);
+        return { error: error.message };
     }
-    
-    // ⭐ CARGAR HORAS POR AGENTE
-    if (lobSeleccionada && numeroMes) {
-      Logger.log('🔄 Cargando horas para LOB: ' + lobSeleccionada + ', Mes: ' + numeroMes);
-      resultado.horasPorAgente = obtenerHorasPorAgente(lobSeleccionada, numeroMes);
-      Logger.log('✅ Horas cargadas: ' + Object.keys(resultado.horasPorAgente).length + ' agentes');
-    } else {
-      Logger.log('⚠️ No se cargaron horas (LOB o mes no especificado)');
-      resultado.horasPorAgente = {};
-    }
-    
-    // ⭐ NUEVO: CARGAR PRORRATEOS APLICADOS
-    if (lobSeleccionada && fechaSeleccionada && numeroMes) {
-      Logger.log('🔄 Cargando prorrateos aplicados...');
-      resultado.agentesProrrateo = obtenerAgentesConProrrateo(lobSeleccionada, fechaSeleccionada, numeroMes);
-      Logger.log('✅ Prorrateos cargados: ' + Object.keys(resultado.agentesProrrateo).length + ' agentes');
-    } else {
-      resultado.agentesProrrateo = {};
-    }
-    
-    Logger.log("\n🔵 ========== FIN obtenerDatosParaFrontend ==========");
-    Logger.log(`📦 Resultado: ${Object.keys(resultado.metricasPorLob).length} LOBs procesadas`);
-    
-    return resultado;
-    
-  } catch (error) {
-    Logger.log('❌ Error en obtenerDatosParaFrontend: ' + error.message);
-    return { error: error.message };
-  }
 }
-
-
 
 
 /**
@@ -1582,23 +1691,117 @@ function obtenerTodosLosAgentesDeLOB(lob, agentesPermitidos) {
     
     return result;
 }
-
 function obtenerHorasPorAgente(lob, numMes) {
     try {
         const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
         const h = ss.getSheetByName(`Horas_${numMes}`);
-        if (!h) return {};
         
-        const data = h.getDataRange().getValues();
-        const map = {};
-        
-        for (let i = 1; i < data.length; i++) {
-            map[String(data[i][0]).trim()] = { horas: parseFloat(data[i][1]) || 0 };
+        if (!h) {
+            Logger.log(`⚠️ No se encontró la hoja Horas_${numMes}`);
+            return {};
         }
         
+        const data = h.getDataRange().getValues();
+        
+        if (data.length < 2) {
+            Logger.log(`⚠️ Hoja Horas_${numMes} está vacía`);
+            return {};
+        }
+        
+        // ⭐ VALIDAR HEADERS
+        const headers = data[0];
+        Logger.log(`📋 Headers de Horas_${numMes}:`, headers);
+        
+        // Buscar índices de columnas
+        let idxCCMS = -1;
+        let idxHoras = -1;
+        let idxAusencias = -1;
+        let idxDias = -1;
+        
+        // Buscar por nombre de columna (más robusto)
+        for (let i = 0; i < headers.length; i++) {
+            const header = String(headers[i]).toLowerCase().trim();
+            
+            if (header.includes('ccms') || header.includes('bms')) {
+                idxCCMS = i;
+            } else if (header === 'horas') {
+                idxHoras = i;
+            } else if (header.includes('ausencia')) {
+                idxAusencias = i;
+            } else if (header.includes('dia')) {
+                idxDias = i;
+            }
+        }
+        
+        // Si no encontró por nombre, usar posiciones por defecto
+        if (idxCCMS === -1) idxCCMS = 1;  // Columna B
+        if (idxHoras === -1) idxHoras = 4;  // Columna E
+        if (idxAusencias === -1) idxAusencias = 5;  // Columna F
+        if (idxDias === -1) idxDias = 6;  // Columna G
+        
+        Logger.log(`📊 Índices detectados:`);
+        Logger.log(`   CCMS ID: columna ${String.fromCharCode(65 + idxCCMS)} (índice ${idxCCMS})`);
+        Logger.log(`   Horas: columna ${String.fromCharCode(65 + idxHoras)} (índice ${idxHoras})`);
+        Logger.log(`   Ausencias: columna ${String.fromCharCode(65 + idxAusencias)} (índice ${idxAusencias})`);
+        Logger.log(`   Días: columna ${String.fromCharCode(65 + idxDias)} (índice ${idxDias})`);
+        
+        const map = {};
+        let registrosCargados = 0;
+        
+        // ⭐ LEER DATOS DESDE FILA 1 (saltando headers)
+        for (let i = 1; i < data.length; i++) {
+            const fila = data[i];
+            
+            // Leer CCMS ID desde la columna correcta
+            const ccmsId = String(fila[idxCCMS] || '').trim();
+            
+            if (!ccmsId) {
+                if (i <= 5) {
+                    Logger.log(`⚠️ Fila ${i+1}: CCMS ID vacío, saltando...`);
+                }
+                continue;
+            }
+            
+            // Leer horas (puede venir como número o texto)
+            let horas = 0;
+            const horasRaw = fila[idxHoras];
+            
+            if (horasRaw !== null && horasRaw !== undefined && horasRaw !== '') {
+                horas = parseFloat(horasRaw) || 0;
+            }
+            
+            // Leer ausencias y días (opcional)
+            const ausencias = parseFloat(fila[idxAusencias]) || 0;
+            const dias = parseFloat(fila[idxDias]) || 0;
+            
+            // Guardar en el mapa
+            map[ccmsId] = {
+                horas: horas,
+                ausencias: ausencias,
+                dias: dias
+            };
+            
+            registrosCargados++;
+            
+            // ⭐ LOG de las primeras 5 filas para debug
+            if (i <= 5) {
+                Logger.log(`\n✅ Fila ${i+1} cargada:`);
+                Logger.log(`   CCMS ID: "${ccmsId}"`);
+                Logger.log(`   Horas: ${horas}h`);
+                Logger.log(`   Ausencias: ${ausencias}`);
+                Logger.log(`   Días: ${dias}`);
+            }
+        }
+        
+        Logger.log(`\n📊 RESUMEN:`);
+        Logger.log(`   Total registros en Horas_${numMes}: ${registrosCargados}`);
+        Logger.log(`   Primeros IDs: ${Object.keys(map).slice(0, 5).join(', ')}`);
+        
         return map;
+        
     } catch (e) {
-        Logger.log('❌ Error en obtenerHorasPorAgente: ' + e.message);
+        Logger.log(`❌ Error en obtenerHorasPorAgente: ${e.message}`);
+        Logger.log(`Stack: ${e.stack}`);
         return {};
     }
 }
@@ -2348,3 +2551,48 @@ function normalizarMes(mes) {
     return mesesMap[m] || m;
 }
 
+
+
+
+function debugHorasYNombres() {
+  const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+  const hojaHC = ss.getSheetByName('H_C');
+  const dataHC = hojaHC.getDataRange().getValues();
+  
+  Logger.log("🔍 ========== DEBUG H_C ==========");
+  Logger.log("Headers:", dataHC[0]);
+  
+  for (let i = 1; i <= Math.min(5, dataHC.length - 1); i++) {
+    Logger.log(`\nFila ${i+1}:`);
+    Logger.log(`  A (BMS): ${dataHC[i][0]}`);
+    Logger.log(`  B (LOB): ${dataHC[i][1]}`);
+    Logger.log(`  C (Nombre): ${dataHC[i][2]}`);
+    Logger.log(`  D (Rol): ${dataHC[i][3]}`);
+    Logger.log(`  J (Horas): ${dataHC[i][9]}`);
+  }
+  
+  Logger.log("\n========================================");
+}
+
+
+
+function obtenerTodasLasLobsDelSistema() {
+    return getCached('todas_lobs_sistema', function () {
+        const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+        const hoja = ss.getSheetByName('H_C');
+        if (!hoja) return [];
+
+        const data = hoja.getDataRange().getValues();
+        const lobs = new Set();
+
+        // Asumiendo que LOB está en la columna B (índice 1)
+        for (let i = 1; i < data.length; i++) {
+            const lob = String(data[i][1]).trim();
+            if (lob && lob.length > 2) {
+                lobs.add(lob);
+            }
+        }
+
+        return Array.from(lobs).sort();
+    }, 21600); // Cache por 6 horas
+}

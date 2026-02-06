@@ -890,205 +890,240 @@ function simularTodasLasLOBsDelUsuario() {
     } catch (error) { return { success: false, error: error.toString() }; }
 }
 
+
+
+
+
 function simularTodasLOBsPorOM(nombreOM) {
     try {
         Logger.log(`\n🚀 ========== SIMULACIÓN MASIVA PARA OM: ${nombreOM} ==========`);
-        
+
+        const usuario = obtenerDatosUsuarioActivo();
+        if (!usuario) {
+            return { success: false, error: 'Usuario no encontrado' };
+        }
+
+        // ============================================
+        // PASO 1: Obtener LOBs desde Registro y
+        //         Registro_pisos (no solo Configuracion)
+        // ============================================
         const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
         const normalizar = s => s ? s.toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() : "";
         const omNorm = normalizar(nombreOM);
-        
-        const hojaConfig = ss.getSheetByName('Configuracion');
-        
-        if (!hojaConfig) {
-            Logger.log('❌ No existe la hoja Configuracion');
-            return { success: false, error: 'Hoja Configuracion no encontrada' };
-        }
-        
-        const dataConfig = hojaConfig.getDataRange().getValues();
-        const lobsDelOM = [];
-        const configPorLOB = {};
-        
-        Logger.log('\n📊 PASO 1: Buscando LOBs en Configuracion...');
-        
-        for (let i = 1; i < dataConfig.length; i++) {
-            const omFila = String(dataConfig[i][1] || '').trim();
-            const lobFila = String(dataConfig[i][2] || '').trim();
-            const salario = parseFloat(dataConfig[i][3]) || 0;
-            const porcentaje = parseFloat(dataConfig[i][4]) || 0;
-            const mes = String(dataConfig[i][0] || '').trim();
-            
-            if (normalizar(omFila) === omNorm && lobFila && salario > 0 && porcentaje > 0) {
-                if (!lobsDelOM.includes(lobFila)) {
-                    lobsDelOM.push(lobFila);
-                    Logger.log(`  ✅ LOB encontrada: ${lobFila}`);
+
+        const hojas = [
+            ss.getSheetByName('Registro'),
+            ss.getSheetByName('Registro_pisos')
+        ];
+
+        // Recopilar { lob, mes } únicos donde OM coincide
+        const lobMesMap = {};  // key: lobNorm → { lob: original, mes: último mes encontrado }
+
+        hojas.forEach(hoja => {
+            if (!hoja) return;
+            const data = hoja.getDataRange().getValues();
+            Logger.log(`📊 Escaneando ${hoja.getName()}: ${data.length - 1} filas`);
+
+            for (let i = 1; i < data.length; i++) {
+                const lobFila = String(data[i][1] || '').trim();
+                const omFila = String(data[i][3] || '').trim();
+
+                if (!lobFila) continue;
+
+                // Filtrar por OM
+                if (normalizar(omFila) !== omNorm) continue;
+
+                const lobKey = normalizar(lobFila);
+
+                // Obtener mes de la fila
+                let mesFila = data[i][0];
+                if (mesFila instanceof Date) {
+                    mesFila = Utilities.formatDate(mesFila, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+                } else {
+                    mesFila = String(mesFila || '').trim();
                 }
-                configPorLOB[lobFila] = { salario, porcentaje, mes };
+
+                if (!mesFila) continue;
+
+                // Guardar la LOB con el mes más reciente
+                if (!lobMesMap[lobKey] || mesFila > lobMesMap[lobKey].mes) {
+                    lobMesMap[lobKey] = { lob: lobFila, mes: mesFila };
+                }
             }
+        });
+
+        const lobsEncontradas = Object.values(lobMesMap);
+        Logger.log(`📋 LOBs encontradas para OM "${nombreOM}": ${lobsEncontradas.length}`);
+        lobsEncontradas.forEach(l => Logger.log(`   - ${l.lob} (mes: ${l.mes})`));
+
+        if (lobsEncontradas.length === 0) {
+            return {
+                success: false,
+                error: `No se encontraron LOBs registradas para el OM "${nombreOM}"`
+            };
         }
-        
-        if (lobsDelOM.length === 0) {
-            Logger.log('❌ No se encontraron LOBs en Configuracion para el OM');
-            return { success: false, error: `No se encontraron LOBs para el OM "${nombreOM}" en Configuracion` };
+
+        // ============================================
+        // PASO 2: Determinar numeroMes para cada LOB
+        // ============================================
+        const mesesMap = {
+            'enero': 1, 'febrero': 2, 'marzo': 3, 'abril': 4,
+            'mayo': 5, 'junio': 6, 'julio': 7, 'agosto': 8,
+            'septiembre': 9, 'octubre': 10, 'noviembre': 11, 'diciembre': 12
+        };
+
+        function resolverNumeroMes(mes) {
+            // Si es formato yyyy-MM-dd, extraer el mes
+            if (mes && mes.includes('-')) {
+                const partes = mes.split('-');
+                if (partes.length >= 2) {
+                    const m = parseInt(partes[1]);
+                    if (m >= 1 && m <= 12) return m;
+                }
+            }
+            // Si es nombre de mes
+            const mesLower = String(mes || '').toLowerCase().trim();
+            if (mesesMap[mesLower]) return mesesMap[mesLower];
+            // Fallback
+            return new Date().getMonth() + 1;
         }
-        
-        Logger.log(`📋 Total LOBs en Configuracion: ${lobsDelOM.length}`);
-        Logger.log(`📋 LOBs: ${lobsDelOM.join(', ')}`);
-        
-        const usuario = obtenerDatosUsuarioActivo();
-        const resultadosMap = new Map();
+
+        // ============================================
+        // PASO 3: Llamar simularConMetricasReales()
+        //         por cada LOB (la función que SÍ funciona)
+        // ============================================
+        const resultados = [];
         let totalAgentesGeneral = 0;
-        let totalBonoMaximo = 0;
-        
-        Logger.log('\n📊 PASO 2: Procesando cada LOB...');
-        
-        for (const lob of lobsDelOM) {
-            Logger.log(`\n🔍 Procesando: ${lob}`);
-            
-            const meses = obtenerMesesRegistrados(lob, usuario);
-            
-            if (!meses.length) {
-                Logger.log(`  ⚠️ LOB "${lob}" no tiene registros en Registro/Registro_pisos, se omite`);
-                continue;
-            }
-            
-            const mesReciente = meses[meses.length - 1];
-            Logger.log(`  📅 Mes más reciente: ${mesReciente}`);
-            
-            const estructura = obtenerEstructuraRegistrada(lob, mesReciente, usuario);
-            
-            if (!estructura.encontrado) {
-                Logger.log(`  ⚠️ No se encontró estructura para ${lob}`);
-                continue;
-            }
-            
-            Logger.log(`  📅 Fecha encontrada: ${estructura.fecha}`);
-            
-            const config = configPorLOB[lob];
-            const salario = config.salario;
-            const porcentaje = config.porcentaje;
-            const hc = contarAgentesPorLob(lob) || 0;
-            
-            Logger.log(`  💰 Salario: $${salario.toLocaleString()}`);
-            Logger.log(`  📊 % Bono: ${porcentaje}%`);
-            Logger.log(`  👥 HC: ${hc}`);
-            
-            if (hc === 0) {
-                Logger.log(`  ⚠️ HC = 0, se omite`);
-                continue;
-            }
-            
-            const bonoMaximo = (salario * porcentaje) / 100;
-            
-            let totalBonus = 0;
-            let totalAdditional = 0;
-            const kpisBonus = [];
-            const kpisAdditional = [];
-            
-            if (estructura.kpis.bonusStructure) {
-                estructura.kpis.bonusStructure.forEach(k => {
-                    const pctRaw = parseFloat(k.porcentaje) || 0;
-                    const pct = pctRaw > 1 ? pctRaw / 100 : pctRaw;
-                    const monto = bonoMaximo * pct;
-                    totalBonus += monto;
-                    kpisBonus.push({
-                        nombre: k.nombre,
-                        score: k.score,
-                        porcentaje: pct * 100,
-                        montoPorAgente: monto
+        let totalInversionReal = 0;
+        let totalInversionTeorica = 0;
+
+        for (const item of lobsEncontradas) {
+            const lob = item.lob;
+            const mes = item.mes;
+            const numeroMes = resolverNumeroMes(mes);
+
+            Logger.log(`\n🔍 Simulando LOB: ${lob} | Mes: ${mes} | NumMes: ${numeroMes}`);
+
+            try {
+                // ← ESTA es la función que sí funciona cuando das clic individual
+                const simResult = simularConMetricasReales(lob, mes, numeroMes);
+
+                if (!simResult.success) {
+                    Logger.log(`⚠️ LOB "${lob}" no se simuló: ${simResult.error}`);
+                    // La incluimos como error pero no la ignoramos silenciosamente
+                    resultados.push({
+                        lob: lob,
+                        mes: mes,
+                        error: simResult.error,
+                        totalLOB: 0,
+                        hc: 0
                     });
+                    continue;
+                }
+
+                // Extraer datos que necesita el reporte ejecutivo
+                const hc = simResult.hc || 0;
+                const invReal = simResult.inversionReal || 0;
+                const invTeorica = simResult.inversionTeorica || 0;
+                const eficiencia = simResult.eficienciaReal || 0;
+                const tasaCumplimiento = simResult.estadisticas?.tasaCumplimiento || 0;
+
+                resultados.push({
+                    lob: lob,
+                    mes: mes,
+                    fecha: mes,
+                    hc: hc,
+                    salarioBase: simResult.configuracion?.salario || 0,
+                    porcentajeBono: simResult.configuracion?.porcentaje || 0,
+                    bonoMaximoPorAgente: simResult.configuracion?.bonoMaximo || 0,
+                    // Estos son los campos que faltaban / estaban mal:
+                    inversionReal: invReal,
+                    inversionTeorica: invTeorica,
+                    totalLOB: invReal,                          // El reporte usa totalLOB como monto real
+                    eficiencia: eficiencia.toFixed(1) + '%',    // Eficiencia REAL (CDM)
+                    tasaCumplimiento: tasaCumplimiento.toFixed(1) + '%',  // Cumplimiento CDM
+                    ahorro: simResult.ahorro || 0,
+                    // Estadísticas detalladas
+                    estadisticas: simResult.estadisticas || {},
+                    desglosePorCategoria: simResult.desglosePorCategoria || {},
+                    top10Ganadores: simResult.top10Ganadores || [],
+                    tipoHoja: simResult.tipoHoja || ''
+                });
+
+                totalAgentesGeneral += hc;
+                totalInversionReal += invReal;
+                totalInversionTeorica += invTeorica;
+
+            } catch (err) {
+                Logger.log(`❌ Error simulando LOB "${lob}": ${err.message}`);
+                resultados.push({
+                    lob: lob,
+                    mes: mes,
+                    error: err.message,
+                    totalLOB: 0,
+                    hc: 0
                 });
             }
-            
-            if (estructura.kpis.additionalIncentives) {
-                estructura.kpis.additionalIncentives.forEach(k => {
-                    const pctRaw = parseFloat(k.porcentaje) || 0;
-                    const pct = pctRaw > 1 ? pctRaw / 100 : pctRaw;
-                    const monto = bonoMaximo * pct;
-                    totalAdditional += monto;
-                    kpisAdditional.push({
-                        nombre: k.nombre,
-                        score: k.score,
-                        porcentaje: pct * 100,
-                        montoPorAgente: monto
-                    });
-                });
-            }
-            
-            const totalPorAgente = totalBonus + totalAdditional;
-            const totalLOB = totalPorAgente * hc;
-            const eficiencia = bonoMaximo > 0 ? ((totalPorAgente / bonoMaximo) * 100) : 0;
-            
-            Logger.log(`  💰 Total LOB: $${totalLOB.toLocaleString()}`);
-            
-            resultadosMap.set(lob, {
-                lob: lob,
-                mes: mesReciente,
-                fecha: estructura.fecha || mesReciente,
-                hc: hc,
-                salarioBase: salario,
-                porcentajeBono: porcentaje,
-                bonoMaximoPorAgente: bonoMaximo,
-                bonoPorAgente: totalPorAgente,
-                totalBonus: totalBonus * hc,
-                totalAdditional: totalAdditional * hc,
-                totalLOB: totalLOB,
-                eficiencia: eficiencia.toFixed(1) + '%',
-                kpisBonus: kpisBonus,
-                kpisAdditional: kpisAdditional,
-                kpisKeys: estructura.kpis.keys || [],
-                kpisDecreased: estructura.kpis.decreasedKPIs || []
-            });
-            
-            totalAgentesGeneral += hc;
-            totalBonoMaximo += (bonoMaximo * hc);
         }
-        
-        const resultados = Array.from(resultadosMap.values());
-        const totalGeneral = resultados.reduce((sum, lob) => sum + lob.totalLOB, 0);
-        
+
+        // ============================================
+        // PASO 4: Resumen global
+        // ============================================
+        const lobsExitosas = resultados.filter(r => !r.error);
+        const lobsConError = resultados.filter(r => r.error);
+
+        const eficienciaGlobal = totalInversionTeorica > 0
+            ? (totalInversionReal / totalInversionTeorica) * 100
+            : 0;
+
         Logger.log(`\n🎯 ========== RESULTADO FINAL SIMULACIÓN ==========`);
         Logger.log(`📊 OM: ${nombreOM}`);
-        Logger.log(`📊 LOBs en Configuracion: ${lobsDelOM.length}`);
-        Logger.log(`📊 LOBs procesadas (con registros): ${resultados.length}`);
+        Logger.log(`📊 LOBs encontradas: ${lobsEncontradas.length}`);
+        Logger.log(`📊 LOBs exitosas: ${lobsExitosas.length}`);
+        Logger.log(`📊 LOBs con error: ${lobsConError.length}`);
         Logger.log(`👥 Total Agentes: ${totalAgentesGeneral}`);
-        Logger.log(`💰 Inversión Total: $${totalGeneral.toLocaleString()}`);
-        
-        Logger.log(`\n📅 FECHAS DE CADA LOB:`);
-        resultados.forEach((r, idx) => {
-            Logger.log(`\n  ${idx + 1}. LOB: ${r.lob}`);
-            Logger.log(`     📅 Fecha: "${r.fecha}" (Tipo: ${typeof r.fecha})`);
-            Logger.log(`     📋 Mes: "${r.mes}"`);
-            Logger.log(`     💰 Total: $${r.totalLOB.toLocaleString()}`);
-        });
-        
-        Logger.log(`\n==================================================\n`);
-        
+        Logger.log(`💰 Inversión Teórica: $${totalInversionTeorica.toLocaleString()}`);
+        Logger.log(`💰 Inversión Real (CDM): $${totalInversionReal.toLocaleString()}`);
+        Logger.log(`⚡ Eficiencia Global: ${eficienciaGlobal.toFixed(1)}%`);
+        Logger.log(`==================================================\n`);
+
         return {
             success: true,
             om: nombreOM,
-            totalLOBs: lobsDelOM.length,
-            lobsProcesadas: resultados.length,
-            resultados: resultados.sort((a, b) => b.totalLOB - a.totalLOB),
+            totalLOBs: lobsEncontradas.length,
+            lobsProcesadas: lobsExitosas.length,
+            lobsConError: lobsConError.length,
+            resultados: lobsExitosas.sort((a, b) => b.totalLOB - a.totalLOB),
+            lobsErrores: lobsConError,  // Incluir para que el reporte las muestre
             resumen: {
                 totalAgentes: totalAgentesGeneral,
-                inversionTotal: totalGeneral,
-                bonoMaximoTotal: totalBonoMaximo,
-                promedioPorAgente: totalAgentesGeneral > 0 ? totalGeneral / totalAgentesGeneral : 0
+                inversionTotal: totalInversionReal,          // Real (CDM)
+                inversionTeorica: totalInversionTeorica,     // Teórica
+                bonoMaximoTotal: totalInversionTeorica,      // Alias para compatibilidad
+                ahorro: totalInversionTeorica - totalInversionReal,
+                eficienciaGlobal: eficienciaGlobal,
+                promedioPorAgente: totalAgentesGeneral > 0
+                    ? totalInversionReal / totalAgentesGeneral
+                    : 0
             },
             fechaSimulacion: new Date().toISOString()
         };
-        
+
     } catch (error) {
         Logger.log(`❌ Error: ${error.message}`);
+        Logger.log(`Stack: ${error.stack}`);
         return { success: false, error: error.toString() };
     }
 }
 
+// ========================================
+// REEMPLAZO: simularTodasLOBsPorOMConPVE
+// (solo cambia en usar los nuevos campos del resumen)
+// ========================================
 function simularTodasLOBsPorOMConPVE(nombreOM, pveTotal, porcPVE) {
     const sim = simularTodasLOBsPorOM(nombreOM);
     if (!sim.success) return sim;
-    
+
     const presupuesto = (pveTotal * porcPVE) / 100;
 
     sim.resultados = sim.resultados.map(r => ({
@@ -1096,7 +1131,7 @@ function simularTodasLOBsPorOMConPVE(nombreOM, pveTotal, porcPVE) {
         pctDelPVE: presupuesto > 0 ? parseFloat((r.totalLOB / presupuesto * 100).toFixed(2)) : 0
     }));
 
-    const totalInv = sim.resumen.inversionTotal;
+    const totalInv = sim.resumen.inversionTotal;  // Ya es real (CDM)
     const pctUsado = presupuesto > 0 ? (totalInv / presupuesto * 100) : 0;
 
     sim.pveConfig = { pveTotal, porcPVE, presupuestoDisponible: presupuesto };
@@ -1109,63 +1144,227 @@ function simularTodasLOBsPorOMConPVE(nombreOM, pveTotal, porcPVE) {
     };
     return sim;
 }
-
 function simularTodasLOBsPorRegion(region) {
     try {
+        Logger.log(`\n🚀 ========== SIMULACIÓN MASIVA REGIÓN: ${region} ==========`);
+
+        // ============================================
+        // PASO 1: Obtener LOBs de la región desde H_C
+        // ============================================
         const lobsDeRegion = obtenerLobsPorRegion(region);
-        if (!lobsDeRegion.length) return { success: false, error: 'Sin LOBs en región' };
 
-        const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
-        const usuario = obtenerDatosUsuarioActivo();
-        const resultadosMap = new Map();
-        let totalAgentes = 0;
-        let totalInv = 0;
-
-        for (const lob of lobsDeRegion) {
-            const meses = obtenerMesesRegistrados(lob, usuario);
-            if (!meses.length) continue;
-            const mes = meses[meses.length - 1];
-            const est = obtenerEstructuraRegistrada(lob, mes, usuario);
-            if (!est.encontrado) continue;
-
-            const conf = obtenerSalarioPorLob(lob);
-            const sal = parseFloat(conf.salario) || 0;
-            const por = parseFloat(conf.porcentaje) || 0;
-            const hc = contarAgentesPorLob(lob);
-
-            if (!sal || !por || !hc) continue;
-
-            const maxBono = (sal * por) / 100;
-            let totalBonus = 0;
-            let totalAdditional = 0;
-
-            if (est.kpis.bonusStructure) est.kpis.bonusStructure.forEach(k => totalBonus += (maxBono * (parseFloat(k.porcentaje) || 0)) / 100);
-            if (est.kpis.additionalIncentives) est.kpis.additionalIncentives.forEach(k => totalAdditional += (maxBono * (parseFloat(k.porcentaje) || 0)) / 100);
-
-            const totBono = totalBonus + totalAdditional;
-            const totLOB = totBono * hc;
-
-            resultadosMap.set(lob, {
-                lob, mes, hc, salarioBase: sal, porcentajeBono: por,
-                totalLOB: totLOB,
-                totalBonus: totalBonus * hc,
-                totalAdditional: totalAdditional * hc,
-                bonoPorAgente: totBono,
-                eficiencia: (maxBono > 0 ? (totBono / maxBono * 100) : 0).toFixed(2)
-            });
-            totalAgentes += hc;
-            totalInv += totLOB;
+        if (!lobsDeRegion || lobsDeRegion.length === 0) {
+            return { success: false, error: `No se encontraron LOBs en la región "${region}"` };
         }
 
-        const resultados = Array.from(resultadosMap.values());
+        Logger.log(`📋 LOBs en región "${region}": ${lobsDeRegion.length}`);
+        Logger.log(`   LOBs: ${lobsDeRegion.join(', ')}`);
+
+        // ============================================
+        // PASO 2: Buscar en Registro / Registro_pisos
+        //         el mes más reciente de cada LOB
+        // ============================================
+        const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+        const hojas = [
+            ss.getSheetByName('Registro'),
+            ss.getSheetByName('Registro_pisos')
+        ];
+
+        const normalizar = s => s ? s.toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() : "";
+
+        // Conjunto de LOBs de la región normalizadas para búsqueda rápida
+        const lobsRegionNorm = new Set(lobsDeRegion.map(l => normalizar(l)));
+
+        // Map: lobNorm → { lob: original, mes: último mes }
+        const lobMesMap = {};
+
+        hojas.forEach(hoja => {
+            if (!hoja) return;
+            const data = hoja.getDataRange().getValues();
+            Logger.log(`📊 Escaneando ${hoja.getName()}: ${data.length - 1} filas`);
+
+            for (let i = 1; i < data.length; i++) {
+                const lobFila = String(data[i][1] || '').trim();
+                if (!lobFila) continue;
+
+                const lobKey = normalizar(lobFila);
+
+                // Solo procesar LOBs que pertenecen a esta región
+                if (!lobsRegionNorm.has(lobKey)) continue;
+
+                // Obtener mes
+                let mesFila = data[i][0];
+                if (mesFila instanceof Date) {
+                    mesFila = Utilities.formatDate(mesFila, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+                } else {
+                    mesFila = String(mesFila || '').trim();
+                }
+
+                if (!mesFila) continue;
+
+                // Guardar con el mes más reciente
+                if (!lobMesMap[lobKey] || mesFila > lobMesMap[lobKey].mes) {
+                    lobMesMap[lobKey] = { lob: lobFila, mes: mesFila };
+                }
+            }
+        });
+
+        const lobsConRegistro = Object.values(lobMesMap);
+        Logger.log(`📋 LOBs con registro encontrado: ${lobsConRegistro.length} de ${lobsDeRegion.length}`);
+
+        if (lobsConRegistro.length === 0) {
+            return {
+                success: false,
+                error: `Ninguna LOB de la región "${region}" tiene estructura registrada`
+            };
+        }
+
+        // ============================================
+        // PASO 3: Resolver número de mes
+        // ============================================
+        const mesesMap = {
+            'enero': 1, 'febrero': 2, 'marzo': 3, 'abril': 4,
+            'mayo': 5, 'junio': 6, 'julio': 7, 'agosto': 8,
+            'septiembre': 9, 'octubre': 10, 'noviembre': 11, 'diciembre': 12
+        };
+
+        function resolverNumeroMes(mes) {
+            if (mes && mes.includes('-')) {
+                const partes = mes.split('-');
+                if (partes.length >= 2) {
+                    const m = parseInt(partes[1]);
+                    if (m >= 1 && m <= 12) return m;
+                }
+            }
+            const mesLower = String(mes || '').toLowerCase().trim();
+            if (mesesMap[mesLower]) return mesesMap[mesLower];
+            return new Date().getMonth() + 1;
+        }
+
+        // ============================================
+        // PASO 4: Llamar simularConMetricasReales()
+        //         por cada LOB (la función que SÍ funciona)
+        // ============================================
+        const resultados = [];
+        let totalAgentesGeneral = 0;
+        let totalInversionReal = 0;
+        let totalInversionTeorica = 0;
+
+        for (const item of lobsConRegistro) {
+            const lob = item.lob;
+            const mes = item.mes;
+            const numeroMes = resolverNumeroMes(mes);
+
+            Logger.log(`\n🔍 Simulando LOB: ${lob} | Mes: ${mes} | NumMes: ${numeroMes}`);
+
+            try {
+                const simResult = simularConMetricasReales(lob, mes, numeroMes);
+
+                if (!simResult.success) {
+                    Logger.log(`⚠️ LOB "${lob}" no se simuló: ${simResult.error}`);
+                    resultados.push({
+                        lob: lob,
+                        mes: mes,
+                        error: simResult.error,
+                        totalLOB: 0,
+                        hc: 0
+                    });
+                    continue;
+                }
+
+                const hc = simResult.hc || 0;
+                const invReal = simResult.inversionReal || 0;
+                const invTeorica = simResult.inversionTeorica || 0;
+                const eficiencia = simResult.eficienciaReal || 0;
+                const tasaCumplimiento = simResult.estadisticas?.tasaCumplimiento || 0;
+
+                resultados.push({
+                    lob: lob,
+                    mes: mes,
+                    fecha: mes,
+                    hc: hc,
+                    salarioBase: simResult.configuracion?.salario || 0,
+                    porcentajeBono: simResult.configuracion?.porcentaje || 0,
+                    bonoMaximoPorAgente: simResult.configuracion?.bonoMaximo || 0,
+                    inversionReal: invReal,
+                    inversionTeorica: invTeorica,
+                    totalLOB: invReal,
+                    totalBonus: invReal,
+                    totalAdditional: 0,
+                    bonoPorAgente: hc > 0 ? invReal / hc : 0,
+                    eficiencia: eficiencia.toFixed(1) + '%',
+                    tasaCumplimiento: tasaCumplimiento.toFixed(1) + '%',
+                    ahorro: simResult.ahorro || 0,
+                    estadisticas: simResult.estadisticas || {},
+                    desglosePorCategoria: simResult.desglosePorCategoria || {},
+                    top10Ganadores: simResult.top10Ganadores || [],
+                    tipoHoja: simResult.tipoHoja || ''
+                });
+
+                totalAgentesGeneral += hc;
+                totalInversionReal += invReal;
+                totalInversionTeorica += invTeorica;
+
+            } catch (err) {
+                Logger.log(`❌ Error simulando LOB "${lob}": ${err.message}`);
+                resultados.push({
+                    lob: lob,
+                    mes: mes,
+                    error: err.message,
+                    totalLOB: 0,
+                    hc: 0
+                });
+            }
+        }
+
+        // ============================================
+        // PASO 5: Resumen global de la región
+        // ============================================
+        const lobsExitosas = resultados.filter(r => !r.error);
+        const lobsConError = resultados.filter(r => r.error);
+
+        const eficienciaGlobal = totalInversionTeorica > 0
+            ? (totalInversionReal / totalInversionTeorica) * 100
+            : 0;
+
+        Logger.log(`\n🎯 ========== RESULTADO FINAL REGIÓN ==========`);
+        Logger.log(`📊 Región: ${region}`);
+        Logger.log(`📊 LOBs en región: ${lobsDeRegion.length}`);
+        Logger.log(`📊 LOBs con registro: ${lobsConRegistro.length}`);
+        Logger.log(`📊 LOBs exitosas: ${lobsExitosas.length}`);
+        Logger.log(`📊 LOBs con error: ${lobsConError.length}`);
+        Logger.log(`👥 Total Agentes: ${totalAgentesGeneral}`);
+        Logger.log(`💰 Inversión Teórica: $${totalInversionTeorica.toLocaleString()}`);
+        Logger.log(`💰 Inversión Real (CDM): $${totalInversionReal.toLocaleString()}`);
+        Logger.log(`⚡ Eficiencia Global: ${eficienciaGlobal.toFixed(1)}%`);
+        Logger.log(`================================================\n`);
+
         return {
             success: true,
-            region,
-            resultados: resultados.sort((a, b) => b.totalLOB - a.totalLOB),
-            lobsProcesadas: resultados.length,
-            resumen: { totalAgentes, inversionTotal: totalInv }
+            region: region,
+            totalLOBs: lobsDeRegion.length,
+            lobsProcesadas: lobsExitosas.length,
+            lobsConError: lobsConError.length,
+            resultados: lobsExitosas.sort((a, b) => b.totalLOB - a.totalLOB),
+            lobsErrores: lobsConError,
+            resumen: {
+                totalAgentes: totalAgentesGeneral,
+                inversionTotal: totalInversionReal,
+                inversionTeorica: totalInversionTeorica,
+                ahorro: totalInversionTeorica - totalInversionReal,
+                eficienciaGlobal: eficienciaGlobal,
+                promedioPorAgente: totalAgentesGeneral > 0
+                    ? totalInversionReal / totalAgentesGeneral
+                    : 0
+            },
+            fechaSimulacion: new Date().toISOString()
         };
-    } catch (e) { return { success: false, error: e.toString() }; }
+
+    } catch (error) {
+        Logger.log(`❌ Error: ${error.message}`);
+        Logger.log(`Stack: ${error.stack}`);
+        return { success: false, error: error.toString() };
+    }
 }
 
 function obtenerLobsRegistradasPorRegion(region) {
@@ -1445,7 +1644,8 @@ function obtenerAgentesPermitidos() {
         agentes[bmsId] = {
             bmsId: bmsId,
             lob: normalizar(String(dataHC[i][1])),
-            nombre: String(dataHC[i][3]).trim(),
+            nombre: String(dataHC[i][2]).trim(),  // ⭐ COLUMNA C (índice 2)
+            nombreCompleto: String(dataHC[i][3]).trim(), // Columna D (por si lo necesitas)
             supervisor: String(dataHC[i][4]).trim(),
             accm: String(dataHC[i][5]).trim(),
             om: String(dataHC[i][6]).trim(),
@@ -1905,33 +2105,20 @@ function validarKPIsPorCategoria(registro, lob, dataCDM, dataUsuario, hoja, agen
 // ========================================
 // FUNCIÓN DE SIMULACIÓN CON MÉTRICAS REALES
 // ========================================
-
 function simularConMetricasReales(lob, mes, numeroMesOpcional = null) {
     try {
         Logger.log(`\n🚀 ========== INICIANDO SIMULACIÓN CDM ==========`);
         Logger.log(`📋 LOB: "${lob}"`);
         Logger.log(`📅 Mes: "${mes}"`);
-        Logger.log(`🔢 Número Mes: ${numeroMesOpcional}`);
         
         if (!lob || !mes) {
-            Logger.log('❌ ERROR: Faltan parámetros obligatorios');
-            return { 
-                success: false, 
-                error: 'LOB y Mes son obligatorios' 
-            };
+            return { success: false, error: 'LOB y Mes son obligatorios' };
         }
         
         const datosUsuarioActivo = obtenerDatosUsuarioActivo();
-        
         if (!datosUsuarioActivo) {
-            Logger.log('❌ ERROR: Usuario no encontrado');
-            return { 
-                success: false, 
-                error: 'Usuario no encontrado' 
-            };
+            return { success: false, error: 'Usuario no encontrado' };
         }
-        
-        Logger.log(`👤 Usuario: ${datosUsuarioActivo.nombre} (${datosUsuarioActivo.rol})`);
         
         const mesesMap = {
             'enero': 1, 'febrero': 2, 'marzo': 3, 'abril': 4,
@@ -1942,92 +2129,154 @@ function simularConMetricasReales(lob, mes, numeroMesOpcional = null) {
         const mesLower = String(mes || '').toLowerCase().trim();
         const numeroMes = numeroMesOpcional || mesesMap[mesLower] || new Date().getMonth() + 1;
         
-        Logger.log(`📊 Número de mes determinado: ${numeroMes}`);
+        Logger.log(`📊 Número de mes: ${numeroMes}`);
         
-        Logger.log(`\n📊 Cargando datos de CDM_${numeroMes}...`);
+        // Obtener estructura
+        let est = obtenerEstructuraRegistrada(lob, mes, datosUsuarioActivo);
         
-        let dataCDM;
-        try {
-            dataCDM = obtenerDataCDMCached(numeroMes);
-        } catch (error) {
-            Logger.log(`❌ ERROR cargando CDM: ${error.message}`);
-            return { 
-                success: false, 
-                error: `No se pudo cargar CDM_${numeroMes}: ${error.message}` 
-            };
-        }
-        
-        if (!dataCDM || dataCDM.length === 0) {
-            Logger.log('❌ ERROR: CDM vacío o no encontrado');
-            return { 
-                success: false, 
-                error: `No se encontró data en CDM_${numeroMes}` 
-            };
-        }
-        
-        Logger.log(`✅ CDM cargado: ${dataCDM.length} filas`);
-        
-        Logger.log(`\n🔍 Buscando estructura registrada...`);
-        
-        let est;
-        try {
-            est = obtenerEstructuraRegistrada(lob, mes, datosUsuarioActivo);
-        } catch (error) {
-            Logger.log(`❌ ERROR buscando estructura: ${error.message}`);
-            return { 
-                success: false, 
-                error: `Error buscando estructura: ${error.message}` 
-            };
-        }
-        
-        if (!est || !est.encontrado) {
-            Logger.log('❌ ERROR: No se encontró estructura registrada');
+        if (!est || !est.encontrado || !est.registroOriginal) {
             return { 
                 success: false, 
                 error: `No hay estructura registrada para ${lob} en ${mes}` 
             };
         }
         
-        if (!est.registroOriginal) {
-            Logger.log('❌ ERROR: Estructura sin registroOriginal');
-            return { 
-                success: false, 
-                error: `Estructura corrupta para ${lob} (Falta registroOriginal)` 
-            };
+        Logger.log(`✅ Estructura: ${est.tipoHoja}, OM: ${est.om}`);
+        
+        // ⭐⭐⭐ CARGAR Y VALIDAR CDM CON LOGS DETALLADOS
+        Logger.log(`\n📊 ========== CARGANDO CDM_${numeroMes} ==========`);
+        
+        let dataCDM = null;
+        let lobExisteEnCDM = false;
+        
+        try {
+            dataCDM = obtenerDataCDMCached(numeroMes);
+            
+            if (!dataCDM || dataCDM.length <= 1) {
+                Logger.log(`⚠️ CDM vacío o sin datos`);
+            } else {
+                Logger.log(`✅ CDM cargado: ${dataCDM.length} filas`);
+                Logger.log(`📋 Headers CDM: ${JSON.stringify(dataCDM[0])}`);
+                
+                // ⭐ Función de normalización
+                const normalizar = s => {
+                    if (!s) return '';
+                    return String(s)
+                        .normalize("NFD")
+                        .replace(/[\u0300-\u036f]/g, "")
+                        .toLowerCase()
+                        .trim()
+                        .replace(/\s+/g, ' ')
+                        .replace(/[^\w\s]/g, ''); // Eliminar caracteres especiales
+                };
+                
+                const lobOriginal = lob;
+                const lobNorm = normalizar(lob);
+                
+                Logger.log(`\n🔍 ========== BÚSQUEDA DE LOB ==========`);
+                Logger.log(`   LOB original: "${lobOriginal}"`);
+                Logger.log(`   LOB normalizada: "${lobNorm}"`);
+                Logger.log(`   Longitud normalizada: ${lobNorm.length}`);
+                
+                // ⭐ Verificar índice de columna SubLOB
+                const headers = dataCDM[0];
+                let colSubLOB = -1;
+                
+                for (let i = 0; i < headers.length; i++) {
+                    const header = String(headers[i]).toLowerCase().trim();
+                    if (header === 'sublob' || header === 'sub lob' || header === 'lob') {
+                        colSubLOB = i;
+                        Logger.log(`✅ Columna SubLOB encontrada en índice: ${i} (${headers[i]})`);
+                        break;
+                    }
+                }
+                
+                if (colSubLOB === -1) {
+                    Logger.log(`⚠️ Columna SubLOB no encontrada en headers, usando índice 2 por defecto`);
+                    colSubLOB = 2;
+                }
+                
+                Logger.log(`\n🔎 Escaneando columna ${colSubLOB} en busca de LOB...`);
+                Logger.log(`   Mostrando primeras 10 filas:\n`);
+                
+                let coincidencias = 0;
+                
+                for (let i = 1; i < Math.min(dataCDM.length, 11); i++) {
+                    const subLobOriginal = String(dataCDM[i][colSubLOB] || '').trim();
+                    const subLobNorm = normalizar(subLobOriginal);
+                    
+                    Logger.log(`   [${i}] Original: "${subLobOriginal}"`);
+                    Logger.log(`       Normalizada: "${subLobNorm}"`);
+                    Logger.log(`       Coincide: ${subLobNorm === lobNorm ? '✅ SÍ' : '❌ NO'}`);
+                    
+                    if (subLobNorm === lobNorm) {
+                        coincidencias++;
+                    }
+                }
+                
+                // Ahora buscar en TODAS las filas
+                Logger.log(`\n🔍 Buscando en TODAS las ${dataCDM.length - 1} filas...`);
+                
+                for (let i = 1; i < dataCDM.length; i++) {
+                    const subLobOriginal = String(dataCDM[i][colSubLOB] || '').trim();
+                    const subLobNorm = normalizar(subLobOriginal);
+                    
+                    if (subLobNorm === lobNorm) {
+                        lobExisteEnCDM = true;
+                        Logger.log(`\n✅✅✅ LOB ENCONTRADA! ✅✅✅`);
+                        Logger.log(`   Fila: ${i}`);
+                        Logger.log(`   Valor CDM: "${subLobOriginal}"`);
+                        Logger.log(`   Normalizada: "${subLobNorm}"`);
+                        Logger.log(`   Match con: "${lobOriginal}"`);
+                        Logger.log(`   Total coincidencias encontradas: ${coincidencias + 1}`);
+                        break;
+                    }
+                }
+                
+                if (!lobExisteEnCDM) {
+                    Logger.log(`\n❌❌❌ LOB NO ENCONTRADA ❌❌❌`);
+                    Logger.log(`   Buscada: "${lobNorm}"`);
+                    Logger.log(`   En ${dataCDM.length - 1} filas de CDM_${numeroMes}`);
+                    Logger.log(`   Columna usada: ${colSubLOB} (${headers[colSubLOB]})`);
+                    
+                    // Mostrar LOBs únicas en CDM para comparar
+                    const lobsUnicas = new Set();
+                    for (let i = 1; i < Math.min(dataCDM.length, 51); i++) {
+                        const subLob = normalizar(String(dataCDM[i][colSubLOB] || '').trim());
+                        if (subLob) lobsUnicas.add(subLob);
+                    }
+                    Logger.log(`\n📋 Primeras LOBs únicas en CDM (max 10):`);
+                    Array.from(lobsUnicas).slice(0, 10).forEach((l, idx) => {
+                        Logger.log(`   ${idx + 1}. "${l}"`);
+                    });
+                }
+            }
+        } catch (error) {
+            Logger.log(`⚠️ Error cargando CDM: ${error.message}`);
+            Logger.log(`Stack: ${error.stack}`);
         }
         
-        Logger.log(`✅ Estructura encontrada en: ${est.tipoHoja}`);
-        Logger.log(`   OM: ${est.om}`);
-        Logger.log(`   ACCM: ${est.accm}`);
+        Logger.log(`\n📊 ========== RESULTADO BÚSQUEDA ==========`);
+        Logger.log(`   LOB existe en CDM: ${lobExisteEnCDM ? '✅ SÍ' : '❌ NO'}`);
+        Logger.log(`=========================================`);
         
-        Logger.log(`\n👥 Obteniendo HC y agentes...`);
-        
+        // Resto del código...
         const hc = contarAgentesPorLob(lob);
         const agentesPermitidos = obtenerAgentesPermitidos();
         
-        Logger.log(`✅ HC: ${hc}`);
-        Logger.log(`✅ Agentes permitidos cargados: ${Object.keys(agentesPermitidos).length}`);
-        
         if (hc === 0) {
-            Logger.log('⚠️ WARNING: HC es 0');
-            return {
-                success: false,
-                error: `No hay agentes en la LOB ${lob}`
-            };
+            return { success: false, error: `No hay agentes en la LOB ${lob}` };
         }
-        
-        Logger.log(`\n💰 Cargando datos de usuario para salarios...`);
         
         const ssUsuario = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
         const hojaUsuario = ssUsuario.getSheetByName('Usuario');
         const dataUsuario = hojaUsuario ? hojaUsuario.getDataRange().getValues() : [];
         
-        Logger.log(`✅ Datos de usuario cargados: ${dataUsuario.length} filas`);
-        
-        Logger.log(`\n🔍 Validando KPIs por categoría...`);
-        
         let resultadosV;
-        try {
+        
+        // ⭐ DECISIÓN FINAL
+        if (lobExisteEnCDM && dataCDM && dataCDM.length > 1) {
+            Logger.log(`\n✅ USANDO: validarKPIsPorCategoria() - DATOS REALES`);
             resultadosV = validarKPIsPorCategoria(
                 est.registroOriginal, 
                 lob, 
@@ -2037,49 +2286,70 @@ function simularConMetricasReales(lob, mes, numeroMesOpcional = null) {
                 agentesPermitidos, 
                 numeroMes
             );
-        } catch (error) {
-            Logger.log(`❌ ERROR validando KPIs: ${error.message}`);
-            return {
-                success: false,
-                error: `Error validando KPIs: ${error.message}`
-            };
+        } else {
+            Logger.log(`\n⚠️ USANDO: validarKPIsConValoresCero() - SIN DATOS`);
+            resultadosV = validarKPIsConValoresCero(
+                est.registroOriginal, 
+                lob, 
+                hc, 
+                est.tipoHoja, 
+                agentesPermitidos
+            );
         }
         
         if (!resultadosV) {
-            Logger.log('❌ ERROR: validarKPIsPorCategoria devolvió null');
-            return {
-                success: false,
-                error: 'Error en validación de KPIs'
-            };
+            return { success: false, error: 'Error en validación de KPIs' };
         }
         
-        Logger.log(`✅ KPIs validados por categoría`);
-        Logger.log(`   Keys: ${resultadosV.keys?.length || 0}`);
-        Logger.log(`   Bonus: ${resultadosV.bonusStructure?.length || 0}`);
-        Logger.log(`   Additional: ${resultadosV.additionalIncentives?.length || 0}`);
-        Logger.log(`   Decreased: ${resultadosV.decreasedKPIs?.length || 0}`);
-        
-        Logger.log(`\n💰 Consolidando totales...`);
-        
+        // Consolidar totales
         let inversionReal = 0;
         const agentesConBono = new Set();
         const agentesAfectadosKeys = new Set();
+        const todosLosAgentes = obtenerTodosLosAgentesDeLOB(lob, agentesPermitidos);
+        const bonosPorAgente = {};
+        
+        todosLosAgentes.forEach(ag => {
+            bonosPorAgente[ag.bmsId] = {
+                bmsId: ag.bmsId,
+                nombre: ag.nombre,
+                totalKeys: 0,
+                totalBonus: 0,
+                totalAdditional: 0,
+                totalDecreased: 0,
+                bonoFinal: 0
+            };
+        });
         
         const procesarMonto = (cat) => {
-            if (!resultadosV[cat]) {
-                Logger.log(`⚠️ Categoría ${cat} no encontrada en resultados`);
-                return;
-            }
+            if (!resultadosV[cat]) return;
             
             resultadosV[cat].forEach(kpi => {
-                if (!kpi.validacion) {
-                    Logger.log(`⚠️ KPI sin validación: ${kpi.kpi || 'desconocido'}`);
-                    return;
-                }
+                if (!kpi.validacion) return;
                 
                 (kpi.validacion.empleadosCumplen || []).forEach(e => {
-                    inversionReal += (e.bono || 0);
-                    if (e.bono > 0) agentesConBono.add(e.bmsId);
+                    const bono = e.bono || 0;
+                    inversionReal += bono;
+                    
+                    if (bono > 0) {
+                        agentesConBono.add(e.bmsId);
+                        
+                        if (!bonosPorAgente[e.bmsId]) {
+                            bonosPorAgente[e.bmsId] = {
+                                bmsId: e.bmsId,
+                                nombre: e.nombre,
+                                totalKeys: 0,
+                                totalBonus: 0,
+                                totalAdditional: 0,
+                                totalDecreased: 0,
+                                bonoFinal: 0
+                            };
+                        }
+                        
+                        if (cat === 'keys') bonosPorAgente[e.bmsId].totalKeys += bono;
+                        else if (cat === 'bonusStructure') bonosPorAgente[e.bmsId].totalBonus += bono;
+                        else if (cat === 'additionalIncentives') bonosPorAgente[e.bmsId].totalAdditional += bono;
+                        else if (cat === 'decreasedKPIs') bonosPorAgente[e.bmsId].totalDecreased += Math.abs(bono);
+                    }
                 });
                 
                 if (cat === 'keys') {
@@ -2092,11 +2362,18 @@ function simularConMetricasReales(lob, mes, numeroMesOpcional = null) {
         
         ['keys', 'bonusStructure', 'additionalIncentives', 'decreasedKPIs'].forEach(procesarMonto);
         
-        Logger.log(`✅ Inversión Real: $${inversionReal.toLocaleString()}`);
-        Logger.log(`✅ Agentes con bono: ${agentesConBono.size}`);
-        Logger.log(`✅ Agentes afectados por Keys: ${agentesAfectadosKeys.size}`);
+        Object.keys(bonosPorAgente).forEach(bmsId => {
+            const agente = bonosPorAgente[bmsId];
+            agente.bonoFinal = agente.totalKeys + agente.totalBonus + agente.totalAdditional - agente.totalDecreased;
+        });
         
-        Logger.log(`\n⚙️ Obteniendo configuración de salario...`);
+        const top10Ganadores = Object.values(bonosPorAgente)
+            .filter(a => a.bonoFinal > 0)
+            .sort((a, b) => b.bonoFinal - a.bonoFinal)
+            .slice(0, 10);
+        
+        Logger.log(`\n💰 Inversión Real calculada: $${inversionReal.toLocaleString()}`);
+        Logger.log(`👥 Agentes con bono: ${agentesConBono.size} de ${hc}`);
         
         const configSalario = obtenerConfiguracionDesdeCofiguracion(lob, est.om);
         
@@ -2106,16 +2383,9 @@ function simularConMetricasReales(lob, mes, numeroMesOpcional = null) {
         if (configSalario.encontrado) {
             salarioBase = configSalario.salario;
             porcentajeBono = configSalario.porcentaje;
-            Logger.log(`✅ Config encontrada: Salario=$${salarioBase.toLocaleString()}, %=${porcentajeBono}%`);
-        } else {
-            Logger.log(`⚠️ Config no encontrada, usando defaults`);
         }
         
         const inversionTeorica = hc * (salarioBase * (porcentajeBono / 100));
-        
-        Logger.log(`💰 Inversión Teórica: $${inversionTeorica.toLocaleString()}`);
-        
-        Logger.log(`\n📊 Preparando desglose por categoría...`);
         
         const desglosePorCategoria = {
             keys: (resultadosV.keys || []).map(k => ({
@@ -2129,32 +2399,29 @@ function simularConMetricasReales(lob, mes, numeroMesOpcional = null) {
                 porcentaje: k.porcentaje || 0,
                 totalCumplen: k.validacion?.totalCumplenCondicion || 0,
                 montoTotal: (k.validacion?.empleadosCumplen || []).reduce((s, e) => s + (e.bono || 0), 0)
-            })),
+            })).sort((a, b) => b.montoTotal - a.montoTotal),
             additionalIncentives: (resultadosV.additionalIncentives || []).map(k => ({
                 kpi: k.kpi || 'Desconocido',
                 porcentaje: k.porcentaje || 0,
                 totalCumplen: k.validacion?.totalCumplenCondicion || 0,
                 montoTotal: (k.validacion?.empleadosCumplen || []).reduce((s, e) => s + (e.bono || 0), 0)
-            })),
+            })).sort((a, b) => b.montoTotal - a.montoTotal),
             decreasedKPIs: (resultadosV.decreasedKPIs || []).map(k => ({
                 kpi: k.kpi || 'Desconocido',
                 porcentaje: k.porcentaje || 0,
                 totalCumplen: k.validacion?.totalCumplenCondicion || 0,
-                montoTotal: (k.validacion?.empleadosCumplen || []).reduce((s, e) => s + (e.bono || 0), 0)
-            }))
+                montoTotal: (k.validacion?.empleadosCumplen || []).reduce((s, e) => s + Math.abs(e.bono || 0), 0)
+            })).sort((a, b) => b.montoTotal - a.montoTotal)
         };
         
-        Logger.log(`\n✅ ========== SIMULACIÓN EXITOSA ==========`);
+        Logger.log(`\n✅ ========== SIMULACIÓN COMPLETA ==========`);
         Logger.log(`📋 LOB: ${lob}`);
-        Logger.log(`📅 Mes: ${mes}`);
-        Logger.log(`👥 HC: ${hc}`);
-        Logger.log(`💰 Inversión Teórica: $${inversionTeorica.toLocaleString()}`);
-        Logger.log(`💰 Inversión Real: $${inversionReal.toLocaleString()}`);
-        Logger.log(`💰 Ahorro: $${(inversionTeorica - inversionReal).toLocaleString()}`);
-        Logger.log(`⚡ Eficiencia: ${inversionTeorica > 0 ? ((inversionReal / inversionTeorica) * 100).toFixed(1) : 0}%`);
+        Logger.log(`💰 Teórico: $${inversionTeorica.toLocaleString()}`);
+        Logger.log(`💰 Real: $${inversionReal.toLocaleString()}`);
+        Logger.log(`📊 Método: ${lobExisteEnCDM ? 'CDM REAL ✅' : 'Valores $0 ⚠️'}`);
         Logger.log(`==========================================\n`);
         
-        const resultado = {
+        return {
             success: true,
             lob: lob,
             mes: mes,
@@ -2179,16 +2446,15 @@ function simularConMetricasReales(lob, mes, numeroMesOpcional = null) {
             },
             desglosePorCategoria: desglosePorCategoria,
             resultadosDetallados: resultadosV,
-            fechaSimulacion: new Date().toISOString()
+            top10Ganadores: top10Ganadores,
+            fechaSimulacion: new Date().toISOString(),
+            esTeorico: !lobExisteEnCDM,
+            lobEnCDM: lobExisteEnCDM
         };
         
-        return resultado;
-        
     } catch (error) {
-        Logger.log(`\n❌ ========== ERROR EN SIMULACIÓN ==========`);
-        Logger.log(`Mensaje: ${error.message}`);
+        Logger.log(`\n❌ ERROR: ${error.message}`);
         Logger.log(`Stack: ${error.stack}`);
-        Logger.log(`===========================================\n`);
         
         return { 
             success: false, 

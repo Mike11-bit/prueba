@@ -768,7 +768,12 @@ body {
 }
 
 
+
+
+
     </style>
+
+
 </head>
 <body>
 
@@ -1877,6 +1882,464 @@ function registrarGanador() {
 
 
 
+  // ========================================
+// ⭐ FUNCIÓN: LOADING CON PROGRESO DETALLADO
+// ========================================
+
+function mostrarLoadingConProgreso() {
+    const container = document.getElementById('table-container');
+    
+    let html = `
+        <div class="loading" style="background:white;border-radius:12px;padding:40px;box-shadow:0 5px 15px rgba(0,0,0,0.1);max-width:600px;margin:40px auto;">
+            <div style="text-align:center;margin-bottom:30px;">
+                <div id="walking-turtle-container" style="position:relative;height:80px;margin-bottom:20px;">
+                    <!-- Línea de progreso para la tortuga -->
+                    <div style="width:100%;height:3px;background:#ecf0f1;border-radius:2px;position:absolute;top:50%;left:0;transform:translateY(-50%);"></div>
+                    <div id="turtle-line-progress" style="width:0%;height:3px;background:linear-gradient(90deg, #3498db, #2ecc71);border-radius:2px;position:absolute;top:50%;left:0;transform:translateY(-50%);transition:width 2s ease;"></div>
+                    
+                    <!-- Tortuga caminando -->
+                    <div id="walking-turtle" style="font-size:2.2rem;position:absolute;top:50%;left:0;transform:translate(-50%, -50%);transition:left 2s ease;">🐢</div>
+                    
+                    <!-- Marcador del 100% -->
+                    <div style="position:absolute;top:50%;right:0;transform:translate(50%, -50%);font-size:0.8rem;color:#7f8c8d;background:white;padding:2px 6px;border-radius:10px;border:1px solid #ecf0f1;">
+                        100%
+                    </div>
+                    
+                    <!-- Marcador del 0% -->
+                    <div style="position:absolute;top:50%;left:0;transform:translate(-50%, -50%);font-size:0.8rem;color:#7f8c8d;background:white;padding:2px 6px;border-radius:10px;border:1px solid #ecf0f1;">
+                        0%
+                    </div>
+                </div>
+                
+                <h3 style="color:var(--primary);margin:0 0 10px 0;">Cargando Datos del Sistema</h3>
+                <p style="color:#7f8c8d;font-size:0.9rem;margin:0;">
+                    <span id="turtle-status">La tortuga empieza su lento camino...</span>
+                </p>
+            </div>
+            
+            <div id="progress-steps" style="text-align:left;max-width:400px;margin:0 auto;">
+                <div class="progress-step" data-step="1">
+                    <span class="progress-icon">⏳</span>
+                    <span class="progress-text">Validando agentes en H_C (lento pero seguro)...</span>
+                </div>
+                <div class="progress-step" data-step="2">
+                    <span class="progress-icon">⏳</span>
+                    <span class="progress-text">Cargando configuración de salarios...</span>
+                </div>
+                <div class="progress-step" data-step="3">
+                    <span class="progress-icon">⏳</span>
+                    <span class="progress-text">Leyendo horas semanales (Col J)...</span>
+                </div>
+                <div class="progress-step" data-step="4">
+                    <span class="progress-icon">⏳</span>
+                    <span class="progress-text">Procesando KPIs y estructuras...</span>
+                </div>
+                <div class="progress-step" data-step="5">
+                    <span class="progress-icon">⏳</span>
+                    <span class="progress-text">Verificando ausencias y prorrateando horas...</span>
+                </div>
+                <div class="progress-step" data-step="6">
+                    <span class="progress-icon">⏳</span>
+                    <span class="progress-text">Calculando bonos con ajuste de horas...</span>
+                </div>
+                <div class="progress-step" data-step="7">
+                    <span class="progress-icon">⏳</span>
+                    <span class="progress-text">Cargando datos CDM del mes...</span>
+                </div>
+                <div class="progress-step" data-step="8">
+                    <span class="progress-icon">⏳</span>
+                    <span class="progress-text">Generando tabla de resultados...</span>
+                </div>
+            </div>
+            
+            <!-- Barra de progreso principal -->
+            <div style="margin-top:30px;text-align:center;">
+                <div style="background:#ecf0f1;height:8px;border-radius:10px;overflow:hidden;">
+                    <div id="progress-bar" style="width:0%;height:100%;background:linear-gradient(90deg, #3498db, #2ecc71);transition:width 3s ease;"></div>
+                </div>
+                <div id="progress-percentage" style="margin-top:10px;color:#7f8c8d;font-size:0.9rem;">0%</div>
+            </div>
+            
+            <!-- Contador de ciclos -->
+            <div style="text-align:center;margin-top:15px;font-size:0.85rem;color:#95a5a6;">
+                <span id="cycle-counter">🐌 Ciclo: <span id="cycle-number">1</span> de 2 (muy lento)</span>
+                <span id="time-remaining" style="margin-left:15px;">⏱️ Tiempo estimado: 45-60 segundos</span>
+            </div>
+            
+            <!-- Información del prorrateo -->
+            <div style="text-align:center;margin-top:20px;padding:12px;background:#f8f9fa;border-radius:8px;font-size:0.85rem;color:#5a6c7d;">
+                <span style="display:inline-block;margin-right:8px;">📊</span>
+                <span><strong>Verificación minuciosa:</strong> La tortuga revisa cada ausencia con cuidado extremo</span>
+            </div>
+            
+            <!-- Velocímetro de tortuga -->
+            <div style="text-align:center;margin-top:15px;">
+                <div style="display:inline-block;padding:5px 15px;background:#f0f7ff;border-radius:20px;font-size:0.8rem;color:#3498db;">
+                    <span>🐌 Velocidad: </span>
+                    <span id="turtle-speed">Muy lenta</span>
+                </div>
+            </div>
+        </div>
+        
+        <style>
+            .progress-step {
+                display:flex;
+                align-items:center;
+                gap:12px;
+                padding:12px 15px;
+                margin-bottom:10px;
+                background:#f8f9fa;
+                border-radius:8px;
+                transition:all 1s ease;
+                opacity: 0.7;
+            }
+            .progress-step.active {
+                background:#e3f2fd;
+                border-left:4px solid #3498db;
+                opacity: 1;
+                transform: translateX(5px);
+            }
+            .progress-step.completed {
+                background:#d4edda;
+                border-left:4px solid #27ae60;
+                opacity: 1;
+            }
+            .progress-icon {
+                font-size:1.2rem;
+                width:30px;
+                text-align:center;
+                transition: all 1s ease;
+            }
+            .progress-text {
+                flex:1;
+                font-size:0.9rem;
+                color:#2c3e50;
+            }
+            
+            /* Animación MUY LENTA para la tortuga */
+            @keyframes turtleWalkSlow {
+                0% { transform: translate(-50%, -50%) rotate(0deg); }
+                20% { transform: translate(-50%, -51%) rotate(2deg); }
+                40% { transform: translate(-50%, -50%) rotate(0deg); }
+                60% { transform: translate(-50%, -49%) rotate(-2deg); }
+                80% { transform: translate(-50%, -50%) rotate(0deg); }
+                100% { transform: translate(-50%, -50%) rotate(0deg); }
+            }
+            
+            @keyframes turtleWalkBackSlow {
+                0% { transform: translate(-50%, -50%) rotate(0deg) scaleX(-1); }
+                20% { transform: translate(-50%, -51%) rotate(-2deg) scaleX(-1); }
+                40% { transform: translate(-50%, -50%) rotate(0deg) scaleX(-1); }
+                60% { transform: translate(-50%, -49%) rotate(2deg) scaleX(-1); }
+                80% { transform: translate(-50%, -50%) rotate(0deg) scaleX(-1); }
+                100% { transform: translate(-50%, -50%) rotate(0deg) scaleX(-1); }
+            }
+            
+            @keyframes turtleRest {
+                0% { transform: translate(-50%, -50%) scale(1); }
+                50% { transform: translate(-50%, -50%) scale(1.05); }
+                100% { transform: translate(-50%, -50%) scale(1); }
+            }
+            
+            @keyframes turtleVerySlowMove {
+                0% { left: 0%; }
+                100% { left: 100%; }
+            }
+        </style>
+    `;
+    
+    container.innerHTML = html;
+    container.style.display = 'block';
+    
+    // Variables de control
+    const turtle = document.getElementById('walking-turtle');
+    const turtleProgress = document.getElementById('turtle-line-progress');
+    const turtleStatus = document.getElementById('turtle-status');
+    const cycleNumber = document.getElementById('cycle-number');
+    const timeRemainingEl = document.getElementById('time-remaining');
+    const turtleSpeed = document.getElementById('turtle-speed');
+    
+    let currentStep = 0;
+    const totalSteps = 8;
+    let cycleCount = 1;
+    const maxCycles = 2;
+    let isGoingForward = true;
+    let turtlePercentage = 0;
+    
+    // Tiempos MUY LENTOS para cada paso
+    const stepTimes = [3000, 3500, 3200, 3800, 4500, 4200, 3800, 3500]; // 3-4.5 segundos por paso
+    
+    // Función para mover la tortuga MUY LENTAMENTE
+    function moveTurtleSlowly(targetPercentage, duration = 20000) { // 20 segundos para ir de 0 a 100%
+        if (!turtle || !turtleProgress || !turtleStatus) return;
+        
+        const containerWidth = document.getElementById('walking-turtle-container').offsetWidth;
+        const startPercentage = turtlePercentage;
+        const percentageDiff = targetPercentage - startPercentage;
+        const startTime = Date.now();
+        
+        function animateTurtle() {
+            const elapsed = Date.now() - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            const currentPercentage = startPercentage + (percentageDiff * progress);
+            
+            const turtlePosition = (currentPercentage / 100) * containerWidth;
+            
+            // Mover tortuga y progreso
+            turtle.style.left = `${turtlePosition}px`;
+            turtleProgress.style.width = `${currentPercentage}%`;
+            
+            // Actualizar porcentaje de la tortuga
+            turtlePercentage = currentPercentage;
+            
+            // Aplicar animación según dirección
+            if (isGoingForward) {
+                turtle.style.animation = 'turtleWalkSlow 3s infinite';
+                turtle.style.transform = 'translate(-50%, -50%)';
+            } else {
+                turtle.style.animation = 'turtleWalkBackSlow 3s infinite';
+                turtle.style.transform = 'translate(-50%, -50%) scaleX(-1)';
+            }
+            
+            // Actualizar estado y velocidad
+            updateTurtleStatus();
+            updateTurtleSpeed(progress);
+            
+            if (progress < 1) {
+                requestAnimationFrame(animateTurtle);
+            } else {
+                // Cuando termina el movimiento
+                turtlePercentage = targetPercentage;
+                onTurtleMovementComplete();
+            }
+        }
+        
+        animateTurtle();
+    }
+    
+    // Función para actualizar la velocidad mostrada
+    function updateTurtleSpeed(progress) {
+        if (!turtleSpeed) return;
+        
+        const speeds = [
+            "Extremadamente lenta",
+            "Muy lenta", 
+            "Lenta",
+            "Paso de tortuga",
+            "Casi llegando",
+            "Último esfuerzo"
+        ];
+        
+        const speedIndex = Math.floor(progress * (speeds.length - 1));
+        turtleSpeed.textContent = speeds[speedIndex];
+    }
+    
+    // Función para actualizar el estado de la tortuga
+    function updateTurtleStatus() {
+        if (!turtleStatus) return;
+        
+        const messagesForward = [
+            "La tortuga está empezando... muy lentamente...",
+            "La tortuga avanza... paso a paso...",
+            "Revisando cuidadosamente...",
+            "Verificando cada detalle...",
+            "Poco a poco... avanzando...",
+            "Casi ahí... pero sin prisa...",
+            "Últimos metros... con calma...",
+            "¡Llegando! Pero sin correr..."
+        ];
+        
+        const messagesBackward = [
+            "Regresando... tranquilamente...",
+            "De vuelta... revisando de nuevo...",
+            "Verificando por segunda vez...",
+            "Sin prisa... todo debe estar bien...",
+            "Regreso lento pero seguro...",
+            "Casi de vuelta al inicio...",
+            "Último tramo del regreso...",
+            "¡Listo para empezar de nuevo!"
+        ];
+        
+        const messages = isGoingForward ? messagesForward : messagesBackward;
+        const messageIndex = Math.floor((turtlePercentage / 100) * (messages.length - 1));
+        
+        if (messages[messageIndex]) {
+            turtleStatus.textContent = messages[messageIndex];
+        }
+    }
+    
+    // Función cuando termina un movimiento
+    function onTurtleMovementComplete() {
+        if (isGoingForward) {
+            // Llegó al 100%
+            turtle.style.animation = 'turtleRest 2s ease infinite';
+            turtleStatus.textContent = "🐢 ¡Llegó! Descansando un momento...";
+            
+            // Esperar y regresar
+            setTimeout(() => {
+                isGoingForward = false;
+                turtleStatus.textContent = "Empezando el regreso... muy lentamente...";
+                setTimeout(() => moveTurtleSlowly(0, 18000), 1500);
+            }, 2000);
+        } else {
+            // Regresó al 0%
+            turtle.style.animation = 'turtleRest 2s ease infinite';
+            turtleStatus.textContent = "🐢 ¡De vuelta! Descansando antes del siguiente ciclo...";
+            
+            // Incrementar ciclo
+            cycleCount++;
+            
+            if (cycleCount <= maxCycles) {
+                setTimeout(() => {
+                    cycleNumber.textContent = cycleCount;
+                    isGoingForward = true;
+                    turtleStatus.textContent = "Iniciando nuevo ciclo... con paciencia...";
+                    setTimeout(() => moveTurtleSlowly(100, 22000), 1500);
+                }, 2500);
+            } else {
+                // Terminar proceso
+                setTimeout(completeProcess, 2000);
+            }
+        }
+    }
+    
+    // Función para completar el proceso
+    function completeProcess() {
+        // Detener animación de caminar
+        turtle.style.animation = 'none';
+        
+        // Cambiar tortuga por checkmark
+        turtle.textContent = '✅';
+        turtle.style.transform = 'translate(-50%, -50%)';
+        
+        // Animación final lenta
+        turtle.style.animation = 'turtleRest 3s ease infinite';
+        
+        // Actualizar mensajes finales
+        turtleStatus.textContent = '✅ ¡Proceso completado! Verificación minuciosa finalizada';
+        turtleStatus.style.color = '#27ae60';
+        turtleStatus.style.fontWeight = 'bold';
+        
+        timeRemainingEl.textContent = '✅ Todas las ausencias verificadas y horas prorrateadas';
+        timeRemainingEl.style.color = '#27ae60';
+        
+        // Cambiar el contador de ciclos
+        document.getElementById('cycle-counter').innerHTML = '✅ <strong>Verificación completa</strong>';
+        turtleSpeed.textContent = "Tarea completada";
+        turtleSpeed.style.color = '#27ae60';
+    }
+    
+    // Función principal de progreso de pasos (también lenta)
+    function advanceProgress() {
+        currentStep++;
+        
+        if (currentStep > totalSteps) {
+            clearTimeout(window.currentProgressTimeout);
+            return;
+        }
+        
+        // Actualizar pasos LENTAMENTE
+        if (currentStep > 1) {
+            const prevStep = document.querySelector(`.progress-step[data-step="${currentStep-1}"]`);
+            if (prevStep) {
+                setTimeout(() => {
+                    prevStep.classList.remove('active');
+                    prevStep.classList.add('completed');
+                    prevStep.querySelector('.progress-icon').textContent = '✅';
+                }, 500);
+            }
+        }
+        
+        const currentStepEl = document.querySelector(`.progress-step[data-step="${currentStep}"]`);
+        if (currentStepEl) {
+            setTimeout(() => {
+                currentStepEl.classList.add('active');
+                currentStepEl.querySelector('.progress-icon').textContent = '🔄';
+            }, 300);
+        }
+        
+        // Calcular porcentaje general
+        const percentage = Math.round((currentStep / totalSteps) * 100);
+        const progressBar = document.getElementById('progress-bar');
+        const progressPercentage = document.getElementById('progress-percentage');
+        
+        // Transición lenta para la barra de progreso
+        if (progressBar) {
+            progressBar.style.transition = 'width 3s ease';
+            setTimeout(() => {
+                progressBar.style.width = percentage + '%';
+            }, 100);
+        }
+        
+        if (progressPercentage) {
+            progressPercentage.textContent = percentage + '%';
+            
+            // Cambiar color cuando llega al 100%
+            if (percentage === 100) {
+                setTimeout(() => {
+                    progressPercentage.textContent = '100% - Verificación completa';
+                    progressPercentage.style.color = '#27ae60';
+                    progressPercentage.style.fontWeight = 'bold';
+                }, 3500);
+            }
+        }
+        
+        // Programar siguiente paso con tiempos LARGOS
+        if (currentStep < totalSteps) {
+            window.currentProgressTimeout = setTimeout(advanceProgress, stepTimes[currentStep-1]);
+        }
+    }
+    
+    // Iniciar todo
+    window.currentProgressTimeout = setTimeout(advanceProgress, 2000);
+    
+    // Iniciar movimiento de la tortuga MUY LENTAMENTE después de un delay
+    setTimeout(() => {
+        turtleStatus.textContent = "Preparándose... la tortuga se estira...";
+        
+        setTimeout(() => {
+            moveTurtleSlowly(100, 25000); // 25 segundos para el primer viaje
+        }, 2000);
+    }, 1000);
+    
+    // Actualizar tiempo restante periódicamente
+    let totalTime = stepTimes.reduce((a, b) => a + b, 0);
+    let elapsedTime = 0;
+    
+    const timeUpdateInterval = setInterval(() => {
+        elapsedTime += 1000;
+        const remaining = Math.max(0, totalTime - elapsedTime);
+        const remainingSeconds = Math.ceil(remaining / 1000);
+        
+        if (timeRemainingEl && remainingSeconds > 0) {
+            timeRemainingEl.textContent = `⏱️ Tiempo restante: ~${remainingSeconds} segundos`;
+        }
+        
+        if (remaining <= 0) {
+            clearInterval(timeUpdateInterval);
+        }
+    }, 1000);
+}
+
+
+// ========================================
+// ⭐ MODIFICAR ocultarLoading() PARA LIMPIAR INTERVALO
+// ========================================
+function ocultarLoading() {
+    // Limpiar intervalo de progreso si existe
+    if (window.currentProgressInterval) {
+        clearInterval(window.currentProgressInterval);
+        window.currentProgressInterval = null;
+    }
+    
+    const container = document.getElementById('table-container');
+    if (container && container.querySelector('.loading')) {
+        container.style.display = 'none';
+    }
+}
+
+
+
     
   // ========================================
   // VARIABLES GLOBALES
@@ -2045,7 +2508,7 @@ function cargarDatosCompletos(lob, fecha, mes) {
     console.log('🔍 Cargando datos completos:', { lob, fecha, mes });
     
     limpiarComponentesDuplicados();
-    mostrarLoading('Procesando datos de KPIs y agentes...');
+mostrarLoadingConProgreso();
     limpiarAlertas();
     limpiarExtras();
     
@@ -2226,13 +2689,18 @@ function cargarDatosCompletos(lob, fecha, mes) {
       ocultarResultados();
   }
   // ⭐ FUNCIÓN AUXILIAR: Ocultar loading
-  function ocultarLoading() {
-      const container = document.getElementById('table-container');
-      if (container && container.querySelector('.loading')) {
-          container.style.display = 'none';
-      }
-  }
-
+function ocultarLoading() {
+    // Limpiar intervalo de progreso si existe
+    if (window.currentProgressInterval) {
+        clearInterval(window.currentProgressInterval);
+        window.currentProgressInterval = null;
+    }
+    
+    const container = document.getElementById('table-container');
+    if (container && container.querySelector('.loading')) {
+        container.style.display = 'none';
+    }
+}
   // ⭐ FUNCIÓN AUXILIAR: Ocultar resultados
   function ocultarResultados() {
       const elementos = [
@@ -2418,9 +2886,10 @@ function generarMetricas(lobSeleccionada) {
         let bonoEmpleado = 0;
         let keysDelEmpleado = [];
         let otrasCategoriasDelEmpleado = 0;
+        let totalDecreases = 0;
         
         // ========================================
-        // ⭐ CALCULAR KEYS PRIMERO
+        // ⭐ PASO 1: CALCULAR KEYS PRIMERO
         // ========================================
         Object.keys(emp.resultados).forEach(resKey => {
             if (resKey.startsWith('keys_')) {
@@ -2442,11 +2911,12 @@ function generarMetricas(lobSeleccionada) {
         });
         
         // ========================================
-        // ⭐ CALCULAR OTRAS CATEGORÍAS
+        // ⭐ PASO 2: CALCULAR OTRAS CATEGORÍAS
         // ========================================
         Object.keys(emp.resultados).forEach(resKey => {
-            if (!resKey.startsWith('keys_')) {
-                const res = emp.resultados[resKey];
+            const res = emp.resultados[resKey];
+            
+            if (resKey.startsWith('bonusStructure_') || resKey.startsWith('additionalIncentives_')) {
                 totalKPIs++;
                 
                 if (res.cumple && !res.sinDatos) {
@@ -2456,11 +2926,19 @@ function generarMetricas(lobSeleccionada) {
                         otrasCategoriasDelEmpleado += bono;
                     }
                 }
+            } else if (resKey.startsWith('decreasedKPIs_')) {
+                totalKPIs++;
+                
+                if (res.cumple && !res.sinDatos) {
+                    kpisCumplidos++;
+                    const bono = res.bono || 0;
+                    totalDecreases += bono;
+                }
             }
         });
         
         // ========================================
-        // ⭐ APLICAR LÓGICA DE KEYS
+        // ⭐ PASO 3: APLICAR LÓGICA DE KEYS
         // ========================================
         if (keysDelEmpleado.length > 0) {
             // Tiene keys: validar que todos cumplan
@@ -2469,21 +2947,21 @@ function generarMetricas(lobSeleccionada) {
             if (todosKeysCumplen) {
                 // ✅ Todos los keys OK: sumar keys + otras
                 const totalKeys = keysDelEmpleado.reduce((sum, k) => sum + k.bono, 0);
-                bonoEmpleado = totalKeys + otrasCategoriasDelEmpleado;
-                console.log(`✅ ${emp.nombre}: Keys OK ($${totalKeys}) + Otras ($${otrasCategoriasDelEmpleado}) = $${bonoEmpleado}`);
+                bonoEmpleado = Math.max(0, totalKeys) + Math.max(0, otrasCategoriasDelEmpleado) + totalDecreases;
+                console.log(`✅ ${emp.nombre}: Keys OK ($${totalKeys}) + Otras ($${otrasCategoriasDelEmpleado}) + Decreases ($${totalDecreases}) = $${bonoEmpleado}`);
             } else {
-                // ❌ Falló algún key: bono = 0
-                bonoEmpleado = 0;
-                console.log(`❌ ${emp.nombre}: Falló key → $0 (perdió $${otrasCategoriasDelEmpleado})`);
+                // ❌ Falló algún key: solo decreases
+                bonoEmpleado = totalDecreases;
+                console.log(`❌ ${emp.nombre}: Falló key → $${totalDecreases} (perdió $${otrasCategoriasDelEmpleado})`);
             }
         } else {
-            // Sin keys: solo otras categorías
-            bonoEmpleado = otrasCategoriasDelEmpleado;
+            // Sin keys: solo otras categorías + decreases
+            bonoEmpleado = Math.max(0, otrasCategoriasDelEmpleado) + totalDecreases;
             console.log(`ℹ️ ${emp.nombre}: Sin keys → $${bonoEmpleado}`);
         }
         
         // ========================================
-        // ⭐ GARANTIZAR QUE NUNCA SEA NEGATIVO
+        // ⭐ PASO 4: GARANTIZAR QUE NUNCA SEA NEGATIVO
         // ========================================
         if (bonoEmpleado < 0) {
             console.warn(`⚠️ ${emp.nombre}: Bono negativo detectado (${bonoEmpleado}), forzando a 0`);
@@ -3013,8 +3491,12 @@ function generarMetricas(lobSeleccionada) {
 
 
 
-function mostrarTablaPorLob(lob) {
-    const metricas = datos.metricasPorLob ? datos.metricasPorLob[lob] : null;
+// ========================================
+// ⭐ FUNCIÓN COMPLETA CORREGIDA: mostrarTablaPorLob()
+// CORRIGE EL PROBLEMA DEL ROLE NO VISIBLE
+// ========================================
+function mostrarTablaPorLob(lobSeleccionada) {
+    const metricas = datos.metricasPorLob ? datos.metricasPorLob[lobSeleccionada] : null;
     
     if (!metricas || metricas.error) {
         const container = document.getElementById('table-container');
@@ -3026,6 +3508,20 @@ function mostrarTablaPorLob(lob) {
     const categorias = ['keys', 'bonusStructure', 'additionalIncentives', 'decreasedKPIs'];
     const empleados = {};
     
+    // ⭐⭐⭐ OBTENER AGENTES PERMITIDOS DEL OBJETO DATOS
+    const agentesPermitidos = datos.agentesPermitidos || {};
+    
+    console.log('📋 Agentes permitidos recibidos:', Object.keys(agentesPermitidos).length);
+    
+    // ⭐ DEBUG: Primeros 3 agentes
+    let debugCount = 0;
+    for (const bms in agentesPermitidos) {
+        if (debugCount >= 3) break;
+        const ag = agentesPermitidos[bms];
+        console.log(`  ${bms}: Nombre="${ag.nombre}", Role="${ag.rol}", Horas=${ag.horasSemanales}h`);
+        debugCount++;
+    }
+    
     categorias.forEach(cat => {
         const kpis = metricas[cat] || [];
         kpis.forEach((kpiObj, idx) => {
@@ -3036,7 +3532,18 @@ function mostrarTablaPorLob(lob) {
             (valid.empleadosCumplen || []).forEach(emp => {
                 const key = emp.bmsId + '_' + emp.nombre;
                 if (!empleados[key]) {
-                    empleados[key] = {bmsId: emp.bmsId, nombre: emp.nombre, resultados: {}};
+                    // ⭐⭐⭐ OBTENER ROLE Y HORAS DESDE agentesPermitidos
+                    const datosAgente = agentesPermitidos[emp.bmsId] || {};
+                    
+                    empleados[key] = {
+                        bmsId: emp.bmsId, 
+                        nombre: emp.nombre, 
+                        rol: datosAgente.rol || 'Sin rol',           // ⭐⭐⭐ NUEVO
+                        horasSemanales: datosAgente.horasSemanales || 42, // ⭐⭐⭐
+                        resultados: {}
+                    };
+                    
+                    console.log(`✅ Empleado agregado: ${emp.bmsId} - Role: ${empleados[key].rol}`);
                 }
                 
                 const esKey = cat === 'keys';
@@ -3055,7 +3562,15 @@ function mostrarTablaPorLob(lob) {
             (valid.empleadosNoCumplen || []).forEach(emp => {
                 const key = emp.bmsId + '_' + emp.nombre;
                 if (!empleados[key]) {
-                    empleados[key] = {bmsId: emp.bmsId, nombre: emp.nombre, resultados: {}};
+                    const datosAgente = agentesPermitidos[emp.bmsId] || {};
+                    
+                    empleados[key] = {
+                        bmsId: emp.bmsId, 
+                        nombre: emp.nombre, 
+                        rol: datosAgente.rol || 'Sin rol',           // ⭐⭐⭐ NUEVO
+                        horasSemanales: datosAgente.horasSemanales || 42,
+                        resultados: {}
+                    };
                 }
                 
                 const esKey = cat === 'keys';
@@ -3074,7 +3589,15 @@ function mostrarTablaPorLob(lob) {
             (valid.empleadosSinDatos || []).forEach(emp => {
                 const key = emp.bmsId + '_' + emp.nombre;
                 if (!empleados[key]) {
-                    empleados[key] = {bmsId: emp.bmsId, nombre: emp.nombre, resultados: {}};
+                    const datosAgente = agentesPermitidos[emp.bmsId] || {};
+                    
+                    empleados[key] = {
+                        bmsId: emp.bmsId, 
+                        nombre: emp.nombre, 
+                        rol: datosAgente.rol || 'Sin rol',           // ⭐⭐⭐ NUEVO
+                        horasSemanales: datosAgente.horasSemanales || 42,
+                        resultados: {}
+                    };
                 }
                 
                 empleados[key].resultados[cat + '_' + idx] = {
@@ -3089,7 +3612,9 @@ function mostrarTablaPorLob(lob) {
         });
     });
     
-    empleadosPorLob[lob] = empleados;
+    empleadosPorLob[lobSeleccionada] = empleados;
+    
+    console.log(`✅ ${Object.keys(empleados).length} empleados procesados`);
     
     // ⭐ CARGAR TODAS LAS LOBS DEL SISTEMA
     mostrarLoading('Cargando LOBs disponibles...');
@@ -3097,24 +3622,15 @@ function mostrarTablaPorLob(lob) {
     google.script.run
         .withSuccessHandler(function(todasLasLobs) {
             console.log('✅ Todas las LOBs del sistema:', todasLasLobs);
-            generarTablaConLobs(lob, empleados, metricas, categorias, todasLasLobs);
+            generarTablaConLobs(lobSeleccionada, empleados, metricas, categorias, todasLasLobs);
         })
         .withFailureHandler(function(error) {
             console.error('❌ Error al cargar LOBs:', error);
-            const todasLasLobs = datos.lobs || [lob];
-            generarTablaConLobs(lob, empleados, metricas, categorias, todasLasLobs);
+            const todasLasLobs = datos.lobs || [lobSeleccionada];
+            generarTablaConLobs(lobSeleccionada, empleados, metricas, categorias, todasLasLobs);
         })
         .obtenerTodasLasLobsDelSistema();
 }
-
-
-
-
-  /////////////////////////////////////////7
-// ========================================
-// ⭐ FUNCIÓN COMPLETA CORREGIDA: generarTablaConLobs() 
-// CON % PARTICIPACIÓN CORRECTA POR TIER ESPECÍFICO
-// ========================================
 
 function generarTablaConLobs(lob, empleados, metricas, categorias, todasLasLobs) {
     if (!empleados || !metricas || !categorias || !todasLasLobs) {
@@ -3129,15 +3645,45 @@ function generarTablaConLobs(lob, empleados, metricas, categorias, todasLasLobs)
     const traslados = datos.trasladosPorLob && datos.trasladosPorLob[lob] ? datos.trasladosPorLob[lob] : { salientes: [], entrantes: [] };
     const agentesTrasladados = traslados.salientes.map(t => t.bmsId);
     
+    // ========================================
+    // ⭐ OBTENER HORAS SEMANALES DESDE agentesPermitidos (H_C columna J)
+    // ========================================
+    const horasSemanalesPorAgente = {};
+    const agentesPermitidos = datos.agentesPermitidos || {};
+    
+    console.log('📊 Extrayendo horas semanales de agentesPermitidos...');
+    
+    Object.keys(agentesPermitidos).forEach(bmsId => {
+        const agente = agentesPermitidos[bmsId];
+        
+        const normalizar = s => {
+            if (!s) return "";
+            return s.toString()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .toLowerCase()
+                .trim()
+                .replace(/\s+/g, ' ');
+        };
+        
+        if (normalizar(agente.lob) === normalizar(lob)) {
+            horasSemanalesPorAgente[bmsId] = agente.horasSemanales || 42;
+        }
+    });
+    
+    console.log(`✅ Horas semanales cargadas: ${Object.keys(horasSemanalesPorAgente).length} agentes de ${lob}`);
+    
     let totalGeneralTabla = 0;
     
     // ========================================
-    // THEAD - FILA 1
+    // ⭐⭐⭐ THEAD - FILA 1 (CON COLUMNA ROLE)
     // ========================================
     let theadHTML = '<tr><th rowspan="2" onclick="ordenarTabla(0)" style="cursor:pointer;" title="Ordenar">#</th>';
     theadHTML += '<th rowspan="2" style="background:#3498db;color:white;min-width:200px;">🔄 Trasladar</th>';
-    theadHTML += '<th rowspan="2" onclick="ordenarTabla(1)" style="cursor:pointer;" title="Ordenar">BMS ID</th>';
+    theadHTML += '<th rowspan="2" onclick="ordenarTabla(1)" style="cursor:pointer;" title="Ordenar">CCMS ID</th>';
     theadHTML += '<th rowspan="2" onclick="ordenarTabla(2)" style="cursor:pointer;" title="Ordenar">Nombre</th>';
+    theadHTML += '<th rowspan="2" onclick="ordenarTabla(3)" style="cursor:pointer;background:#667eea;color:white;" title="Ordenar">Role</th>';
+    theadHTML += '<th rowspan="2" style="background:#16a085;color:white;">⏱️ Horas Semanales</th>';
         
     categorias.forEach(cat => {
         const kpis = metricas[cat] || [];
@@ -3145,8 +3691,7 @@ function generarTablaConLobs(lob, empleados, metricas, categorias, todasLasLobs)
     });
     
     theadHTML += '<th rowspan="2" onclick="ordenarTabla(-1)" style="cursor:pointer;background:#27ae60;" title="Ordenar">Total $</th>';
-    theadHTML += '<th rowspan="2" style="background:#16a085;color:white;">⏱️ Horas</th>';
-    theadHTML += '<th rowspan="2" style="background:#16a085;color:white;">📊 Prorrateo</th>';
+    theadHTML += '<th rowspan="2" style="background:#16a085;color:white;">📊 Asistencia<br><small style="font-size:0.65rem;font-weight:normal;">(Auto)</small></th>';
     theadHTML += '<th rowspan="2" style="background:#28a745;color:white;min-width:100px;">✅ Aprobar<br><label style="font-size:0.75rem;font-weight:normal;cursor:pointer;margin-top:5px;display:inline-block;"><input type="checkbox" id="select-all-aprobar" onchange="seleccionarTodosAprobar(this)" style="width:16px;height:16px;cursor:pointer;margin-right:5px;">Todos</label></th>';
     theadHTML += '<th rowspan="2" style="background:#9b59b6;color:white;">Disputar</th>';
     theadHTML += '<th rowspan="2" style="background:#9b59b6;color:white;">Comentario</th></tr><tr>';
@@ -3191,7 +3736,7 @@ function generarTablaConLobs(lob, empleados, metricas, categorias, todasLasLobs)
     theadHTML += '</tr>';
     
     // ========================================
-    // TBODY
+    // ⭐⭐⭐ TBODY
     // ========================================
     let tbodyHTML = '';
     const keys = Object.keys(empleados);
@@ -3248,8 +3793,10 @@ function generarTablaConLobs(lob, empleados, metricas, categorias, todasLasLobs)
             
             tbodyHTML += '</div></td>';
             
-            // BMS ID Y NOMBRE
+            // ⭐⭐⭐ CCMS ID
             tbodyHTML += '<td>' + emp.bmsId + '</td>';
+            
+            // ⭐⭐⭐ NOMBRE
             tbodyHTML += '<td style="text-align:left;">' + emp.nombre;
             
             if (fueTrasladado) {
@@ -3260,6 +3807,20 @@ function generarTablaConLobs(lob, empleados, metricas, categorias, todasLasLobs)
                 tbodyHTML += '<br><small style="background:#fbc02d;color:#000;padding:2px 8px;border-radius:10px;font-size:0.7rem;font-weight:bold;">💰 Salario Personalizado</small>';
             }
             
+            tbodyHTML += '</td>';
+
+            // ⭐⭐⭐ COLUMNA: ROLE
+            tbodyHTML += '<td style="text-align:center;">';
+            const roleAgente = agentesPermitidos[emp.bmsId]?.rol || emp.rol || '-';
+            tbodyHTML += '<span style="background:#667eea15;color:#5b5fc7;padding:6px 12px;border-radius:8px;font-size:0.85rem;font-weight:700;display:inline-block;box-shadow:0 2px 4px rgba(102,126,234,0.2);">' + roleAgente + '</span>';
+            tbodyHTML += '</td>';
+
+            // ========================================
+            // ⭐ CELDA DE HORAS SEMANALES (DESDE H_C)
+            // ========================================
+            tbodyHTML += '<td style="text-align:center;">';
+            const horasSemanales = horasSemanalesPorAgente[emp.bmsId] || 42;
+            tbodyHTML += `<span style="background:#16a085;color:white;padding:4px 10px;border-radius:12px;font-weight:600;">${horasSemanales}h/sem</span>`;
             tbodyHTML += '</td>';
 
             // ========================================
@@ -3321,10 +3882,8 @@ function generarTablaConLobs(lob, empleados, metricas, categorias, todasLasLobs)
                         let scoreAMostrar = kpiObj.score || '-';
                         let participacionAMostrar = null;
                         
-                        // Validación: ¿Es Multi-Tier?
                         const esMultiTier = kpiObj.esMultiTier === true;
                         
-                        // ⭐⭐⭐ CORRECCIÓN PRINCIPAL: OBTENER PARTICIPACIÓN CORRECTA ⭐⭐⭐
                         if (esMultiTier) {
                             const tieneScoreCumplido = res.scoreCumplido && 
                                                       res.scoreCumplido !== null && 
@@ -3334,21 +3893,10 @@ function generarTablaConLobs(lob, empleados, metricas, categorias, todasLasLobs)
                             if (tieneScoreCumplido && res.cumple) {
                                 scoreAMostrar = res.scoreCumplido;
                                 
-                                console.log(`🔍 Multi-Tier para ${emp.nombre}:`, {
-                                    kpi: kpiObj.kpi,
-                                    scoreCumplido: res.scoreCumplido,
-                                    participacionUsada: res.participacionUsada,
-                                    scoresPorTier: kpiObj.scoresPorTier
-                                });
-                                
-                                // ⭐ MÉTODO 1: Usar participacionUsada si está presente
                                 if (res.participacionUsada !== undefined && res.participacionUsada !== null) {
                                     participacionAMostrar = (res.participacionUsada * 100).toFixed(0) + '%';
-                                    console.log(`   ✅ Método 1: participacionUsada = ${participacionAMostrar}`);
                                 } else {
-                                    // ⭐ MÉTODO 2: Buscar en scoresPorTier
                                     const tierMatch = kpiObj.scoresPorTier?.find(t => {
-                                        // Normalizar ambos valores para comparación
                                         const tierScore = String(t.score).trim().toLowerCase();
                                         const cumplido = String(res.scoreCumplido).trim().toLowerCase();
                                         return tierScore === cumplido;
@@ -3356,11 +3904,6 @@ function generarTablaConLobs(lob, empleados, metricas, categorias, todasLasLobs)
                                     
                                     if (tierMatch && tierMatch.participacion) {
                                         participacionAMostrar = (tierMatch.participacion * 100).toFixed(0) + '%';
-                                        console.log(`   ✅ Método 2: tierMatch encontrado = ${participacionAMostrar}`);
-                                        console.log(`      Tier: ${tierMatch.score}, Participación: ${tierMatch.participacion}`);
-                                    } else {
-                                        console.warn(`   ⚠️ No se encontró participación para tier "${res.scoreCumplido}"`);
-                                        console.warn(`      scoresPorTier:`, kpiObj.scoresPorTier);
                                     }
                                 }
                             }
@@ -3442,11 +3985,9 @@ function generarTablaConLobs(lob, empleados, metricas, categorias, todasLasLobs)
                             } else {
                                 const claseEstilo = res.cumple ? 'cumple' : 'no-cumple';
                                 
-                                // ⭐ CONSTRUIR INFO ADICIONAL
                                 let infoAdicional = '';
                                 
                                 if (esMultiTier && res.cumple && participacionAMostrar) {
-                                    // ✅ MOSTRAR: Tier cumplido + % Participación DE ESE TIER
                                     infoAdicional = `
                                         <br><small style="font-size:0.65rem;color:#3498db;font-weight:600;">
                                             ⭐ Tier: ${scoreAMostrar}
@@ -3456,7 +3997,6 @@ function generarTablaConLobs(lob, empleados, metricas, categorias, todasLasLobs)
                                         </small>
                                     `;
                                 } else if (!esMultiTier) {
-                                    // KPI normal: solo mostrar score
                                     infoAdicional = '<br><small style="font-size:0.7rem;">(' + scoreAMostrar + ')</small>';
                                 }
                                 
@@ -3471,7 +4011,9 @@ function generarTablaConLobs(lob, empleados, metricas, categorias, todasLasLobs)
                 }
             });
             
-            // CALCULAR TOTAL FINAL
+            // ========================================
+            // ⭐⭐⭐ CALCULAR TOTAL FINAL
+            // ========================================
             let totalFinal = 0;
             let mensajeTotal = '';
             let estiloTotal = 'background:#d5f4e6;font-weight:bold;';
@@ -3491,54 +4033,111 @@ function generarTablaConLobs(lob, empleados, metricas, categorias, todasLasLobs)
             }
             
             totalFinal = Math.max(0, totalFinal);
-            const total = totalFinal;
-            totalGeneralTabla += total;
+            
+            // ========================================
+            // ⭐⭐⭐ PRORRATEO AUTOMÁTICO POR AUSENCIAS (Horas_N)
+            // ========================================
+            let totalAjustado = totalFinal;
+            let mensajeAjuste = '';
+            
+            const horasData = datos.horasPorAgente && datos.horasPorAgente[emp.bmsId] 
+                ? datos.horasPorAgente[emp.bmsId] 
+                : null;
+            
+            if (horasData && horasData.horas !== undefined && totalFinal > 0) {
+                const horasReales = horasData.horas || 0;
+                
+                // Calcular horas esperadas del mes
+                let diasLaborables = 22;
+                if (datos.mesSeleccionado && datos.fechaSeleccionada) {
+                    const fecha = new Date(datos.fechaSeleccionada);
+                    const anio = fecha.getFullYear();
+                    const mes = datos.mesSeleccionado;
+                    const primerDia = new Date(anio, mes - 1, 1);
+                    const ultimoDia = new Date(anio, mes, 0);
+                    let dias = 0;
+                    let d = new Date(primerDia);
+                    while (d <= ultimoDia) {
+                        const diaSemana = d.getDay();
+                        if (diaSemana !== 0 && diaSemana !== 6) dias++;
+                        d.setDate(d.getDate() + 1);
+                    }
+                    if (dias > 0) diasLaborables = dias;
+                }
+                
+                const horasEsperadas = (horasSemanales / 5) * diasLaborables;
+                
+                // ⭐ APLICAR PRORRATEO SOLO SI TRABAJÓ MENOS
+                if (horasReales < horasEsperadas && horasEsperadas > 0) {
+                    const factorProrrateo = horasReales / horasEsperadas;
+                    totalAjustado = totalFinal * factorProrrateo;
+                    
+                    mensajeAjuste = `<br><small style="font-size:0.65rem;color:#e74c3c;font-weight:600;background:rgba(231,76,60,0.1);padding:3px 8px;border-radius:8px;display:inline-block;margin-top:4px;">
+                        📊 Ausencias: ${horasReales.toFixed(1)}h / ${horasEsperadas.toFixed(1)}h = ${(factorProrrateo * 100).toFixed(1)}%
+                    </small>`;
+                    
+                    console.log(`⚙️ Prorrateo automático: ${emp.nombre}`);
+                    console.log(`   Horas semanales (H_C): ${horasSemanales}h`);
+                    console.log(`   Días laborables: ${diasLaborables}`);
+                    console.log(`   Horas esperadas: ${horasEsperadas.toFixed(1)}h`);
+                    console.log(`   Horas reales (Horas_${datos.mesSeleccionado}): ${horasReales.toFixed(1)}h`);
+                    console.log(`   Factor: ${(factorProrrateo * 100).toFixed(1)}%`);
+                    console.log(`   Bono: $${totalFinal.toFixed(2)} → $${totalAjustado.toFixed(2)}`);
+                }
+            }
+            
+            totalGeneralTabla += totalAjustado;
             
             // CELDA TOTAL
-            tbodyHTML += `<td class="celda-total" data-bms="${emp.bmsId}" data-bono-original="${total}" style="${estiloTotal}">$${total.toLocaleString('es-CO', {minimumFractionDigits: 2})}${mensajeTotal}</td>`;
+            tbodyHTML += `<td class="celda-total" data-bms="${emp.bmsId}" data-bono-original="${totalAjustado}" style="${estiloTotal}">$${totalAjustado.toLocaleString('es-CO', {minimumFractionDigits: 2})}${mensajeTotal}${mensajeAjuste}</td>`;
             
-            // CELDA DE HORAS
-            const horasAgente = horasPorAgente[emp.bmsId];
-            const tieneHoras = horasAgente && horasAgente.horas > 0;
-
-            tbodyHTML += '<td style="text-align:center;">';
-            if (tieneHoras) {
-                tbodyHTML += `<span style="background:#16a085;color:white;padding:4px 10px;border-radius:12px;font-weight:600;">${horasAgente.horas}h</span>`;
-                if (horasAgente.ausencias > 0) {
-                    tbodyHTML += `<br><small style="color:#e74c3c;">⚠️ ${horasAgente.ausencias} aus.</small>`;
-                }
-            } else {
-                tbodyHTML += '<span style="color:#95a5a6;">Sin datos</span>';
-            }
-            tbodyHTML += '</td>';
-
-            // CELDA PRORRATEO
+            // CELDA PRORRATEO AUTOMÁTICO (Indicador visual)
             tbodyHTML += '<td style="text-align:center;padding:8px;">';
-            if (tieneHoras && total > 0) {
-                const horasSemanales = horasAgente.horasSemanales || 42;
-                const umbralMinimo = 150;
-                const debeHabilitarse = horasAgente.horas < umbralMinimo;
+            if (horasData && horasData.horas !== undefined && totalFinal > 0) {
+                const horasReales = horasData.horas || 0;
+                let diasLaborables = 22;
                 
-                if (debeHabilitarse) {
-                    tbodyHTML += `<input type="checkbox" class="prorrateo-check" data-bms="${emp.bmsId}" data-horas="${horasAgente.horas}" data-horas-semanales="${horasSemanales}" data-bono-original="${total}" onchange="calcularProrrateoInstantaneo(this)" style="width:20px;height:20px;cursor:pointer;" title="✅ Habilitado: ${horasAgente.horas}h">`;
-                } else {
-                    tbodyHTML += `<input type="checkbox" disabled style="width:20px;height:20px;cursor:not-allowed;opacity:0.3;">`;
+                if (datos.mesSeleccionado && datos.fechaSeleccionada) {
+                    const fecha = new Date(datos.fechaSeleccionada);
+                    const anio = fecha.getFullYear();
+                    const mes = datos.mesSeleccionado;
+                    const primerDia = new Date(anio, mes - 1, 1);
+                    const ultimoDia = new Date(anio, mes, 0);
+                    let dias = 0;
+                    let d = new Date(primerDia);
+                    while (d <= ultimoDia) {
+                        const diaSemana = d.getDay();
+                        if (diaSemana !== 0 && diaSemana !== 6) dias++;
+                        d.setDate(d.getDate() + 1);
+                    }
+                    if (dias > 0) diasLaborables = dias;
                 }
-            } else if (tieneHoras && total === 0) {
-                tbodyHTML += `<span style="color:#e74c3c;font-size:0.8rem;">🚫</span>`;
+                
+                const horasEsperadas = (horasSemanales / 5) * diasLaborables;
+                
+                if (horasReales < horasEsperadas && horasEsperadas > 0) {
+                    const ausenciasPct = ((1 - (horasReales / horasEsperadas)) * 100).toFixed(1);
+                    tbodyHTML += `<span style="background:#e74c3c;color:white;padding:4px 10px;border-radius:12px;font-weight:600;font-size:0.75rem;" title="Prorrateo aplicado: ${horasReales.toFixed(1)}h de ${horasEsperadas.toFixed(1)}h esperadas">
+                        ⚠️ -${ausenciasPct}%
+                    </span>`;
+                } else {
+                    tbodyHTML += `<span style="background:#27ae60;color:white;padding:4px 10px;border-radius:12px;font-weight:600;font-size:0.75rem;" title="Sin ausencias: ${horasReales.toFixed(1)}h / ${horasEsperadas.toFixed(1)}h">
+                        ✓ 100%
+                    </span>`;
+                }
             } else {
-                tbodyHTML += '<span style="color:#95a5a6;">-</span>';
+                tbodyHTML += '<span style="color:#95a5a6;font-size:0.85rem;">-</span>';
             }
             tbodyHTML += '</td>';
             
             // CELDA APROBAR
             tbodyHTML += '<td style="text-align:center;padding:8px;background:#f0fff4;">';
-            tbodyHTML += `<input type="checkbox" class="aprobado-check" data-bms="${emp.bmsId}" data-nombre="${emp.nombre}" data-total="${total}" onchange="actualizarTotalAprobar()" style="width:22px;height:22px;cursor:pointer;accent-color:#28a745;">`;
+            tbodyHTML += `<input type="checkbox" class="aprobado-check" data-bms="${emp.bmsId}" data-nombre="${emp.nombre}" data-total="${totalAjustado}" onchange="actualizarTotalAprobar()" style="width:22px;height:22px;cursor:pointer;accent-color:#28a745;">`;
             tbodyHTML += '</td>';
             
             // DISPUTAR Y COMENTARIO
             tbodyHTML += '<td style="text-align:center;">';
-            tbodyHTML += '<input type="checkbox" class="dispute-check" data-bms="' + emp.bmsId + '" data-nombre="' + emp.nombre + '" data-total="' + total + '" onchange="toggleDisputeComment(this)" style="width:20px;height:20px;cursor:pointer;">';
+            tbodyHTML += '<input type="checkbox" class="dispute-check" data-bms="' + emp.bmsId + '" data-nombre="' + emp.nombre + '" data-total="' + totalAjustado + '" onchange="toggleDisputeComment(this)" style="width:20px;height:20px;cursor:pointer;">';
             tbodyHTML += '</td>';
             tbodyHTML += '<td class="celda-comentario-disputa" data-bms="' + emp.bmsId + '" style="padding:8px;font-size:0.85rem;color:#7f8c8d;font-style:italic;">';
             tbodyHTML += '<span class="texto-comentario">Sin comentario</span>';
@@ -3549,16 +4148,16 @@ function generarTablaConLobs(lob, empleados, metricas, categorias, todasLasLobs)
     
     // FILA DE TOTALES
     if (keys.length > 0) {
-        let colspanAntes = 4;
+        let colspanAntes = 6;
         categorias.forEach(cat => {
             const kpis = metricas[cat] || [];
             colspanAntes += kpis.length > 0 ? (kpis.length * 2) : 2;
         });
         
         tbodyHTML += '<tr style="background:#27ae60;color:white;font-weight:bold;font-size:1.1rem;">';
-        tbodyHTML += '<td colspan="' + colspanAntes + '" style="text-align:right;padding:15px;">TOTAL GENERAL SIN PRORRATEO:</td>';
+        tbodyHTML += '<td colspan="' + colspanAntes + '" style="text-align:right;padding:15px;">TOTAL GENERAL (CON AJUSTES AUTOMÁTICOS):</td>';
         tbodyHTML += '<td style="text-align:center;padding:15px;font-size:1.3rem;">$' + totalGeneralTabla.toLocaleString('es-CO', {minimumFractionDigits: 2}) + '</td>';
-        tbodyHTML += '<td colspan="5"></td>';
+        tbodyHTML += '<td colspan="4"></td>';
         tbodyHTML += '</tr>';
     }
     
@@ -3573,10 +4172,10 @@ function generarTablaConLobs(lob, empleados, metricas, categorias, todasLasLobs)
     html += '<button class="btn-success" onclick="exportarAExcel()">📥 Excel</button>';
     html += '<button class="btn-primary" onclick="aplicarTraslados()" style="background:#e67e22;">🔄 Aplicar Traslados</button>';
     html += '<button class="btn-primary" onclick="enviaraprobados()" style="background:#28a745;">✅ Enviar y Aprobar</button>';
-    html += '<button class="btn-primary" onclick="limpiarTodosLosProrrateos()" style="background:#e74c3c;">🗑️ Desmarcar Prorrateos</button>';
     html += '<button class="btn-primary" onclick="actualizarSoloTabla()" style="background:#3498db;">🔄 Actualizar Tabla</button>';
     html += '<button class="btn-primary" onclick="toggleTabla()">👁️ Ocultar</button>';
     html += '</div></div></div>';
+    html += '<div style="background:#d1ecf1;border-left:4px solid #0c5460;padding:12px;margin-bottom:15px;border-radius:6px;"><strong>ℹ️ Prorrateo Automático:</strong> <span style="font-size:0.9rem;">El ajuste por ausencias se aplica automáticamente basado en las horas de la hoja Horas_' + (datos.mesSeleccionado || 'N') + '. Los agentes con ausencias muestran un indicador rojo con el porcentaje de reducción.</span></div>';
     
     if (traslados.salientes.length > 0 || traslados.entrantes.length > 0) {
         html += '<div style="margin-bottom:20px;">';
@@ -3596,20 +4195,12 @@ function generarTablaConLobs(lob, empleados, metricas, categorias, todasLasLobs)
     container.style.display = 'block';
     
     setTimeout(function() {
-        const agentesDetectados = configurarProrrateosAutomaticos();
-        if (agentesDetectados > 0) {
-            mostrarAlerta(`⚙️ ${agentesDetectados} agente(s) con menos de 150h`, 'info');
-        }
         actualizarTotalAprobar();
-        
         setTimeout(() => {
-            console.log('🔄 Ejecutando aplicarDisputasDesdeCache() después de renderizar tabla...');
             aplicarDisputasDesdeCache();
         }, 500);
-        
     }, 1000);
 }
-
 // ========================================
 // ⭐ FUNCIÓN: FORMATEAR MONEDA CORRECTAMENTE
 // ========================================
@@ -5716,7 +6307,7 @@ function mostrarMensajeYaAprobado(resultado) {
 // FUNCIÓN: ACTUALIZAR SOLO TABLA Y GRÁFICOS
 // ========================================
 function actualizarSoloTabla() {
-    console.log('🔄 Actualizando solo tabla y gráficos...');
+    console.log('🔄 Actualizando solo tabla y gráficos (RECARGA FORZADA)...');
     
     const lobActual = selectLob.value;
     const fechaActual = selectFecha.value;
@@ -5727,33 +6318,43 @@ function actualizarSoloTabla() {
         return;
     }
     
-    mostrarLoading('Actualizando tabla y gráficos...');
+    // ⭐ LIMPIAR CACHE DE DATOS ANTES DE RECARGAR
+    datos = null;
+    horasPorAgente = {};
+    empleadosPorLob = {};
+    
+    mostrarLoadingConProgreso();
     
     google.script.run
         .withSuccessHandler(function(datosRecibidos) {
-            console.log('✅ Datos actualizados recibidos:', datosRecibidos);
+            console.log('✅ Datos FRESCOS recibidos:', datosRecibidos);
             
             if (datosRecibidos.error) {
                 mostrarError('Error al actualizar: ' + datosRecibidos.error);
                 return;
             }
             
+            // ⭐ ASIGNAR DATOS FRESCOS
             datos = datosRecibidos;
             
             if (datosRecibidos.horasPorAgente) {
                 horasPorAgente = datosRecibidos.horasPorAgente;
+                console.log('✅ Horas actualizadas:', Object.keys(horasPorAgente).length, 'agentes');
             }
             
-            mostrarTablaPorLob(lobActual);
-            generarGraficos();
+            // ⭐ VALIDAR Y MOSTRAR AGENTES
+            validarYMostrarAgentes(lobActual);
             
-            // ⭐ APLICAR DISPUTAS DEL CACHE DESPUÉS DE CARGAR LA TABLA
+            // ⭐ PROCESAR Y MOSTRAR DATOS
+            procesarYMostrarDatos(lobActual);
+            
+            // ⭐ APLICAR DISPUTAS DEL CACHE
             setTimeout(() => {
                 aplicarDisputasDesdeCache();
-            }, 500);
+            }, 1000);
             
             ocultarLoading();
-            mostrarAlerta('✅ Tabla y gráficos actualizados exitosamente', 'success');
+            mostrarAlerta('✅ Tabla actualizada con datos FRESCOS de H_C', 'success');
         })
         .withFailureHandler(function(error) {
             console.error('❌ Error al actualizar:', error);
