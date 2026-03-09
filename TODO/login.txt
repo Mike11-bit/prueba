@@ -1,0 +1,223 @@
+/** holaaaa
+ * ==========================================================================
+ * 🔑 CÓDIGO DE SESIONES, LOGIN Y RUTAS
+ * ==========================================================================
+ */
+var ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4').getSheetByName('Usuario');
+// ✅ doGet: Maneja la entrada a la app
+function doGet(e) {
+  try {
+    const page = e && e.parameter.page ? e.parameter.page : "login";
+    const userEmail = Session.getActiveUser().getEmail();
+    // 1. Si no hay email (raro en Apps Script empresarial), ir a login
+    if (!userEmail) {
+      return HtmlService.createTemplateFromFile("login").evaluate();
+    }
+    // 2. Obtener rol
+    const role = getUserRole(userEmail); 
+    // 3. Permisos
+    const permisos = {
+      "OM": ["om", "audit", "registro", "dispute", "login"],
+      "ACCM": ["om", "audit", "registro", "dispute", "login"],
+      "Reporting Analyst": ["om", "audit", "registro", "dispute", "login"],
+      "Supervisor": ["om", "audit", "registro", "dispute", "login"],
+      "Audit": ["audit", "registro", "dispute", "login"],
+      "Admin": ["admin", "om", "audit", "registro", "dispute", "login"]
+    };
+    // 4. Redirección inteligente si entra a 'login' pero ya tiene sesión
+    if (page === 'login' && role) {
+        return renderUserPage(role, obtenerNombreUsuario(userEmail), role);
+    }
+    // 5. Validar acceso
+    if (!role || (permisos[role] && !permisos[role].includes(page.toLowerCase()))) {
+      if (role) return renderUserPage(role, obtenerNombreUsuario(userEmail), role);
+      return HtmlService.createTemplateFromFile("unauthorized").evaluate();
+    }
+    // 6. Cargar la vista solicitada
+    // IMPORTANTE: Debes tener un archivo HTML con el nombre que 'page' indique (ej. "OM", "Audit")
+    // Si usas un solo diseño para todos, asegúrate de que el archivo se llame como la página o usa un fallback.
+    let templateName = capitalize(page);
+    let template;
+    try {
+        template = HtmlService.createTemplateFromFile(templateName);
+    } catch(e) {
+        // Si no existe 'OM', 'Audit', etc., intenta cargar 'index' como respaldo
+        template = HtmlService.createTemplateFromFile('index');
+    }
+    
+    if (e && e.parameter.lob) template.lob = e.parameter.lob;
+    if (e && e.parameter.fecha) template.fecha = e.parameter.fecha;
+    return template.evaluate()
+      .setTitle("Dashboard")
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+      
+  } catch (error) {
+    return HtmlService.createHtmlOutput('Error en doGet: ' + error.message);
+  }
+}
+function getUrl() {
+  return ScriptApp.getService().getUrl();
+}
+// ✅ doPost: Maneja el Login
+function doPost(e) {
+  try {
+      var userIdInput = e.parameter.id?.trim();
+      var passwordInput = e.parameter.password?.trim();
+    
+      if (!userIdInput || !passwordInput) {
+        return renderLoginWithMessage("Por favor, ingrese BMS ID y contraseña.");
+      }
+    
+      var data = ss.getDataRange().getValues();
+      var email = Session.getActiveUser().getEmail();
+    
+      for (var i = 1; i < data.length; i++) {
+        var userId = String(data[i][0]).trim();
+        var username = String(data[i][1]).trim();
+        var userEmail = String(data[i][2]).trim();
+        var role = String(data[i][4]).trim(); // Índice 4 = Rol
+    
+        if (userId === userIdInput && passwordInput === userId && email === userEmail) {
+          return HtmlService.createHtmlOutput(
+            "<script>window.location.href='" + ScriptApp.getService().getUrl() +
+            "?page=" + role + "&username=" + username + "';</script>"
+          );
+        }
+      }
+    
+      return renderLoginWithMessage("Credenciales incorrectas o usuario no coincide.");
+  } catch (e) {
+      return renderLoginWithMessage("Error: " + e.message);
+  }
+}
+// ✅ renderUserPage: Carga el HTML según el rol
+function renderUserPage(role, username, roleDisplay) {
+  var output;
+  var templateName = 'index'; // Nombre por defecto si no encuentra el específico
+  if (["ACCM", "OM", "Reporting Analyst", "Supervisor"].includes(role)) {
+    templateName = "OM"; 
+  } else if (role === "Audit") {
+    templateName = "Audit";
+  } else if (role === "Agente") {
+    templateName = "Agente";
+  } else if (role === "Registro") {
+    templateName = "Registro";
+  } else if (role === "Admin") {
+    templateName = "Admin";
+  }
+  
+  try {
+      output = HtmlService.createTemplateFromFile(templateName);
+  } catch (e) {
+      // Si no tienes el archivo "OM", usa "index"
+      output = HtmlService.createTemplateFromFile('index');
+  }
+  output.username = username;
+  output.role = roleDisplay;
+  return output.evaluate().setTitle('Dashboard');
+}
+function renderLoginWithMessage(msg) {
+  var t = HtmlService.createTemplateFromFile("login");
+  t.message = msg;
+  return t.evaluate().setTitle("Login Page");
+}
+function logout() {
+  return HtmlService.createHtmlOutput("Sesión cerrada.");
+}
+function getUserEmail() {
+  return Session.getActiveUser().getEmail();
+}
+function capitalize(text) {
+  return String(text).charAt(0).toUpperCase() + String(text).slice(1).toLowerCase();
+}
+function getUserRole(email) {
+  const datos = obtenerDatosUsuarioActivo();
+  if (datos && datos.correo === email) {
+      return datos.rol;
+  }
+  return null;
+}
+function obtenerDatosUsuarioActivo() {
+  const email = Session.getActiveUser().getEmail().toLowerCase().trim();
+  const ssUsuario = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+  const hojaUsuario = ssUsuario.getSheetByName('Usuario');
+  const dataUsuario = hojaUsuario.getDataRange().getValues();
+  
+  for (let i = 1; i < dataUsuario.length; i++) {
+    if (String(dataUsuario[i][2]).toLowerCase().trim() === email) {
+      return {
+        ccmsId: dataUsuario[i][0],
+        nombre: dataUsuario[i][1],
+        correo: dataUsuario[i][2],
+        account: dataUsuario[i][3],
+        rol: dataUsuario[i][4],
+        lob: dataUsuario[i][5],
+        perfil: dataUsuario[i][7]
+      };
+    }
+  }
+  return null;
+}
+
+function cambiarTipoAcceso(email, tipoAcceso) {
+  try {
+    const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+    const hojaUsuario = ss.getSheetByName('Usuario');
+    const data = hojaUsuario.getDataRange().getValues();
+    
+    const tiposValidos = ['Registro', 'Audit', 'OM'];
+    if (!tiposValidos.includes(tipoAcceso)) {
+      return { success: false, error: 'Tipo de acceso inválido.' };
+    }
+    
+    for (let i = 1; i < data.length; i++) {
+      const emailFila = String(data[i][2]).toLowerCase().trim();
+      
+      if (emailFila === email.toLowerCase().trim()) {
+        
+        // ⭐ PASO 1: Si columna E está vacía, copiar el valor actual de D → E
+        const rolActualColumnaD = String(data[i][3] || '').trim(); // Columna D actual
+        const rollBaseColumnaE = String(data[i][4] || '').trim();  // Columna E actual
+        
+        if (!rollBaseColumnaE || rollBaseColumnaE === '') {
+          // ⭐ Preservar el rol original en columna E
+          hojaUsuario.getRange(i + 1, 5).setValue(rolActualColumnaD); // Columna E
+          console.log(`✅ Roll Base preservado en columna E: "${rolActualColumnaD}"`);
+        }
+        
+        // ⭐ PASO 2: Cambiar columna D al nuevo Tipo de Acceso
+        hojaUsuario.getRange(i + 1, 4).setValue(tipoAcceso); // Columna D
+        console.log(`✅ Tipo de Acceso cambiado a: "${tipoAcceso}"`);
+        
+        return { 
+          success: true, 
+          mensaje: `Tipo de acceso cambiado a: ${tipoAcceso}`,
+          rollBasePreservado: !rollBaseColumnaE ? rolActualColumnaD : rollBaseColumnaE
+        };
+      }
+    }
+    
+    return { success: false, error: 'Usuario no encontrado' };
+    
+  } catch (error) {
+    console.log('❌ Error en cambiarTipoAcceso:', error.toString());
+    return { success: false, error: error.message };
+  }
+}
+function obtenerTipoAccesoActual() {
+  try {
+    const email = Session.getActiveUser().getEmail();
+    const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+    const hojaUsuario = ss.getSheetByName('Usuario');
+    const data = hojaUsuario.getDataRange().getValues();
+    
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][2]).toLowerCase().trim() === email.toLowerCase().trim()) {
+        return String(data[i][3]).trim() || 'Registro';
+      }
+    }
+    return 'Registro';
+  } catch (error) {
+    return 'Registro';
+  }
+}
