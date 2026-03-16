@@ -414,7 +414,17 @@
     color: #999;
     font-weight: normal;
 }
+
+/* Asegurar que las cabeceras de Participacion se muestren siempre */
+#headerPartYellowBonus, #headerPartGreenBonus,
+#headerPartYellowAdditional, #headerPartGreenAdditional,
+#headerPartYellowDecreased, #headerPartGreenDecreased {
+    display: table-cell;
+}
     </style>
+    <!-- Bibliotecas para exportación a PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 </head>
 
 <body>
@@ -560,8 +570,8 @@
                             </div>
                             <div class="form-group">
                                 <label>% Bono (Max 30%) <span style="color: red">*</span></label>
-                                <input type="text" id="porcentajeBono" class="form-control" required
-                                    placeholder="0,00" oninput="this.value = this.value.replace('.', ','); calcularBonoMaximo()">
+                        <input type="text" id="porcentajeBono" class="form-control" required
+    placeholder="0.00" oninput="calcularBonoMaximo()">
                             </div>
 
                             <!-- NUEVO: PVE -->
@@ -633,8 +643,8 @@
                 <th>Meta/Score</th>
                 <th>% Asignado</th>
                 <th title="Marcar si es obligatorio para ganar el bono (Gate)">Gate 🔑</th>
-                <th id="headerPartYellowBonus" style="background: #fff3cd; color: #856404; font-weight: bold;">% Participación</th>
-                <th id="headerPartGreenBonus" style="background: #e8f5e9; color: #27ae60; font-weight: bold;">% Participación</th>
+                <th id="headerPartYellowBonus" style="background: #fff3cd; color: #856404; font-weight: bold;">% Part.</th>
+                <th id="headerPartGreenBonus" style="background: #e8f5e9; color: #27ae60; font-weight: bold;">Valor Part.</th>
                 <th>Acción</th>
             </tr>
         </thead>
@@ -655,9 +665,9 @@
                 <th>Comparación</th>
                 <th>Meta/Score</th>
                 <th>% Asignado</th>
-<th style="display:none;">Gate</th>
-                <th id="headerPartYellowAdditional" style="background: #fff3cd; color: #856404; font-weight: bold;">% Participación</th>
-                <th id="headerPartGreenAdditional" style="background: #e8f5e9; color: #27ae60; font-weight: bold;">% Participación</th>
+                <th style="display:none;">Gate</th>
+                <th id="headerPartYellowAdditional" style="background: #fff3cd; color: #856404; font-weight: bold;">% Part.</th>
+                <th id="headerPartGreenAdditional" style="background: #e8f5e9; color: #27ae60; font-weight: bold;">Valor Part.</th>
                 <th>Acción</th>
             </tr>
         </thead>
@@ -678,8 +688,9 @@
                 <th>Comparación</th>
                 <th>Meta/Score</th>
                 <th>% Penalización</th>
-<th style="display:none;">Gate</th>                <th id="headerPartYellowDecreased" style="background: #fff3cd; color: #856404; font-weight: bold;">% Participación</th>
-                <th id="headerPartGreenDecreased" style="background: #e8f5e9; color: #27ae60; font-weight: bold;">% Participación</th>
+                <th style="display:none;">Gate</th>
+                <th id="headerPartYellowDecreased" style="background: #fff3cd; color: #856404; font-weight: bold;">% Part.</th>
+                <th id="headerPartGreenDecreased" style="background: #e8f5e9; color: #27ae60; font-weight: bold;">Valor Part.</th>
                 <th>Acción</th>
             </tr>
         </thead>
@@ -753,6 +764,13 @@
                     <button onclick="consultarEstructuraRegistrada()" class="btn btn-primary">
                         👁️ VER ESTRUCTURA
                     </button>
+
+
+                    <button onclick="descargarTodasLasEstructurasPDF()" 
+        class="btn" 
+        style="background: #8e44ad; color: white; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer;">
+    📥 DESCARGAR TODO (PDF)
+</button>
                     <button onclick="abrirModalSimulacion()" class="btn btn-success">
                         💰 SIMULAR BONO
                     </button>
@@ -1069,6 +1087,8 @@
                 .REGISTRO_obtenerDatosParaFormularioRegistro();
         }
 
+
+
         function procesarDatosIniciales(response) {
             ocultarLoading();
             datosUsuario = response.usuario;
@@ -1165,6 +1185,101 @@
 // ============================================================
 
 function inicializarEventos() {
+
+    // ========================================
+    // HELPER: validar % con decimales (ej: 25.50)
+    // ========================================
+function validarPorcentaje(input) {
+    input.addEventListener('input', function () {
+        const val = this.value;
+        // Permitir número con punto decimal en progreso (ej: "50.")
+        // Solo limpiar caracteres no numéricos excepto el punto
+        let limpio = val.replace(/[^0-9.]/g, '');
+
+        // Evitar múltiples puntos
+        const partes = limpio.split('.');
+        if (partes.length > 2) {
+            limpio = partes[0] + '.' + partes.slice(1).join('');
+        }
+
+        // Máximo 2 decimales — solo cortar si hay más de 2 después del punto
+        if (partes[1] !== undefined && partes[1].length > 2) {
+            limpio = partes[0] + '.' + partes[1].substring(0, 2);
+        }
+
+        // ⭐ Solo reasignar si cambió algo para no interrumpir el cursor
+        if (this.value !== limpio) {
+            const cursor = this.selectionStart;
+            this.value = limpio;
+            // Restaurar posición del cursor
+            try { this.setSelectionRange(cursor, cursor); } catch(e) {}
+        }
+    });
+
+    input.addEventListener('blur', function () {
+        const val = parseFloat(this.value);
+        if (!isNaN(val)) {
+            // Formatear al salir: quitar cero innecesario al final
+            this.value = Number.isInteger(val) ? val.toString() : parseFloat(val.toFixed(2)).toString();
+        }
+    });
+}
+
+    // ⭐ Aplicar validador de % a ambos inputs (registro y simulación)
+    const inputPorcentajeRegistro   = document.getElementById('porcentajeBono');
+    const inputPorcentajeSimulacion = document.getElementById('simInputPorcentaje');
+    if (inputPorcentajeRegistro)   validarPorcentaje(inputPorcentajeRegistro);
+    if (inputPorcentajeSimulacion) validarPorcentaje(inputPorcentajeSimulacion);
+
+    // ========================================
+    // HELPER: bloquear/desbloquear campo salario
+    // ========================================
+    function aplicarBloqueoSalario(config, inputSalario, inputPorcentaje) {
+        if (!inputSalario) return;
+
+        if (config && config.encontrado && config.salario > 0) {
+            inputSalario.value    = config.salario    || '';
+            if (inputPorcentaje) inputPorcentaje.value = config.porcentaje || '';
+
+            // ⭐ FIX: Bloquear salario — ya fue configurado, no se puede sobreescribir
+            inputSalario.readOnly         = true;
+            inputSalario.style.background = '#f0f0f0';
+            inputSalario.style.color      = '#888';
+            inputSalario.title            = '⚠️ El salario base se configura solo una vez y no puede modificarse aquí.';
+            
+            if (inputPorcentaje) {
+                inputPorcentaje.readOnly         = true;
+                inputPorcentaje.style.background = '#f0f0f0';
+                inputPorcentaje.style.color      = '#888';
+                inputPorcentaje.title            = '⚠️ El % de bono se configura solo una vez y no puede modificarse aquí.';
+            }
+
+            let aviso = document.getElementById('avisoSalarioBloqueado');
+            if (!aviso) {
+                aviso = document.createElement('small');
+                aviso.id = 'avisoSalarioBloqueado';
+                aviso.style.cssText = 'color:#856404;background:#fff3cd;padding:5px 10px;border-radius:5px;display:block;margin-top:5px;';
+                inputSalario.parentElement.appendChild(aviso);
+            }
+            aviso.textContent = `🔒 Salario bloqueado: $${(config.salario || 0).toLocaleString('es-CO')} (configurado el ${config.mes || 'N/A'})`;
+
+        } else {
+            // Primera vez — campo libre
+            inputSalario.readOnly         = false;
+            inputSalario.style.background = '';
+            inputSalario.style.color      = '';
+            inputSalario.title            = '';
+            if (inputPorcentaje) {
+                inputPorcentaje.readOnly         = false;
+                inputPorcentaje.style.background = '';
+                inputPorcentaje.style.color      = '';
+                inputPorcentaje.title            = '';
+            }
+            const aviso = document.getElementById('avisoSalarioBloqueado');
+            if (aviso) aviso.remove();
+        }
+    }
+
     // ========================================
     // 1️⃣ CAMBIO DE LOB EN REGISTRO
     // ========================================
@@ -1181,27 +1296,35 @@ function inicializarEventos() {
         // Cargar Estructura Previa (Salario, % y KPIs)
         google.script.run.withSuccessHandler(function (estructura) {
             if (estructura && estructura.encontrado) {
-                // Notificar al usuario que se cargó una configuración
                 document.getElementById('salarioTextoAlerta').textContent = formatearMoneda(estructura.salario);
                 document.getElementById('porcentajeTextoAlerta').textContent = estructura.porcentaje + '%';
                 document.getElementById('mesOrigenAlerta').textContent = estructura.mes;
                 document.getElementById('alertaSalarioPorcentaje').style.display = 'block';
-                
-                // Poblar todo el formulario
                 cargarEstructuraEnFormulario(estructura);
             } else {
                 document.getElementById('alertaSalarioPorcentaje').style.display = 'none';
                 document.getElementById('salario').value = '';
                 document.getElementById('porcentajeBono').value = '';
                 document.getElementById('pvePresupuesto').value = '';
-                
-                // Limpiar tablas para nuevo registro
                 ['tbodyKeys', 'tbodyBonus', 'tbodyAdditional', 'tbodyDecreased'].forEach(id => {
                     const tb = document.getElementById(id);
                     if (tb) tb.innerHTML = '';
                 });
             }
         }).REGISTRO_obtenerEstructuraRegistrada(lob, mes, datosUsuario);
+
+        // Cargar Salario Registrado y bloquear si existe
+        google.script.run.withSuccessHandler(function (config) {
+            const inputSalario = document.getElementById('salario');
+            const inputPorcentaje = document.getElementById('porcentajeBono');
+            if (config && config.encontrado && config.salario > 0) {
+                aplicarBloqueoSalario(config, inputSalario, inputPorcentaje);
+                // Trigger calculation to update max bonus
+                setTimeout(calcularBonoMaximo, 500);
+            } else {
+                aplicarBloqueoSalario(null, inputSalario, inputPorcentaje);
+            }
+        }).REGISTRO_obtenerSalarioPorLob(lob, datosUsuario);
 
         // Cargar Responsables y HC
         google.script.run.withSuccessHandler(function (resp) {
@@ -1219,155 +1342,130 @@ function inicializarEventos() {
     // ========================================
     // 2️⃣ CAMBIO DE LOB EN SIMULACIÓN
     // ========================================
-document.getElementById('simSelectLob').addEventListener('change', function () {
-    const lob = this.value;
-    
-    console.log(`\n🔍 ===== LOB SELECCIONADA EN SIMULACIÓN =====`);
-    console.log(`📋 LOB value: "${lob}"`);
-    console.log(`📋 Tipo: ${typeof lob}`);
-    console.log(`📋 Longitud: ${lob ? lob.length : 0}`);
-    console.log(`👤 datosUsuario:`, datosUsuario);
-    
-    // ⭐ VALIDACIÓN 1: Verificar que LOB no esté vacía
-    if (!lob || lob === '') {
-        console.log('⚠️ LOB vacía o undefined - Limpiando meses');
-        document.getElementById('simSelectMes').innerHTML = '<option value="">-- Seleccione LOB primero --</option>';
-        
-        // Limpiar info de fecha si existe
-        const infoFecha = document.getElementById('infoFechaSimulacion');
-        if (infoFecha) infoFecha.remove();
-        
-        // Limpiar inputs
-        document.getElementById('simInputSalario').value = '';
-        document.getElementById('simInputPorcentaje').value = '';
-        
-        return;
-    }
-    
-    // ⭐ VALIDACIÓN 2: Verificar que datosUsuario existe
-    if (!datosUsuario || !datosUsuario.nombre) {
-        console.error('❌ ERROR: datosUsuario no está definido!');
-        console.error('   datosUsuario:', datosUsuario);
-        mostrarToast('❌ Error: Datos de usuario no cargados. Recarga la página.', 'danger');
-        return;
-    }
-    
-    console.log(`✅ Validaciones OK`);
-    console.log(`   LOB: "${lob}"`);
-    console.log(`   Usuario: "${datosUsuario.nombre}"`);
-    console.log(`   Rol: "${datosUsuario.rol}"`);
-    
-    // ========================================
-    // 1️⃣ CARGAR MESES REGISTRADOS
-    // ========================================
-    mostrarLoading('Cargando meses registrados...');
-    
-    console.log(`\n📞 Llamando a obtenerMesesRegistrados...`);
-    console.log(`   Parámetro 1 (lob): "${lob}"`);
-    console.log(`   Parámetro 2 (usuario):`, datosUsuario);
-    
-    google.script.run
-        .withSuccessHandler(function (meses) {
-            ocultarLoading();
-            
-            console.log(`\n📅 ===== MESES RECIBIDOS =====`);
-            console.log(`Respuesta completa:`, meses);
-            console.log(`Tipo: ${typeof meses}`);
-            console.log(`Es array: ${Array.isArray(meses)}`);
-            console.log(`Total: ${meses ? meses.length : 0}`);
-            
-            const select = document.getElementById('simSelectMes');
-            select.innerHTML = '<option value="">-- Seleccione Mes --</option>';
-            
-            if (meses && Array.isArray(meses) && meses.length > 0) {
-                meses.forEach((m, idx) => {
-                    console.log(`  ${idx + 1}. Agregando mes: "${m}" (Tipo: ${typeof m})`);
-                    select.appendChild(new Option(m, m));
-                });
-                console.log(`✅ ${meses.length} meses agregados al dropdown`);
-            } else {
-                select.innerHTML = '<option value="">-- Sin registros --</option>';
-                console.log('⚠️ No hay meses registrados para esta LOB');
-                
-                // Mostrar mensaje al usuario
-                mostrarToast('⚠️ No hay meses registrados para esta LOB', 'warning');
-            }
-            
-            console.log(`=========================================\n`);
-        })
-        .withFailureHandler(function(err) {
-            ocultarLoading();
-            console.error('❌ Error obteniendo meses:', err);
-            console.error('   Tipo de error:', typeof err);
-            console.error('   Mensaje:', err.message || err);
-            mostrarToast('❌ Error al cargar meses: ' + (err.message || err), 'danger');
-        })
-        .REGISTRO_obtenerMesesRegistrados(lob, datosUsuario);
-    
-    // ========================================
-    // 2️⃣ CARGAR SALARIO AUTOMÁTICAMENTE
-    // ========================================
-    console.log(`\n💰 Cargando configuración de salario...`);
-    
-    google.script.run
-        .withSuccessHandler(function (config) {
-            console.log(`\n💰 ===== CONFIG DE SALARIO =====`);
-            console.log('Respuesta:', config);
-            
-            if (config && config.encontrado) {
-                console.log(`✅ Config encontrada:`);
-                console.log(`   Salario: $${config.salario}`);
-                console.log(`   Bono: ${config.porcentaje}%`);
-                
-                document.getElementById('simInputSalario').value = config.salario || '';
-                document.getElementById('simInputPorcentaje').value = config.porcentaje || '';
-                document.getElementById('simInputSalario').placeholder = 'Registrado: $' + (config.salario || 0).toLocaleString();
-                document.getElementById('simInputPorcentaje').placeholder = 'Registrado: ' + (config.porcentaje || 0) + '%';
-            } else {
-                console.log('⚠️ No hay configuración de salario para esta LOB');
-                document.getElementById('simInputSalario').value = '';
-                document.getElementById('simInputPorcentaje').value = '';
-                document.getElementById('simInputSalario').placeholder = 'No hay salario registrado';
-                document.getElementById('simInputPorcentaje').placeholder = 'No hay % registrado';
-            }
-            console.log(`================================\n`);
-        })
-        .withFailureHandler(function(err) {
-            console.error('❌ Error obteniendo configuración:', err);
-        })
-        .REGISTRO_obtenerSalarioPorLob(lob);
-});
+    document.getElementById('simSelectLob').addEventListener('change', function () {
+        const lob = this.value;
+
+        console.log(`\n🔍 ===== LOB SELECCIONADA EN SIMULACIÓN =====`);
+        console.log(`📋 LOB value: "${lob}"`);
+        console.log(`📋 Tipo: ${typeof lob}`);
+        console.log(`📋 Longitud: ${lob ? lob.length : 0}`);
+        console.log(`👤 datosUsuario:`, datosUsuario);
+
+        // ⭐ VALIDACIÓN 1: LOB no vacía
+        if (!lob || lob === '') {
+            console.log('⚠️ LOB vacía - Limpiando meses');
+            document.getElementById('simSelectMes').innerHTML = '<option value="">-- Seleccione LOB primero --</option>';
+            const infoFecha = document.getElementById('infoFechaSimulacion');
+            if (infoFecha) infoFecha.remove();
+            document.getElementById('simInputSalario').value = '';
+            document.getElementById('simInputPorcentaje').value = '';
+            return;
+        }
+
+        // ⭐ VALIDACIÓN 2: datosUsuario existe
+        if (!datosUsuario || !datosUsuario.nombre) {
+            console.error('❌ ERROR: datosUsuario no está definido!');
+            mostrarToast('❌ Error: Datos de usuario no cargados. Recarga la página.', 'danger');
+            return;
+        }
+
+        console.log(`✅ Validaciones OK — LOB: "${lob}" | Usuario: "${datosUsuario.nombre}" | Rol: "${datosUsuario.rol}"`);
+
+        // ────────────────────────────────────────
+        // 2a. CARGAR MESES REGISTRADOS
+        // ────────────────────────────────────────
+        mostrarLoading('Cargando meses registrados...');
+
+        console.log(`\n📞 Llamando a obtenerMesesRegistrados...`);
+
+        google.script.run
+            .withSuccessHandler(function (meses) {
+                ocultarLoading();
+
+                console.log(`\n📅 ===== MESES RECIBIDOS =====`);
+                console.log(`Total: ${meses ? meses.length : 0}`, meses);
+
+                const select = document.getElementById('simSelectMes');
+                select.innerHTML = '<option value="">-- Seleccione Mes --</option>';
+
+                if (meses && Array.isArray(meses) && meses.length > 0) {
+                    meses.forEach((m, idx) => {
+                        console.log(`  ${idx + 1}. "${m}"`);
+                        select.appendChild(new Option(m, m));
+                    });
+                    console.log(`✅ ${meses.length} meses agregados`);
+                } else {
+                    select.innerHTML = '<option value="">-- Sin registros --</option>';
+                    mostrarToast('⚠️ No hay meses registrados para esta LOB', 'warning');
+                }
+            })
+            .withFailureHandler(function (err) {
+                ocultarLoading();
+                console.error('❌ Error obteniendo meses:', err);
+                mostrarToast('❌ Error al cargar meses: ' + (err.message || err), 'danger');
+            })
+            .REGISTRO_obtenerMesesRegistrados(lob, datosUsuario);
+
+        // ────────────────────────────────────────
+        // 2b. CARGAR SALARIO + BLOQUEO
+        // ────────────────────────────────────────
+        console.log(`\n💰 Cargando configuración de salario...`);
+
+   google.script.run
+    .withSuccessHandler(function (config) {
+        const inputSalario    = document.getElementById('simInputSalario');
+        const inputPorcentaje = document.getElementById('simInputPorcentaje');
+
+        // ⭐ FIX: proteger ante null/undefined
+        if (config && config.encontrado) {
+            aplicarBloqueoSalario(config, inputSalario, inputPorcentaje);
+            inputSalario.placeholder    = 'Registrado: $' + (config.salario    || 0).toLocaleString('es-CO');
+            inputPorcentaje.placeholder = 'Registrado: '  + (config.porcentaje || 0) + '%';
+        } else {
+            aplicarBloqueoSalario(null, inputSalario, inputPorcentaje);
+            inputSalario.value          = '';
+            inputPorcentaje.value       = '';
+            inputSalario.placeholder    = 'No hay salario registrado';
+            inputPorcentaje.placeholder = 'No hay % registrado';
+        }
+    })
+    .withFailureHandler(function (err) {
+        console.error('❌ Error obteniendo configuración:', err);
+        const inputSalario    = document.getElementById('simInputSalario');
+        const inputPorcentaje = document.getElementById('simInputPorcentaje');
+        aplicarBloqueoSalario(null, inputSalario, inputPorcentaje);
+    })
+    .REGISTRO_obtenerSalarioPorLob(lob, datosUsuario);
+    });
 
     // ========================================
-    // 3️⃣ ⭐ NUEVO: CAMBIO DE MES EN SIMULACIÓN (MUESTRA FECHA)
+    // 3️⃣ CAMBIO DE MES EN SIMULACIÓN (MUESTRA FECHA)
     // ========================================
-    document.getElementById('simSelectMes').addEventListener('change', function() {
+    document.getElementById('simSelectMes').addEventListener('change', function () {
         const lob = document.getElementById('simSelectLob').value;
         const mes = this.value;
-        
+
         if (!lob || !mes) {
             console.log('⚠️ LOB o Mes vacío');
             return;
         }
-        
+
         console.log(`\n📅 ===== MES SELECCIONADO =====`);
-        console.log(`📋 LOB: "${lob}"`);
-        console.log(`📅 Mes: "${mes}"`);
-        
+        console.log(`📋 LOB: "${lob}" | Mes: "${mes}"`);
+
         mostrarLoading('Cargando información del registro...');
-        
+
         google.script.run
-            .withSuccessHandler(function(estructura) {
+            .withSuccessHandler(function (estructura) {
                 ocultarLoading();
                 if (estructura && estructura.encontrado) {
-                    // Muestra la info en el simulador (como ya estaba)
                     actualizarInfoSimulacionUI(estructura);
                 } else {
                     const el = document.getElementById('infoFechaSimulacion');
                     if (el) el.remove();
                 }
             })
-            .withFailureHandler(function(err) {
+            .withFailureHandler(function (err) {
                 ocultarLoading();
                 mostrarToast('❌ Error al cargar estructura', 'danger');
             })
@@ -1377,14 +1475,13 @@ document.getElementById('simSelectLob').addEventListener('change', function () {
     // ========================================
     // 4️⃣ SUBMIT REGISTRO
     // ========================================
-    document.getElementById('formRegistro').addEventListener('submit', function(e) {
+    document.getElementById('formRegistro').addEventListener('submit', function (e) {
         e.preventDefault();
         e.stopPropagation();
         manejarSubmitRegistro(e);
     });
 }
 
-// ⭐ Función auxiliar para la UI de simulación
 function actualizarInfoSimulacionUI(estructura) {
     let infoFecha = document.getElementById('infoFechaSimulacion');
     if (!infoFecha) {
@@ -1400,7 +1497,7 @@ function actualizarInfoSimulacionUI(estructura) {
         const mesGroup = document.getElementById('simSelectMes').closest('.form-group');
         if (mesGroup && mesGroup.parentElement) mesGroup.parentElement.appendChild(infoFecha);
     }
-    
+
     infoFecha.innerHTML = `
         <div style="display: grid; grid-template-columns: auto 1fr; gap: 15px; align-items: center;">
             <div style="font-size: 2.5em;">📅</div>
@@ -1415,13 +1512,10 @@ function actualizarInfoSimulacionUI(estructura) {
             </div>
         </div>
     `;
-    
-    if (estructura.salario) {
-        document.getElementById('simInputSalario').value = estructura.salario;
-    }
-    if (estructura.porcentaje) {
-        document.getElementById('simInputPorcentaje').value = estructura.porcentaje;
-    }
+
+    // ⭐ FIX: ELIMINADAS las líneas que sobreescribían simInputSalario y simInputPorcentaje
+    // El salario/porcentaje de los inputs lo maneja exclusivamente REGISTRO_obtenerSalarioPorLob
+    // desde la hoja Configuracion — esta función solo muestra info visual del registro histórico
 }
 
 // ⭐ NUEVA: Poblar el formulario de registro con una estructura existente
@@ -1526,7 +1620,6 @@ function agregarFilaKPI_Datos(tipo, kpiData) {
     const valorPct = (kpiData.porcentaje || '').toString().replace('%', '').replace(',', '.');
     const valorPart = (kpiData.participacion || '').toString().replace('%', '').replace(',', '.');
 
-    const styleParticipacion = esPisos ? '' : 'display:none;';
     const gateCell = esBonus
         ? `<td style="text-align:center;">
              <input type="checkbox" class="kpi-is-key" ${isKeyChecked ? 'checked' : ''}
@@ -1547,7 +1640,7 @@ function agregarFilaKPI_Datos(tipo, kpiData) {
                 <option value="=" ${comparacion === '=' ? 'selected' : ''}>=</option>
             </select>
         </td>
-        <td><input type="text" class="kpi-score form-control" placeholder="0,00" value="${scoreLimpio.replace('.', ',')}" oninput="this.value = this.value.replace('.', ',')"></td>
+        <td><input type="number" step="0.01" class="kpi-score form-control" placeholder="0.00" value="${scoreLimpio.replace(',', '.')}"></td>
         <td><button type="button" class="btn-delete" onclick="eliminarFila(this)">🗑️</button></td>
         `;
     } else {
@@ -1562,20 +1655,260 @@ function agregarFilaKPI_Datos(tipo, kpiData) {
                 <option value="=" ${comparacion === '=' ? 'selected' : ''}>=</option>
             </select>
         </td>
-        <td><input type="text" class="kpi-score form-control" placeholder="0,00" value="${scoreLimpio.replace('.', ',')}" oninput="this.value = this.value.replace('.', ',')"></td>
-        <td><input type="text" class="kpi-porcentaje form-control" placeholder="0,00" value="${valorPct.replace('.', ',')}" oninput="this.value = this.value.replace('.', ','); actualizarIndicadorBono()"></td>
+        <td><input type="number" step="0.01" class="kpi-score form-control" placeholder="0.00" value="${scoreLimpio.replace(',', '.')}"></td>
+        <td><input type="number" step="0.01" class="kpi-porcentaje form-control" placeholder="0.00" value="${valorPct.replace(',', '.')}" oninput="actualizarIndicadorBono()"></td>
         ${gateCell}
-        <td style="${styleParticipacion}">
-            <input type="text" class="kpi-participacion form-control" value="${valorPart.replace('.', ',')}"
-                   placeholder="100" oninput="this.value = this.value.replace('.', ','); calcularValoresPesosEnTiempoReal()">
+        <td>
+            <input type="number" step="0.01" class="kpi-participacion form-control" value="${valorPart.replace(',', '.')}"
+                   placeholder="100" oninput="calcularValoresPesosEnTiempoReal()">
         </td>
-        <td class="celda-valor-pesos" style="${styleParticipacion} text-align:right; font-weight:bold; color:#27ae60;">—</td>
+        <td class="celda-valor-pesos" style="text-align:right; font-weight:bold; color:#27ae60;">—</td>
         <td><button type="button" class="btn-delete" onclick="eliminarFila(this)">🗑️</button></td>
         `;
     }
+    
+    // ⭐ Refrescar visibilidad de la nueva fila
+    actualizarLimites();
     return row;
 }
 
+
+function consultarEstructuraRegistrada() {
+    const lob = document.getElementById('simSelectLob').value;
+    const mes = document.getElementById('simSelectMes').value;
+
+    if (!lob || !mes) {
+        mostrarToast('⚠️ Seleccione LOB y Mes primero', 'warning');
+        return;
+    }
+
+    mostrarLoading('Cargando estructura...');
+
+    google.script.run
+        .withSuccessHandler(function (estructura) {
+            ocultarLoading();
+            const contenedor = document.getElementById('estructuraRegistrada');
+            if (estructura && estructura.encontrado) {
+                let html = '<div style="background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">';
+                html += '<h4 style="margin-bottom: 15px; color: var(--primary);">📋 Estructura: ' + lob + ' - ' + mes + '</h4>';
+                
+                html += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 20px;">';
+                html += '<div style="padding: 10px; background: #f8f9fa; border-radius: 5px;"><strong>HC:</strong> ' + estructura.hc + '</div>';
+                html += '<div style="padding: 10px; background: #f8f9fa; border-radius: 5px;"><strong>Salario:</strong> $' + (estructura.salario || 0).toLocaleString('es-CO') + '</div>';
+                html += '<div style="padding: 10px; background: #f8f9fa; border-radius: 5px;"><strong>% Bono:</strong> ' + estructura.porcentaje + '%</div>';
+                html += '</div>';
+                
+                const _dibujarTabla = (titulo, kpis, color) => {
+                    if (!kpis || kpis.length === 0) return '';
+                    let t = '<h5 style="margin-top: 15px; color: ' + color + '; border-bottom: 2px solid ' + color + '; padding-bottom: 5px;">' + titulo + '</h5>';
+                    t += '<table class="kpi-table" style="font-size: 0.9em; margin-bottom: 15px;">';
+                    t += '<thead><tr><th>KPI</th><th>Meta/Score</th><th>% Asignado</th><th>Participación</th></tr></thead><tbody>';
+                    kpis.forEach(k => {
+                        t += '<tr>';
+                        t += '<td>' + k.nombre + '</td>';
+                        t += '<td>' + (k.score || '-') + '</td>';
+                        t += '<td>' + (k.porcentaje !== undefined ? k.porcentaje + '%' : '-') + '</td>';
+                        t += '<td>' + (k.participacion !== undefined ? k.participacion + '%' : '100%') + '</td>';
+                        t += '</tr>';
+                    });
+                    t += '</tbody></table>';
+                    return t;
+                };
+
+                html += _dibujarTabla('🔑 Keys', estructura.kpis.keys, '#3498db');
+                html += _dibujarTabla('🟢 Bonus Structure', estructura.kpis.bonusStructure, '#2ecc71');
+                html += _dibujarTabla('🟠 Additional Incentives', estructura.kpis.additionalIncentives, '#f39c12');
+                html += _dibujarTabla('🔴 Decreased', estructura.kpis.decreasedKPIs, '#e74c3c');
+                
+                // ⭐ BOTÓN DE PDF
+                html += `
+                <div style="text-align: center; margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px;">
+                    <button onclick='exportarEstructuraPDF(${JSON.stringify(estructura).replace(/'/g, "&apos;")}, "${lob}", "${mes}")' 
+                            class="btn" style="background: #e74c3c; color: white; padding: 10px 25px;">
+                        📥 DESCARGAR PDF
+                    </button>
+                </div>
+                `;
+
+                html += '</div>';
+                contenedor.innerHTML = html;
+                contenedor.style.display = 'block';
+                mostrarToast('✅ Estructura cargada', 'success');
+            } else {
+                contenedor.innerHTML = '<div style="padding: 20px; text-align: center; color: #e74c3c; background: #fadbd8; border-radius: 10px;">❌ No se encontró estructura registrada para este mes.</div>';
+                contenedor.style.display = 'block';
+                mostrarToast('❌ Estructura no encontrada', 'danger');
+            }
+        })
+        .withFailureHandler(function (err) {
+            ocultarLoading();
+            mostrarToast('❌ Error al consultar estructura', 'danger');
+        })
+        .REGISTRO_obtenerEstructuraRegistrada(lob, mes, datosUsuario);
+}
+
+// ============================================================
+// 📥 EXPORTAR ESTRUCTURA A PDF
+// ============================================================
+function exportarEstructuraPDF(estructura, lob, mes) {
+    if (!estructura || !window.jspdf) {
+        mostrarToast('❌ Error: Biblioteca PDF no cargada', 'danger');
+        return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const margin = 15;
+    let y = 20;
+
+    const bonoMaximo = (estructura.salario * estructura.porcentaje) / 100;
+
+    // Título Principal
+    doc.setFontSize(22);
+    doc.setTextColor(52, 152, 219); // var(--primary)
+    doc.text('Estructura de Métricas', margin, y);
+    y += 12;
+
+    // Información de Cabecera - Fila 1
+    doc.setFontSize(10);
+    doc.setTextColor(44, 62, 80);
+    doc.setFont("helvetica", "bold");
+    doc.text(`LOB:`, margin, y);
+    doc.setFont("helvetica", "normal");
+    doc.text(`${lob}`, margin + 10, y);
+    
+    doc.setFont("helvetica", "bold");
+    doc.text(`Mes:`, margin + 70, y);
+    doc.setFont("helvetica", "normal");
+    doc.text(`${mes}`, margin + 80, y);
+
+    doc.setFont("helvetica", "bold");
+    doc.text(`Tipo:`, margin + 130, y);
+    doc.setFont("helvetica", "normal");
+    doc.text(`${estructura.tipoHoja || '-'}`, margin + 140, y);
+    y += 7;
+
+    // Información de Cabecera - Fila 2
+    doc.setFont("helvetica", "bold");
+    doc.text(`ACCM:`, margin, y);
+    doc.setFont("helvetica", "normal");
+    doc.text(`${estructura.accm || '-'}`, margin + 13, y);
+
+    doc.setFont("helvetica", "bold");
+    doc.text(`OM:`, margin + 70, y);
+    doc.setFont("helvetica", "normal");
+    doc.text(`${estructura.om || '-'}`, margin + 78, y);
+    
+    doc.setFont("helvetica", "bold");
+    doc.text(`Fecha Reg:`, margin + 130, y);
+    doc.setFont("helvetica", "normal");
+    doc.text(`${estructura.fecha || estructura.mes || '-'}`, margin + 150, y);
+    y += 10;
+
+    // Cuadro de Resumen Salarial
+    doc.setFillColor(248, 249, 250);
+    doc.rect(margin, y, 180, 22, 'F');
+    doc.setDrawColor(222, 226, 230);
+    doc.rect(margin, y, 180, 22, 'S');
+    
+    y += 13;
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.text(`HC:`, margin + 10, y);
+    doc.setFont("helvetica", "normal");
+    doc.text(`${estructura.hc || '-'}`, margin + 18, y);
+
+    doc.setFont("helvetica", "bold");
+    doc.text(`Salario:`, margin + 40, y);
+    doc.setFont("helvetica", "normal");
+    doc.text(`${formatearMoneda(estructura.salario || 0)}`, margin + 55, y);
+
+    doc.setFont("helvetica", "bold");
+    doc.text(`% Bono:`, margin + 95, y);
+    doc.setFont("helvetica", "normal");
+    doc.text(`${estructura.porcentaje || 0}%`, margin + 112, y);
+
+    doc.setTextColor(39, 174, 96); // success green
+    doc.setFont("helvetica", "bold");
+    doc.text(`Bono Máx:`, margin + 135, y);
+    doc.text(`${formatearMoneda(bonoMaximo)}`, margin + 158, y);
+    y += 18;
+
+    // Sección de Comentarios
+    if (estructura.comentarios) {
+        doc.setTextColor(133, 100, 4); // warning brown
+        doc.setFillColor(255, 243, 205);
+        doc.setFontSize(10);
+        
+        const splitComments = doc.splitTextToSize(`Comentarios: ${estructura.comentarios}`, 170);
+        const commentHeight = (splitComments.length * 5) + 6;
+        
+        doc.rect(margin, y - 5, 180, commentHeight, 'F');
+        doc.text(splitComments, margin + 5, y);
+        y += commentHeight + 5;
+    }
+
+    // Función para añadir secciones con tablas
+    const añadirSeccion = (titulo, kpis, color) => {
+        if (!kpis || kpis.length === 0) return;
+        
+        // Verificar si necesitamos nueva página
+        if (y > 230) { doc.addPage(); y = 20; }
+
+        doc.setFontSize(14);
+        doc.setTextColor(color[0], color[1], color[2]);
+        doc.setFont("helvetica", "bold");
+        doc.text(titulo, margin, y);
+        y += 6;
+
+        const body = kpis.map(k => {
+            const pctAsignado = parseFloat(k.porcentaje) || 0;
+            const pctPart = parseFloat(k.participacion) || 100;
+            const bonoKPI = (bonoMaximo * pctAsignado * pctPart) / 10000;
+
+            return [
+                k.nombre,
+                k.score || '-',
+                pctAsignado > 0 ? pctAsignado.toFixed(1) + '%' : '-',
+                pctPart.toFixed(0) + '%',
+                bonoKPI > 0 ? formatearMoneda(bonoKPI) : '-'
+            ];
+        });
+
+        doc.autoTable({
+            startY: y,
+            head: [['KPI', 'Meta/Score', '% Asignado', '% Part.', 'Monto ($)']],
+            body: body,
+            headStyles: { fillColor: color },
+            margin: { left: margin },
+            theme: 'striped',
+            styles: { fontSize: 8, cellPadding: 2 },
+            columnStyles: {
+                4: { halign: 'right', fontStyle: 'bold' }
+            }
+        });
+
+        y = doc.lastAutoTable.finalY + 12;
+    };
+
+    añadirSeccion('Keys (Mandatorios)', estructura.kpis.keys, [52, 152, 219]); // #3498db
+    añadirSeccion('Bonus Structure', estructura.kpis.bonusStructure, [46, 204, 113]); // #2ecc71
+    añadirSeccion('Additional Incentives', estructura.kpis.additionalIncentives, [243, 156, 18]); // #f39c12
+    añadirSeccion('Decreased', estructura.kpis.decreasedKPIs, [231, 76, 60]); // #e74c3c
+
+    // Pie de página
+    const totalPages = doc.internal.getNumberOfPages();
+    for(let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(150);
+        doc.text(`Documento generado el ${new Date().toLocaleString()} - Sistema de Gestión de Métricas`, margin, 285);
+        doc.text(`Página ${i} de ${totalPages}`, 180, 285);
+    }
+
+    doc.save(`Estructura_${lob.replace(/[^a-z0-9]/gi, '_')}_${mes}.pdf`);
+    mostrarToast('✅ PDF mejorado generado', 'success');
+}
 
 function manejarSubmitRegistro(e) {
     if (e) {
@@ -1702,7 +2035,7 @@ function agregarFilaKPI(tipo) {
     }
 
     const esPisos = (tipoHoja === 'Registro_pisos');
-    const styleParticipacion = esPisos ? '' : 'display:none;';
+    const styleParticipacion = ''; // SIEMPRE VISIBLE
 
     // ✅ Solo Bonus Structure tiene checkbox Gate
     const esBonus = (tipo === 'bonus');
@@ -1746,14 +2079,17 @@ function agregarFilaKPI(tipo) {
         <td><input type="number" class="kpi-score" step="0.01"></td>
         <td><input type="number" class="kpi-porcentaje" step="0.01" oninput="actualizarIndicadorBono()"></td>
         ${gateCell}
-        <td style="${styleParticipacion}">
+        <td>
             <input type="number" class="kpi-participacion" step="0.01"
-                   placeholder="Opcional" oninput="calcularValoresPesosEnTiempoReal()">
+                   placeholder="100" oninput="calcularValoresPesosEnTiempoReal()">
         </td>
-        <td class="celda-valor-pesos" style="${styleParticipacion} text-align:right; font-weight:bold; color:#27ae60;">—</td>
+        <td class="celda-valor-pesos" style="text-align:right; font-weight:bold; color:#27ae60;">—</td>
         <td><button type="button" class="btn-delete" onclick="eliminarFila(this)">🗑️</button></td>
         `;
     }
+    
+    // ⭐ Refrescar visibilidad de la nueva fila
+    actualizarLimites();
 }
 
 // ✅ NUEVA: Limitar a 3 Gates en Bonus Structure
@@ -1822,37 +2158,67 @@ function capitalize(s) {
 }
 
 function calcularValoresPesosEnTiempoReal() {
-    const _p = (id) => parseFloat(document.getElementById(id).value.replace(',', '.')) || 0;
-    const salario = _p('salario');
-    const porcentajeBono = _p('porcentajeBono');
+    const salario = parseFloat(document.getElementById('salario').value.replace(',', '.')) || 0;
+    const porcentajeBono = parseFloat(document.getElementById('porcentajeBono').value) || 0;
     const bonoMaximo = (salario * porcentajeBono) / 100;
-    
-    const _rowVal = (row, selector) => parseFloat(row.querySelector(selector)?.value.replace(',', '.')) || 0;
+    const tipoHoja = document.getElementById('tipoHoja').value;
+    const esPisos = (tipoHoja === 'Registro_pisos');
 
-    // Bonus Structure
-    document.querySelectorAll('#tbodyBonus tr').forEach(row => {
-        const pctKPI = _rowVal(row, '.kpi-porcentaje');
-        const pctPart = row.querySelector('.kpi-participacion') ? _rowVal(row, '.kpi-participacion') : 100;
-        const celdaPesos = row.querySelector('.celda-valor-pesos');
-        
-        if (celdaPesos) {
-            const valorTotalKPI = (bonoMaximo * pctKPI) / 100;
-            const valorMonto = (valorTotalKPI * pctPart) / 100;
-            celdaPesos.textContent = valorMonto > 0 ? formatearMoneda(valorMonto) : '—';
-        }
-    });
+    if (bonoMaximo <= 0) {
+        document.querySelectorAll('.celda-valor-pesos').forEach(c => {
+            c.textContent = '—';
+            c.style.color = '#27ae60';
+        });
+        return;
+    }
 
-    // Additional Incentive
-    document.querySelectorAll('#tbodyAdditional tr').forEach(row => {
-        const pctKPI = _rowVal(row, '.kpi-porcentaje');
-        const pctPart = row.querySelector('.kpi-participacion') ? _rowVal(row, '.kpi-participacion') : 100;
-        const celdaPesos = row.querySelector('.celda-valor-pesos');
-        
-        if (celdaPesos) {
-            const valorTotalKPI = (bonoMaximo * pctKPI) / 100;
-            const valorMonto = (valorTotalKPI * pctPart) / 100;
-            celdaPesos.textContent = valorMonto > 0 ? formatearMoneda(valorMonto) : '—';
-        }
+    ['Bonus', 'Additional', 'Decreased'].forEach(cat => {
+        const kpisProcesados = {};
+
+        document.querySelectorAll(`#tbody${cat} tr`).forEach(row => {
+            const nombreInput = row.querySelector('.kpi-nombre');
+            const pctInput    = row.querySelector('.kpi-porcentaje');
+            const cellMonto   = row.querySelector('.celda-valor-pesos');
+
+            if (!cellMonto) return;
+
+            const nombre = nombreInput?.value?.trim().toUpperCase();
+            const pctRaw = pctInput?.value || '';
+
+            if (!nombre || !pctRaw) {
+                cellMonto.textContent = '—';
+                return;
+            }
+
+            let pct = parseFloat(pctRaw.replace(',', '.')) || 0;
+            if (pct > 0 && pct < 1) pct = pct * 100;
+
+            // Registro normal = participación 100%; Registro_pisos = leer input
+            let part = 100;
+            if (esPisos) {
+                const partInput = row.querySelector('.kpi-participacion');
+                const partRaw   = partInput?.value || '100';
+                part = parseFloat(partRaw.replace(',', '.')) || 100;
+                if (part > 0 && part < 1) part = part * 100;
+            }
+
+            const montoBase  = (bonoMaximo * pct) / 100;
+            const montoFinal = (montoBase * part) / 100;
+            const esRepetido = !!kpisProcesados[nombre];
+
+            if (montoFinal > 0) {
+                const prefix = cat === 'Decreased' ? '-' : '';
+                cellMonto.textContent = prefix + formatearMoneda(montoFinal);
+                cellMonto.style.color = esRepetido
+                    ? '#95a5a6'
+                    : (cat === 'Decreased' ? '#e74c3c' : '#27ae60');
+            } else {
+                cellMonto.textContent = '—';
+                cellMonto.style.color = '#27ae60';
+            }
+
+            kpisProcesados[nombre] = true;
+        });
     });
 }
 
@@ -1951,29 +2317,29 @@ function actualizarIndicadorBono() {
 function actualizarLimites() {
     const tipoHoja = document.getElementById('tipoHoja').value;
     const esPisos = (tipoHoja === 'Registro_pisos');
-    const displayStyle = esPisos ? '' : 'none';
     
-    // Actualizar visibilidad de participacion y pesos en filas existentes
-    document.querySelectorAll('.kpi-participacion').forEach(input => {
-        input.closest('td').style.display = displayStyle;
-    });
-    document.querySelectorAll('.celda-valor-pesos').forEach(td => {
-        td.style.display = displayStyle;
-    });
+    // Identificadores de encabezados
+    const yellowHeaders = ['headerPartYellowBonus', 'headerPartYellowAdditional', 'headerPartYellowDecreased'];
+    const greenHeaders = ['headerPartGreenBonus', 'headerPartGreenAdditional', 'headerPartGreenDecreased'];
 
-    // Actualizar encabezados
-    [
-        'headerPartYellowBonus', 'headerPartGreenBonus',
-        'headerPartYellowAdditional', 'headerPartGreenAdditional',
-        'headerPartYellowDecreased', 'headerPartGreenDecreased'
-    ].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.style.display = displayStyle;
-    });
-
-    // Si no es pisos, limpiar participaciones
-    if (!esPisos) {
-        document.querySelectorAll('.kpi-participacion').forEach(input => input.value = '');
+    if (esPisos) {
+        // En Registro_pisos mostramos AMBAS columnas: % Part y Valor Part
+        yellowHeaders.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'table-cell'; });
+        greenHeaders.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'table-cell'; });
+        
+        document.querySelectorAll('.kpi-participacion').forEach(el => el.closest('td').style.display = 'table-cell');
+        document.querySelectorAll('.celda-valor-pesos').forEach(el => el.style.display = 'table-cell');
+    } else {
+        // En Registro OCULTAMOS % Part (Yellow) y MOSTRAMOS Valor Part (Green)
+        yellowHeaders.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+        greenHeaders.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'table-cell'; });
+        
+        document.querySelectorAll('.kpi-participacion').forEach(el => {
+            el.closest('td').style.display = 'none';
+            // Si el valor está vacío, ponemos 100 por defecto para que el cálculo de Valor Part funcione
+            if (!el.value) el.value = '100'; 
+        });
+        document.querySelectorAll('.celda-valor-pesos').forEach(el => el.style.display = 'table-cell');
     }
 
     calcularValoresPesosEnTiempoReal();
@@ -2083,94 +2449,115 @@ function generarReporteUnificadoCompleto() {
 // ============================================================
 
 function mostrarReporteUnificado(data, presupuestoPVE, pveTotal, porcPVE) {
-    const modal = document.getElementById('simulacionModal');
+
+console.log('RAW data.resultados[0]:', JSON.stringify(data.resultados[0]));
+
+data.resultados = data.resultados.map(r => {
+
+    const inversionReal    = r.inversionReal    || r.totalLOB || 0;
+    const inversionTeorica = r.inversionTeorica || 0;
+
+    const eficienciaNum = typeof r.eficiencia === 'number' ? r.eficiencia :
+        (inversionTeorica > 0 ? (inversionReal / inversionTeorica) * 100 : 0);
+
+    const tasaNum = typeof r.tasaCumplimiento === 'number' ? r.tasaCumplimiento :
+        (r.estadisticas?.tasaCumplimiento || 0);
+
+    return {
+        ...r,
+        totalLOB:         inversionReal,
+        inversionReal:    inversionReal,
+        inversionTeorica: inversionTeorica,
+        ahorro:           inversionTeorica - inversionReal,
+        eficiencia:       eficienciaNum,
+        tasaCumplimiento: tasaNum,
+        estadisticas:     r.estadisticas || {
+            agentesCobran:            0,
+            agentesNoCobran:          0,
+            agentesAfectadosPorKeys:  0,
+            tasaCumplimiento:         tasaNum
+        }
+    };
+});
+
+
+    // ⭐ FIX: Recalcular resumen desde los resultados normalizados
+    const totalInversionTeorica = data.resultados.reduce((s, r) => s + r.inversionTeorica, 0);
+    const totalInversionReal    = data.resultados.reduce((s, r) => s + r.inversionReal, 0);
+    const totalAgentes          = data.resultados.reduce((s, r) => s + (r.hc || 0), 0);
+
+    data.resumen = {
+        ...data.resumen,
+        inversionTeorica: totalInversionTeorica,
+        inversionTotal:   totalInversionReal,
+        totalAgentes:     totalAgentes,
+        ahorro:           totalInversionTeorica - totalInversionReal,
+        eficienciaGlobal: totalInversionTeorica > 0 
+            ? (totalInversionReal / totalInversionTeorica) * 100 : 0
+    };
+
+    // ================================================================
+    // A partir de aquí TODO el código existente funciona sin cambios
+    // porque ya tiene los campos normalizados
+    // ================================================================
+    const modal   = document.getElementById('simulacionModal');
     const content = document.getElementById('contenidoSimulacion');
-    
-    // ========================================
-    // 📊 CALCULAR TOTALES
-    // ========================================
-    const totalInversionTeorica = data.resumen.inversionTeorica || 0;
-    const totalInversionReal = data.resumen.inversionTotal || 0;
-    const totalAgentes = data.resumen.totalAgentes || 0;
-    const totalAhorro = totalInversionTeorica - totalInversionReal;
-    const eficienciaGlobal = totalInversionTeorica > 0 ? (totalInversionReal / totalInversionTeorica) * 100 : 0;
-    
-    const totalAgentesCobran = data.resultados.reduce((sum, r) => sum + (r.estadisticas?.agentesCobran || 0), 0);
-    const totalAgentesNoCobran = totalAgentes - totalAgentesCobran;
+
+    const totalAhorro           = data.resumen.ahorro;
+    const eficienciaGlobal      = data.resumen.eficienciaGlobal;
+    const totalAgentesCobran    = data.resultados.reduce((s, r) => s + (r.estadisticas?.agentesCobran || 0), 0);
+    const totalAgentesNoCobran  = totalAgentes - totalAgentesCobran;
     const tasaCumplimientoGlobal = totalAgentes > 0 ? (totalAgentesCobran / totalAgentes) * 100 : 0;
-    
-    // PVE
-    const pctUsoPVE = presupuestoPVE > 0 ? (totalInversionReal / presupuestoPVE) * 100 : 0;
-    const estadoPVE = pctUsoPVE > 100 ? '❌ EXCEDE' : pctUsoPVE > 80 ? '⚠️ ALTO' : '✅ OK';
-    const colorPVE = pctUsoPVE > 100 ? '#e74c3c' : pctUsoPVE > 80 ? '#f39c12' : '#27ae60';
-    
-    // Distribución por eficiencia
-    const altaEfic = data.resultados.filter(r => parseFloat(r.eficiencia) >= 90).length;
-    const mediaEfic = data.resultados.filter(r => {
-        const e = parseFloat(r.eficiencia);
-        return e >= 70 && e < 90;
-    }).length;
-    const bajaEfic = data.resultados.filter(r => parseFloat(r.eficiencia) < 70).length;
-    
-    const titulo = data.region 
+
+    const pctUsoPVE  = presupuestoPVE > 0 ? (totalInversionReal / presupuestoPVE) * 100 : 0;
+    const estadoPVE  = pctUsoPVE > 100 ? '❌ EXCEDE' : pctUsoPVE > 80 ? '⚠️ ALTO' : '✅ OK';
+    const colorPVE   = pctUsoPVE > 100 ? '#e74c3c' : pctUsoPVE > 80 ? '#f39c12' : '#27ae60';
+
+    const altaEfic  = data.resultados.filter(r => r.eficiencia >= 90).length;
+    const mediaEfic = data.resultados.filter(r => r.eficiencia >= 70 && r.eficiencia < 90).length;
+    const bajaEfic  = data.resultados.filter(r => r.eficiencia < 70).length;
+
+    const titulo = data.region
         ? `📊 Reporte Unificado: ${data.region}`
         : `📊 Reporte Unificado: ${data.om}`;
-    
+
     let html = '';
-    
-    // ========================================
-    // 🎯 ENCABEZADO
-    // ========================================
+
+    // ENCABEZADO (sin cambios)
     html += `
     <div style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 40px; border-radius: 15px 15px 0 0; margin: -30px -30px 30px -30px;">
-        <h1 style="text-align: center; margin: 0; font-size: 2.5rem; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">${titulo}</h1>
-        <p style="text-align: center; opacity: 0.95; margin-top: 15px; font-size: 1.1rem;">Análisis Completo: Teórico vs Real (CDM) vs Presupuesto PVE - ${new Date().toLocaleDateString()}</p>
+        <h1 style="text-align: center; margin: 0; font-size: 2.5rem;">${titulo}</h1>
+        <p style="text-align: center; opacity: 0.95; margin-top: 15px;">Análisis Completo: Teórico vs Real (CDM) - ${new Date().toLocaleDateString()}</p>
     </div>
     `;
-    
-    // ========================================
-    // 💰 COMPARATIVA DE 3 ESCENARIOS
-    // ========================================
+
+    // COMPARATIVA FINANCIERA (sin cambios)
     html += `
     <div style="background: linear-gradient(135deg, #f8f9fa, #e9ecef); border: 3px solid #495057; padding: 30px; border-radius: 15px; margin-bottom: 30px;">
-        <h2 style="color: #2c3e50; text-align: center; margin: 0 0 25px 0; font-size: 1.8rem;">💰 Comparativa Financiera: 3 Escenarios</h2>
+        <h2 style="color: #2c3e50; text-align: center; margin: 0 0 25px 0;">💰 Comparativa Financiera: 3 Escenarios</h2>
         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 20px;">
-            
-  <!-- TEÓRICO -->
-<div style="text-align: center; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-top: 5px solid #95a5a6;">
-    <div style="font-size: 0.95rem; color: #666; margin-bottom: 10px;">📈 TEÓRICO (100%)</div>
-    <div style="font-size: 2.2rem; font-weight: bold; color: #95a5a6;">${formatearMoneda(totalInversionTeorica)}</div>
-    <div style="font-size: 0.85rem; color: #7f8c8d; margin-top: 8px;">(Si todos cumplen 100%)</div>
-    <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #eee; font-size: 0.8rem; color: #95a5a6;">
-        💡 Cálculo: HC × Salario × % Bono
-    </div>
-</div>
-            
-            <!-- REAL (CDM) -->
-            <div style="text-align: center; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(39, 174, 96, 0.3); border: 3px solid #27ae60; border-top: 5px solid #27ae60;">
+            <div style="text-align: center; background: white; padding: 25px; border-radius: 12px; border-top: 5px solid #95a5a6;">
+                <div style="font-size: 0.95rem; color: #666; margin-bottom: 10px;">📈 TEÓRICO (100%)</div>
+                <div style="font-size: 2.2rem; font-weight: bold; color: #95a5a6;">${formatearMoneda(totalInversionTeorica)}</div>
+                <div style="font-size: 0.85rem; color: #7f8c8d; margin-top: 8px;">(Si todos cumplen 100%)</div>
+            </div>
+            <div style="text-align: center; background: white; padding: 25px; border-radius: 12px; border: 3px solid #27ae60; border-top: 5px solid #27ae60;">
                 <div style="font-size: 0.95rem; color: #666; margin-bottom: 10px;">💵 REAL (CDM)</div>
                 <div style="font-size: 2.5rem; font-weight: bold; color: #27ae60;">${formatearMoneda(totalInversionReal)}</div>
-                <div style="font-size: 0.85rem; color: #229954; margin-top: 8px; font-weight: 600;">(Cumplimiento real)</div>
                 <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee;">
                     <div style="font-size: 0.85rem; color: #666;">⚡ Eficiencia</div>
                     <div style="font-size: 1.8rem; font-weight: bold; color: #3498db;">${eficienciaGlobal.toFixed(1)}%</div>
                 </div>
             </div>
-            
-            <!-- PRESUPUESTO PVE -->
-            <div style="text-align: center; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-top: 5px solid ${colorPVE};">
+            <div style="text-align: center; background: white; padding: 25px; border-radius: 12px; border-top: 5px solid ${colorPVE};">
                 <div style="font-size: 0.95rem; color: #666; margin-bottom: 10px;">📊 PRESUPUESTO PVE</div>
                 <div style="font-size: 2.2rem; font-weight: bold; color: ${colorPVE};">${formatearMoneda(presupuestoPVE)}</div>
-                <div style="font-size: 0.85rem; color: #666; margin-top: 8px;">(${porcPVE}% de $${pveTotal.toLocaleString()})</div>
                 <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee;">
-                    <div style="font-size: 0.85rem; color: #666;">Estado</div>
                     <div style="font-size: 1.5rem; font-weight: bold; color: ${colorPVE};">${estadoPVE}</div>
                     <div style="font-size: 0.9rem; color: ${colorPVE}; font-weight: 600;">${pctUsoPVE.toFixed(1)}% usado</div>
                 </div>
             </div>
         </div>
-        
-        <!-- MÉTRICAS ADICIONALES -->
         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
             <div style="text-align: center; background: #e8f5e9; padding: 15px; border-radius: 8px;">
                 <div style="font-size: 0.9rem; color: #666;">💰 Ahorro</div>
@@ -2193,10 +2580,8 @@ function mostrarReporteUnificado(data, presupuestoPVE, pveTotal, porcPVE) {
         </div>
     </div>
     `;
-    
-    // ========================================
-    // 📋 TABLA CONSOLIDADA COMPLETA
-    // ========================================
+
+    // TABLA DETALLADA POR LOB
     html += `
     <div style="background: white; border-radius: 15px; padding: 30px; margin-bottom: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
         <h3 style="color: #2c3e50; margin-top: 0; text-align: center; font-size: 1.6rem; margin-bottom: 25px;">📋 Análisis Detallado por LOB</h3>
@@ -2216,22 +2601,21 @@ function mostrarReporteUnificado(data, presupuestoPVE, pveTotal, porcPVE) {
                         <th style="background: #e8f5e9;">Real (CDM)</th>
                         <th style="background: #fff3e0;">Ahorro</th>
                         <th style="background: #e8f5e9;">Efic.</th>
-                        <th style="background: #ffebee;">Keys ❌</th>
+                        <th style="background: #ffebee;">No Cobran</th>
                     </tr>
                 </thead>
                 <tbody>
     `;
-    
+
     data.resultados.forEach(function(lob) {
-        const efic = parseFloat(lob.eficiencia) || 0;
-        const colorEfic = efic >= 90 ? '#27ae60' : efic >= 70 ? '#f39c12' : '#e74c3c';
-        const iconoEfic = efic >= 90 ? '✅' : efic >= 70 ? '⚠️' : '❌';
-        
-        const pctPVE = presupuestoPVE > 0 ? ((lob.totalLOB / presupuestoPVE) * 100) : 0;
-        const colorPVE = pctPVE > 15 ? '#e74c3c' : pctPVE > 10 ? '#f39c12' : '#27ae60';
-        
-        const agentesNoCobran = lob.hc - (lob.estadisticas?.agentesCobran || 0);
-        
+        // ⭐ FIX: eficiencia ya es número, no necesita parseFloat
+        const efic       = lob.eficiencia || 0;
+        const colorEfic  = efic >= 90 ? '#27ae60' : efic >= 70 ? '#f39c12' : '#e74c3c';
+        const iconoEfic  = efic >= 90 ? '✅' : efic >= 70 ? '⚠️' : '❌';
+        const pctPVE     = presupuestoPVE > 0 ? ((lob.totalLOB / presupuestoPVE) * 100) : 0;
+        const colorPVEr  = pctPVE > 15 ? '#e74c3c' : pctPVE > 10 ? '#f39c12' : '#27ae60';
+        const noCobran   = lob.hc - (lob.estadisticas?.agentesCobran || 0);
+
         html += `
             <tr>
                 <td style="font-weight: 600;">${lob.lob}</td>
@@ -2240,8 +2624,8 @@ function mostrarReporteUnificado(data, presupuestoPVE, pveTotal, porcPVE) {
                 <td style="text-align: right; font-weight: bold; color: #27ae60;">${formatearMoneda(lob.totalLOB)}</td>
                 <td style="text-align: right; color: #f39c12;">${formatearMoneda(lob.ahorro)}</td>
                 <td style="text-align: center; color: ${colorEfic}; font-weight: bold;">${iconoEfic} ${efic.toFixed(1)}%</td>
-                <td style="text-align: center; color: #e74c3c; font-weight: 600;">${agentesNoCobran}</td>
-                <td style="text-align: center; color: ${colorPVE}; font-weight: 600;">${pctPVE.toFixed(1)}%</td>
+                <td style="text-align: center; color: #e74c3c; font-weight: 600;">${noCobran}</td>
+                <td style="text-align: center; color: ${colorPVEr}; font-weight: 600;">${pctPVE.toFixed(1)}%</td>
                 <td style="text-align: center;">
                     <button onclick="verDetalleLOB('${lob.lob}')" class="btn btn-primary" style="padding: 5px 10px; font-size: 0.8em;">
                         🔍 Ver
@@ -2250,7 +2634,7 @@ function mostrarReporteUnificado(data, presupuestoPVE, pveTotal, porcPVE) {
             </tr>
         `;
     });
-    
+
     html += `
                 </tbody>
                 <tfoot style="background: #f8f9fa; font-weight: bold;">
@@ -2270,171 +2654,73 @@ function mostrarReporteUnificado(data, presupuestoPVE, pveTotal, porcPVE) {
         </div>
     </div>
     `;
-    
-    // ========================================
-    // 🔥 ALERTAS Y RECOMENDACIONES
-    // ========================================
+
+    // ALERTAS
     const alertas = [];
-    
-    // Alerta PVE
     if (presupuestoPVE > 0) {
-        if (pctUsoPVE > 100) {
-            alertas.push({
-                tipo: 'CRÍTICO',
-                icono: '🚨',
-                color: '#e74c3c',
-                texto: `Presupuesto PVE EXCEDIDO en ${(pctUsoPVE - 100).toFixed(1)}% (${formatearMoneda(totalInversionReal - presupuestoPVE)} sobre límite)`
-            });
-        } else if (pctUsoPVE > 80) {
-            alertas.push({
-                tipo: 'ADVERTENCIA',
-                icono: '⚠️',
-                color: '#f39c12',
-                texto: `Uso de PVE alto: ${pctUsoPVE.toFixed(1)}% (Quedan ${formatearMoneda(presupuestoPVE - totalInversionReal)})`
-            });
-        }
+        if (pctUsoPVE > 100) alertas.push({ tipo:'CRÍTICO', icono:'🚨', color:'#e74c3c', texto:`PVE EXCEDIDO ${(pctUsoPVE-100).toFixed(1)}%` });
+        else if (pctUsoPVE > 80) alertas.push({ tipo:'ADVERTENCIA', icono:'⚠️', color:'#f39c12', texto:`Uso PVE alto: ${pctUsoPVE.toFixed(1)}%` });
     }
-    
-    // Alerta eficiencia
-    if (eficienciaGlobal < 30) {
-        alertas.push({
-            tipo: 'CRÍTICO',
-            icono: '📉',
-            color: '#e74c3c',
-            texto: `Eficiencia CRÍTICA: ${eficienciaGlobal.toFixed(1)}% - Revisar metas de KPIs urgentemente`
-        });
-    } else if (eficienciaGlobal < 70) {
-        alertas.push({
-            tipo: 'ADVERTENCIA',
-            icono: '⚠️',
-            color: '#f39c12',
-            texto: `Eficiencia baja: ${eficienciaGlobal.toFixed(1)}% - Ajustar KPIs de Keys`
-        });
-    }
-    
-    // Alerta cumplimiento
-    if (tasaCumplimientoGlobal < 50) {
-        alertas.push({
-            tipo: 'CRÍTICO',
-            icono: '❌',
-            color: '#e74c3c',
-            texto: `Solo ${tasaCumplimientoGlobal.toFixed(1)}% de agentes cobraron - ${totalAgentesNoCobran} agentes sin bono`
-        });
-    }
-    
-    // LOBs críticas
-    const lobsCriticas = data.resultados.filter(r => parseFloat(r.eficiencia) < 20);
-    if (lobsCriticas.length > 0) {
-        alertas.push({
-            tipo: 'ACCIÓN REQUERIDA',
-            icono: '🎯',
-            color: '#9b59b6',
-            texto: `${lobsCriticas.length} LOB(s) con eficiencia < 20%: ${lobsCriticas.map(l => l.lob).join(', ')}`
-        });
-    }
-    
+    if (eficienciaGlobal < 30) alertas.push({ tipo:'CRÍTICO', icono:'📉', color:'#e74c3c', texto:`Eficiencia CRÍTICA: ${eficienciaGlobal.toFixed(1)}%` });
+    else if (eficienciaGlobal < 70) alertas.push({ tipo:'ADVERTENCIA', icono:'⚠️', color:'#f39c12', texto:`Eficiencia baja: ${eficienciaGlobal.toFixed(1)}%` });
+    if (tasaCumplimientoGlobal < 50) alertas.push({ tipo:'CRÍTICO', icono:'❌', color:'#e74c3c', texto:`Solo ${tasaCumplimientoGlobal.toFixed(1)}% de agentes cobraron` });
+    const lobsCriticas = data.resultados.filter(r => r.eficiencia < 20);
+    if (lobsCriticas.length > 0) alertas.push({ tipo:'ACCIÓN REQUERIDA', icono:'🎯', color:'#9b59b6', texto:`${lobsCriticas.length} LOB(s) con eficiencia < 20%: ${lobsCriticas.map(l=>l.lob).join(', ')}` });
+
     if (alertas.length > 0) {
-        html += `
-        <div style="background: linear-gradient(135deg, #fff5f5, #ffe0e0); border: 3px solid #e74c3c; border-radius: 15px; padding: 25px; margin-bottom: 30px;">
-            <h3 style="color: #c0392b; margin-top: 0; text-align: center; font-size: 1.6rem;">🔥 Alertas Críticas</h3>
-            <div style="display: flex; flex-direction: column; gap: 15px;">
-        `;
-        
-        alertas.forEach(alerta => {
-            html += `
-                <div style="background: white; padding: 15px; border-radius: 8px; border-left: 5px solid ${alerta.color};">
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 1.5rem;">${alerta.icono}</span>
-                        <div style="flex: 1;">
-                            <div style="font-weight: bold; color: ${alerta.color}; margin-bottom: 5px;">${alerta.tipo}</div>
-                            <div style="color: #2c3e50;">${alerta.texto}</div>
-                        </div>
-                    </div>
+        html += `<div style="background: linear-gradient(135deg, #fff5f5, #ffe0e0); border: 3px solid #e74c3c; border-radius: 15px; padding: 25px; margin-bottom: 30px;">
+            <h3 style="color: #c0392b; margin-top: 0; text-align: center;">🔥 Alertas Críticas</h3>
+            <div style="display: flex; flex-direction: column; gap: 15px;">`;
+        alertas.forEach(a => {
+            html += `<div style="background: white; padding: 15px; border-radius: 8px; border-left: 5px solid ${a.color};">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 1.5rem;">${a.icono}</span>
+                    <div><div style="font-weight: bold; color: ${a.color};">${a.tipo}</div><div>${a.texto}</div></div>
                 </div>
-            `;
+            </div>`;
         });
-        
-        html += `
-            </div>
-        </div>
-        `;
+        html += `</div></div>`;
     }
-    
-    // ========================================
-    // 📊 DISTRIBUCIÓN POR EFICIENCIA
-    // ========================================
+
+    // DISTRIBUCIÓN
     html += `
     <div style="background: #f8f9fa; padding: 30px; border-radius: 15px; margin-bottom: 30px;">
-        <h3 style="color: #2c3e50; margin-top: 0; text-align: center; font-size: 1.6rem;">📊 Distribución por Eficiencia</h3>
+        <h3 style="color: #2c3e50; margin-top: 0; text-align: center;">📊 Distribución por Eficiencia</h3>
         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 25px; margin-top: 25px;">
             <div style="text-align: center; padding: 30px; background: white; border-radius: 12px; border-top: 5px solid #27ae60;">
                 <div style="font-size: 1rem; color: #666; margin-bottom: 15px;">✅ Alta (≥90%)</div>
                 <div style="font-size: 4rem; font-weight: bold; color: #27ae60;">${altaEfic}</div>
-                <div style="font-size: 0.9rem; color: #999; margin-top: 15px;">${data.resultados.length > 0 ? ((altaEfic / data.resultados.length) * 100).toFixed(1) : 0}% del total</div>
             </div>
             <div style="text-align: center; padding: 30px; background: white; border-radius: 12px; border-top: 5px solid #f39c12;">
                 <div style="font-size: 1rem; color: #666; margin-bottom: 15px;">⚠️ Media (70-89%)</div>
                 <div style="font-size: 4rem; font-weight: bold; color: #f39c12;">${mediaEfic}</div>
-                <div style="font-size: 0.9rem; color: #999; margin-top: 15px;">${data.resultados.length > 0 ? ((mediaEfic / data.resultados.length) * 100).toFixed(1) : 0}% del total</div>
             </div>
             <div style="text-align: center; padding: 30px; background: white; border-radius: 12px; border-top: 5px solid #e74c3c;">
                 <div style="font-size: 1rem; color: #666; margin-bottom: 15px;">❌ Baja (<70%)</div>
                 <div style="font-size: 4rem; font-weight: bold; color: #e74c3c;">${bajaEfic}</div>
-                <div style="font-size: 0.9rem; color: #999; margin-top: 15px;">${data.resultados.length > 0 ? ((bajaEfic / data.resultados.length) * 100).toFixed(1) : 0}% del total</div>
             </div>
         </div>
     </div>
     `;
-    
-    // ========================================
-    // 💡 RECOMENDACIONES
-    // ========================================
-    html += `
-    <div style="background: linear-gradient(135deg, #fff9e6, #ffe6cc); border: 2px solid #f39c12; border-radius: 15px; padding: 25px; margin-bottom: 30px;">
-        <h3 style="color: #d68910; margin-top: 0; text-align: center; font-size: 1.5rem;">💡 Recomendaciones Estratégicas</h3>
-        <ul style="list-style: none; padding: 0; margin: 0;">
-            <li style="padding: 10px 0; border-bottom: 1px solid rgba(0,0,0,0.1);">
-                🎯 <strong>Optimizar LOBs con eficiencia < 70%</strong> - ${bajaEfic} LOB(s) requieren ajuste de metas
-            </li>
-            <li style="padding: 10px 0; border-bottom: 1px solid rgba(0,0,0,0.1);">
-                🔑 <strong>Revisar Keys críticos</strong> - ${totalAgentesNoCobran} agentes bloqueados
-            </li>
-            <li style="padding: 10px 0; border-bottom: 1px solid rgba(0,0,0,0.1);">
-                💰 <strong>Redistribuir presupuesto</strong> - Ahorro de ${formatearMoneda(totalAhorro)} puede optimizarse
-            </li>
-            <li style="padding: 10px 0;">
-                📊 <strong>Evaluar estructura de bonos</strong> - Eficiencia promedio ${eficienciaGlobal.toFixed(1)}% indica oportunidad de mejora
-            </li>
-        </ul>
-    </div>
-    `;
-    
-    // ========================================
-    // 🎯 BOTONES DE ACCIÓN
-    // ========================================
+
+    // BOTONES
     html += `
     <div style="text-align: center; margin-top: 35px;">
-        <button onclick="exportarReporteUnificadoExcel()" class="btn btn-success" style="padding: 18px 45px; font-size: 1.2rem; margin-right: 20px;">
-            📥 EXPORTAR EXCEL
-        </button>
-        <button onclick="togglePanelCorreo()" class="btn btn-primary" style="padding: 18px 45px; font-size: 1.2rem;">
-            📧 ENVIAR REPORTE
-        </button>
+        <button onclick="exportarReporteUnificadoExcel()" class="btn btn-success" style="padding: 18px 45px; font-size: 1.2rem; margin-right: 20px;">📥 EXPORTAR EXCEL</button>
+        <button onclick="togglePanelCorreo()" class="btn btn-primary" style="padding: 18px 45px; font-size: 1.2rem;">📧 ENVIAR REPORTE</button>
     </div>
     `;
-    
+
     content.innerHTML = html;
     modal.style.display = 'block';
-    
-    // Guardar datos globales
+
     window.reporteUnificadoActual = data;
     window.reporteUnificadoActual.presupuestoPVE = presupuestoPVE;
-    window.reporteUnificadoActual.pveTotal = pveTotal;
-    window.reporteUnificadoActual.porcPVE = porcPVE;
-    
-    mostrarToast('✅ Reporte unificado generado con éxito', 'success');
-}
+    window.reporteUnificadoActual.pveTotal       = pveTotal;
+    window.reporteUnificadoActual.porcPVE        = porcPVE;
 
+    mostrarToast('✅ Reporte unificado generado', 'success');
+}
 // ============================================================
 // 📥 EXPORTAR REPORTE UNIFICADO
 // ============================================================
@@ -2726,18 +3012,14 @@ function exportarReporteUnificadoExcel() {
             content.innerHTML = html;
             modal.style.display = 'block';
         }
-
 function verDetalleLOB(lobName) {
-    // Buscar datos del reporte actual (unificado o masivo)
     const reporteActual = window.reporteUnificadoActual || window.simulacionMasivaActual;
     if (!reporteActual) {
         mostrarToast('❌ No se encontraron datos del reporte', 'danger');
         return;
     }
 
-    // ⭐ Verificar acceso por rol antes de mostrar detalle
     if (datosUsuario && datosUsuario.rol === 'OM') {
-        // Verificar que la LOB pertenece a este OM
         const lobEnResultados = reporteActual.resultados.find(l => l.lob === lobName);
         if (!lobEnResultados) {
             mostrarToast('❌ No tienes acceso a los datos de esta LOB', 'danger');
@@ -2751,12 +3033,56 @@ function verDetalleLOB(lobName) {
         return;
     }
 
-    console.log(`🔍 verDetalleLOB: "${lobName}", mesRaw="${lobData.mes || lobData.fecha}"`);
+    console.log(`🔍 verDetalleLOB: "${lobName}", mes="${lobData.mes || lobData.fecha}"`);
 
-    // ⭐ Usa la misma función central → mismo total que el botón individual
-    _ejecutarSimulacionReal(lobName, lobData.mes || lobData.fecha);
+    // ⭐ FIX: pasar el mes de la ESTRUCTURA para leer KPIs,
+    //         pero forzar el CDM al MES ACTUAL
+    _ejecutarSimulacionRealConMesActual(lobName, lobData.mes || lobData.fecha);
 }
 
+
+function _ejecutarSimulacionRealConMesActual(lob, mesEstructura) {
+    const mesesNombres = [
+        'Enero','Febrero','Marzo','Abril','Mayo','Junio',
+        'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'
+    ];
+
+    // ⭐ Mes actual para CDM — siempre el mes de HOY
+    const mesActualNumero = new Date().getMonth() + 1;
+
+    // ⭐ Normalizar mes de la estructura (puede ser "Abril", "2025-04-01", etc.)
+    let mes = mesEstructura;
+    if (mes && mes.includes('-')) {
+        const partes = mes.split('-');
+        if (partes.length >= 2) {
+            const numMes = parseInt(partes[1]) - 1;
+            mes = mesesNombres[numMes] || mes;
+        }
+    }
+
+    console.log(`\n🎯 _ejecutarSimulacionRealConMesActual`);
+    console.log(`   LOB: "${lob}"`);
+    console.log(`   Mes estructura: "${mes}" (para leer KPIs del Registro)`);
+    console.log(`   Mes CDM actual: ${mesActualNumero} (para leer datos reales)`);
+
+    mostrarLoading('🔄 Calculando con métricas reales del CDM...\nEsto puede tomar 30-60 segundos...');
+
+    google.script.run
+        .withSuccessHandler(function(resultado) {
+            ocultarLoading();
+            if (resultado && resultado.success) {
+                mostrarResultadoMetricasReales(resultado);
+            } else {
+                mostrarToast('❌ Error: ' + (resultado ? resultado.error : 'No se recibió respuesta'), 'danger');
+            }
+        })
+        .withFailureHandler(function(error) {
+            ocultarLoading();
+            mostrarToast('❌ Error: ' + (error.message || error), 'danger');
+        })
+        // ⭐ mes = estructura histórica, mesActualNumero = CDM de hoy
+        .REGISTRO_simularConMetricasReales(lob, mes, mesActualNumero);
+}
         // ============================================================
         // 🎯 FUNCIÓN CORREGIDA: MOSTRAR DETALLE ADICIONAL Y BONUS
 // ============================================================
@@ -3458,57 +3784,59 @@ function generarTablaKPIsDetallada(kpis, bonoMaximo, hcCount, tipo) {
         // ============================================================
         // 🔍 VER ESTRUCTURA REGISTRADA (INDIVIDUAL O MASIVA)
         // ============================================================
-        function consultarEstructuraRegistrada() {
-            const lob = document.getElementById('simSelectLob').value;
-            const mes = document.getElementById('simSelectMes').value;
+  function consultarEstructuraRegistrada() {
+    const lob = document.getElementById('simSelectLob').value;
+    const mes = document.getElementById('simSelectMes').value;
 
-            // Si no hay LOB seleccionada, pero es un rol con permisos, intentar masivo
-            const esRolPermitido = datosUsuario && ['OM', 'Reporting', 'Reporting Analyst', 'Audit'].includes(datosUsuario.rol);
-            
-            if (!lob && esRolPermitido) {
-                mostrarLoading('Consultando todas tus estructuras...');
-                google.script.run
-                    .withSuccessHandler(function (response) {
-                        ocultarLoading();
-                        if (response.success && response.estructuras && response.estructuras.length > 0) {
-                            mostrarEstructurasUnificadas(response.estructuras);
-                        } else {
-                            mostrarToast('❌ ' + (response.error || 'No se encontraron estructuras registradas para tus LOBs'), 'warning');
-                        }
-                    })
-                    .withFailureHandler(function (err) {
-                        ocultarLoading();
-                        mostrarToast('❌ Error: ' + err, 'danger');
-                    })
-                    .REGISTRO_obtenerEstructuraTodasLOBsPorOM(datosUsuario.nombre);
+    const esRolPermitido = datosUsuario && ['OM', 'Reporting', 'Reporting Analyst', 'Audit'].includes(datosUsuario.rol);
+
+    if (!lob && esRolPermitido) {
+        mostrarLoading('Consultando todas tus estructuras...');
+        google.script.run
+            .withSuccessHandler(function (response) {
+                ocultarLoading();
+                if (response && response.success && response.estructuras && response.estructuras.length > 0) {
+                    mostrarEstructurasUnificadas(response.estructuras);
+                } else {
+                    mostrarToast('❌ ' + (response ? response.error : 'No se encontraron estructuras'), 'warning');
+                }
+            })
+            .withFailureHandler(function (err) {
+                ocultarLoading();
+                mostrarToast('❌ Error: ' + err, 'danger');
+            })
+            .REGISTRO_obtenerEstructuraTodasLOBsPorOM(datosUsuario.nombre);
+        return;
+    }
+
+    if (!lob || !mes) {
+        mostrarToast('⚠️ Seleccione LOB y Mes (o deje LOB vacío para ver todas)', 'warning');
+        return;
+    }
+
+    mostrarLoading('Consultando estructura de ' + lob + '...');
+
+    google.script.run
+        .withSuccessHandler(function (response) {
+            ocultarLoading();
+            // ⭐ FIX: proteger ante null
+            if (!response) {
+                mostrarToast('❌ No se recibió respuesta del servidor', 'danger');
                 return;
             }
-
-            // Caso individual
-            if (!lob || !mes) {
-                mostrarToast('⚠️ Seleccione LOB y Mes (o deje LOB vacío para ver todas)', 'warning');
-                return;
+            if (response.encontrado) {
+                window.estructuraActual = response;
+                mostrarEstructuraRegistrada(response);
+            } else {
+                mostrarToast('❌ ' + (response.mensaje || 'No se encontró estructura'), 'danger');
             }
-
-            mostrarLoading('Consultando estructura de ' + lob + '...');
-
-            google.script.run
-                .withSuccessHandler(function (response) {
-                    ocultarLoading();
-                    if (response.encontrado) {
-                        window.estructuraActual = response;
-                        mostrarEstructuraRegistrada(response);
-                    } else {
-                        mostrarToast('❌ ' + (response.mensaje || 'No se encontró estructura'), 'danger');
-                    }
-                })
-                .withFailureHandler(function (err) {
-                    ocultarLoading();
-                    mostrarToast('❌ Error: ' + err, 'danger');
-                })
-                .REGISTRO_obtenerEstructuraRegistrada(lob, mes, datosUsuario);
-        }
-
+        })
+        .withFailureHandler(function (err) {
+            ocultarLoading();
+            mostrarToast('❌ Error: ' + err, 'danger');
+        })
+        .REGISTRO_obtenerEstructuraRegistrada(lob, mes, datosUsuario);
+}
      // ========================================
 // 🔧 FIX: mostrarEstructuraRegistrada()
 // ========================================
@@ -3745,10 +4073,14 @@ function mostrarEstructuraRegistrada(data) {
     }
 
     html += `
-    <div style="text-align: center; margin-top: 30px;">
+    <div style="text-align: center; margin-top: 30px; display: flex; justify-content: center; gap: 15px;">
         <button onclick="abrirEditorEstructura('${data.lob}', '${data.mes}')" 
                 class="btn btn-primary" style="padding: 15px 40px;">
             ✏️ EDITAR ESTRUCTURA PARA NUEVO MES
+        </button>
+        <button onclick='exportarEstructuraPDF(${JSON.stringify(data).replace(/'/g, "&apos;")}, "${data.lob}", "${data.mes}")' 
+                class="btn" style="background: #e74c3c; color: white; padding: 15px 40px;">
+            📥 DESCARGAR PDF
         </button>
     </div>
     `;
@@ -3817,7 +4149,8 @@ function mostrarEstructurasUnificadas(estructuras) {
         // ============================================================
         // 💰 ABRIR MODAL DE SIMULACIÓN
         // ============================================================
-   function abrirModalSimulacion() {
+
+function abrirModalSimulacion() {
     const lob = document.getElementById('simSelectLob').value;
     const mes = document.getElementById('simSelectMes').value;
 
@@ -3827,71 +4160,111 @@ function mostrarEstructurasUnificadas(estructuras) {
     }
 
     console.log(`🔍 Simulando: LOB="${lob}", Mes="${mes}"`);
-    
     mostrarLoading('Cargando simulación...');
 
+    // ⭐ FIX: pasar datosUsuario — antes era .REGISTRO_obtenerSalarioPorLob(lob) sin usuario
     google.script.run
-        .withSuccessHandler(function(configOficial) {
+        .withSuccessHandler(function (configOficial) {
             console.log('✅ Config oficial:', configOficial);
-            
+
             google.script.run
-                .withSuccessHandler(function(estructura) {
+                .withSuccessHandler(function (estructura) {
                     ocultarLoading();
-                    
                     console.log('✅ Estructura recibida:', estructura);
-                    
-                    if (!estructura.encontrado) {
-                        mostrarToast('❌ No hay estructura registrada', 'danger');
+
+                    // ⭐ FIX: proteger ante null
+                    if (!estructura || !estructura.encontrado) {
+                        mostrarToast('❌ No hay estructura registrada para esta LOB/Mes', 'danger');
                         return;
                     }
-                    
-                    // ⭐ JERARQUÍA DE SALARIO
+
+                    // ⭐ JERARQUÍA DE SALARIO:
+                    // 1. Lo que el usuario ingresó en los inputs
+                    // 2. Lo que trae la estructura del registro
+                    // 3. Lo que trae configOficial de Configuracion
                     let salario, porcentaje;
-                    
-                    const inputSalario = parseFloat(document.getElementById('simInputSalario').value);
+
+                    const inputSalario    = parseFloat(document.getElementById('simInputSalario').value);
                     const inputPorcentaje = parseFloat(document.getElementById('simInputPorcentaje').value);
-                    
+
                     if (inputSalario && inputPorcentaje) {
-                        salario = inputSalario;
+                        salario    = inputSalario;
                         porcentaje = inputPorcentaje;
+                        console.log(`💰 Usando inputs del formulario: $${salario} / ${porcentaje}%`);
                     } else if (estructura.salario && estructura.porcentaje) {
-                        salario = estructura.salario;
+                        salario    = estructura.salario;
                         porcentaje = estructura.porcentaje;
-                    } else if (configOficial.encontrado) {
-                        salario = configOficial.salario;
+                        console.log(`💰 Usando estructura registrada: $${salario} / ${porcentaje}%`);
+                    } else if (configOficial && configOficial.encontrado) {
+                        // ⭐ FIX: proteger ante configOficial null
+                        salario    = configOficial.salario;
                         porcentaje = configOficial.porcentaje;
+                        console.log(`💰 Usando Configuracion oficial: $${salario} / ${porcentaje}%`);
                     } else {
-                        mostrarToast('❌ No se encontró salario configurado', 'danger');
+                        ocultarLoading();
+                        mostrarToast('❌ No se encontró salario configurado para esta LOB', 'danger');
                         return;
                     }
-                    
-                    console.log(`💰 Usando: Salario=${salario}, Bono=${porcentaje}%`);
-                    
+
                     const bonoMaximo = (salario * porcentaje) / 100;
-                    const hc = estructura.hc || 1;
-                    
+                    const hc         = estructura.hc || 1;
+
+                    console.log(`📊 Bono máximo: $${bonoMaximo} | HC: ${hc}`);
+
                     const html = generarHTMLSimulacionConDetalle(
                         estructura, salario, porcentaje, bonoMaximo, hc
                     );
-                    
+
                     document.getElementById('contenidoSimulacion').innerHTML = html;
                     document.getElementById('simulacionModal').style.display = 'block';
                 })
-                .withFailureHandler(function(err) {
+                .withFailureHandler(function (err) {
                     ocultarLoading();
                     console.error('❌ Error obteniendo estructura:', err);
-                    mostrarToast('❌ Error: ' + err, 'danger');
+                    mostrarToast('❌ Error al cargar estructura: ' + (err.message || err), 'danger');
                 })
                 .REGISTRO_obtenerEstructuraRegistrada(lob, mes, datosUsuario);
         })
-        .withFailureHandler(function(err) {
-            ocultarLoading();
-            console.error('❌ Error obteniendo config:', err);
-            mostrarToast('❌ Error: ' + err, 'danger');
-        })
-        .REGISTRO_obtenerSalarioPorLob(lob);
-}
+        .withFailureHandler(function (err) {
+            console.error('❌ Error obteniendo config oficial:', err);
 
+            // ⭐ FIX: si falla la config, igual continuar con la estructura
+            google.script.run
+                .withSuccessHandler(function (estructura) {
+                    ocultarLoading();
+
+                    if (!estructura || !estructura.encontrado) {
+                        mostrarToast('❌ No hay estructura registrada para esta LOB/Mes', 'danger');
+                        return;
+                    }
+
+                    const salario    = parseFloat(document.getElementById('simInputSalario').value) || estructura.salario || 0;
+                    const porcentaje = parseFloat(document.getElementById('simInputPorcentaje').value) || estructura.porcentaje || 0;
+
+                    if (!salario || !porcentaje) {
+                        mostrarToast('❌ No se encontró salario configurado para esta LOB', 'danger');
+                        return;
+                    }
+
+                    const bonoMaximo = (salario * porcentaje) / 100;
+                    const hc         = estructura.hc || 1;
+
+                    const html = generarHTMLSimulacionConDetalle(
+                        estructura, salario, porcentaje, bonoMaximo, hc
+                    );
+
+                    document.getElementById('contenidoSimulacion').innerHTML = html;
+                    document.getElementById('simulacionModal').style.display = 'block';
+                })
+                .withFailureHandler(function (err2) {
+                    ocultarLoading();
+                    mostrarToast('❌ Error al cargar estructura: ' + (err2.message || err2), 'danger');
+                })
+                .REGISTRO_obtenerEstructuraRegistrada(lob, mes, datosUsuario);
+        })
+        // ⭐ FIX CRÍTICO: pasar datosUsuario
+        .REGISTRO_obtenerSalarioPorLob(lob, datosUsuario);
+}
 
 
         // ============================================================
@@ -4074,70 +4447,91 @@ ${(tipo === 'bonus')
 
 
 function calcularValoresPesosEnTiempoReal() {
-    const tipoHoja = document.getElementById('tipoHoja').value;
-    if (tipoHoja !== 'Registro_pisos') return;
-
-    const salario = parseFloat(document.getElementById('salario').value) || 0;
+    const salario = parseFloat(document.getElementById('salario').value.replace(',', '.')) || 0;
     const porcentajeBono = parseFloat(document.getElementById('porcentajeBono').value) || 0;
     const bonoMaximo = (salario * porcentajeBono) / 100;
+    const tipoHoja = document.getElementById('tipoHoja').value;
+    const esPisos = (tipoHoja === 'Registro_pisos');
 
-    if (bonoMaximo === 0) {
-        console.warn('⚠️ Bono máximo es 0, no se pueden calcular valores');
+    if (bonoMaximo <= 0) {
+        document.querySelectorAll('.celda-valor-pesos').forEach(c => {
+            c.textContent = '—';
+            c.style.color = '#27ae60';
+        });
         return;
     }
 
-    console.log(`💰 Calculando valores en pesos (Bono Max: ${formatearMoneda(bonoMaximo)})`);
+    ['Bonus', 'Additional', 'Decreased'].forEach(cat => {
+        const kpisProcesados = {};
+        document.querySelectorAll(`#tbody${cat} tr`).forEach(row => {
+            const nombreInput = row.querySelector('.kpi-nombre');
+            const pctInput    = row.querySelector('.kpi-porcentaje');
+            const cellMonto   = row.querySelector('.celda-valor-pesos');
 
-    // ⭐ Función auxiliar para calcular cada fila
-    const calcularFila = (row) => {
-        const porcentajeInput = row.querySelector('.kpi-porcentaje');
-        const participacionInput = row.querySelector('.kpi-participacion');
-        const valorSpan = row.querySelector('.valor-pesos');
-        
-        if (!porcentajeInput || !valorSpan) return;
-        
-        let porcentajeBase = parseFloat(porcentajeInput.value) || 0;
-        let participacion = parseFloat(participacionInput?.value) || 100;
-        
-        // Normalizar porcentajes
-        if (porcentajeBase > 0 && porcentajeBase < 1) porcentajeBase = porcentajeBase * 100;
-        if (participacion > 0 && participacion < 1) participacion = participacion * 100;
-        
-        // Calcular valor
-        const valorPesos = (bonoMaximo * porcentajeBase * participacion) / 10000;
-        
-        valorSpan.textContent = formatearMoneda(valorPesos);
-        
-        console.log(`  ✅ Fila calculada: ${porcentajeBase}% × ${participacion}% = ${formatearMoneda(valorPesos)}`);
-    };
+            if (!cellMonto) return;
 
-    // Calcular para cada tabla
-    document.querySelectorAll('#tbodyBonus tr').forEach(calcularFila);
-    document.querySelectorAll('#tbodyAdditional tr').forEach(calcularFila);
-    document.querySelectorAll('#tbodyDecreased tr').forEach(calcularFila);
-    
-    // ⭐ También actualizar indicador
-    actualizarIndicadorBono();
+            const nombre = nombreInput?.value?.trim().toUpperCase();
+            const pctRaw = pctInput?.value || '';
+
+            if (!nombre || !pctRaw) {
+                cellMonto.textContent = '—';
+                return;
+            }
+
+            let pct = parseFloat(pctRaw.replace(',', '.')) || 0;
+            if (pct > 0 && pct < 1) pct = pct * 100;
+
+            let part = 100;
+            if (esPisos) {
+                const partInput = row.querySelector('.kpi-participacion');
+                const partRaw   = partInput?.value || '100';
+                part = parseFloat(partRaw.replace(',', '.')) || 100;
+                if (part > 0 && part < 1) part = part * 100;
+            }
+
+            const montoBase  = (bonoMaximo * pct) / 100;
+            const montoFinal = (montoBase * part) / 100;
+            const esRepetido = !!kpisProcesados[nombre];
+
+            if (montoFinal > 0) {
+                const prefix = cat === 'Decreased' ? '-' : '';
+                cellMonto.textContent = prefix + formatearMoneda(montoFinal);
+                cellMonto.style.color = esRepetido
+                    ? '#95a5a6'
+                    : (cat === 'Decreased' ? '#e74c3c' : '#27ae60');
+            } else {
+                cellMonto.textContent = '—';
+                cellMonto.style.color = '#27ae60';
+            }
+
+            kpisProcesados[nombre] = true;
+        });
+    });
 }
 
         // ============================================================
         // 🔄 CARGAR SALARIO AUTO EN SIMULACIÓN
         // ============================================================
-        function cargarSalarioEnSimulacion() {
-            const lob = document.getElementById('simSelectLob').value;
-            if (!lob) return;
+   function cargarSalarioEnSimulacion() {
+    const lob = document.getElementById('simSelectLob').value;
+    if (!lob) return;
 
-            google.script.run
-                .withSuccessHandler(function (config) {
-                    if (config && config.encontrado) {
-                        document.getElementById('simInputSalario').value = config.salario || '';
-                        document.getElementById('simInputPorcentaje').value = config.porcentaje || '';
-                        document.getElementById('simInputSalario').placeholder = formatearMoneda(config.salario);
-                        document.getElementById('simInputPorcentaje').placeholder = config.porcentaje + '%';
-                    }
-                })
-                .REGISTRO_obtenerSalarioPorLob(lob);
-        }
+    google.script.run
+        .withSuccessHandler(function (config) {
+            // ⭐ FIX: proteger ante null
+            if (config && config.encontrado) {
+                document.getElementById('simInputSalario').value       = config.salario    || '';
+                document.getElementById('simInputPorcentaje').value    = config.porcentaje || '';
+                document.getElementById('simInputSalario').placeholder = formatearMoneda(config.salario);
+                document.getElementById('simInputPorcentaje').placeholder = config.porcentaje + '%';
+            }
+        })
+        .withFailureHandler(function(err) {
+            console.error('❌ Error cargarSalarioEnSimulacion:', err);
+        })
+        // ⭐ FIX: pasar datosUsuario
+        .REGISTRO_obtenerSalarioPorLob(lob, datosUsuario);
+}
 
         // Helpers
         function mostrarLoading(txt) { document.getElementById('loadingOverlay').style.display = 'flex'; document.getElementById('loadingText').textContent = txt; }
@@ -4179,58 +4573,72 @@ function calcularBonoMaximo() {
     calcularValoresPesosEnTiempoReal();
 }
 
+
 function calcularValoresPesosEnTiempoReal() {
-    const salario = parseFloat(document.getElementById('salario').value) || 0;
+    const salario = parseFloat(document.getElementById('salario').value.replace(',', '.')) || 0;
     const porcentajeBono = parseFloat(document.getElementById('porcentajeBono').value) || 0;
     const bonoMaximo = (salario * porcentajeBono) / 100;
     const tipoHoja = document.getElementById('tipoHoja').value;
     const esPisos = (tipoHoja === 'Registro_pisos');
 
-    if (!esPisos || bonoMaximo <= 0) {
-        document.querySelectorAll('.celda-valor-pesos').forEach(c => c.textContent = '—');
+    // ⭐ SIN return anticipado — calcula en ambos modos
+
+    if (bonoMaximo <= 0) {
+        document.querySelectorAll('.celda-valor-pesos').forEach(c => {
+            c.textContent = '—';
+            c.style.color = '#27ae60';
+        });
         return;
     }
 
-    // ⭐ DEDUPLICACIÓN POR CATEGORÍA
     ['Bonus', 'Additional', 'Decreased'].forEach(cat => {
         const kpisProcesados = {};
         document.querySelectorAll(`#tbody${cat} tr`).forEach(row => {
-            let nombre = row.querySelector('.kpi-nombre')?.value;
-            if (nombre) nombre = nombre.trim().toUpperCase();
-            
-            const pctInput = row.querySelector('.kpi-porcentaje')?.value;
-            const partInput = row.querySelector('.kpi-participacion')?.value;
-            const cellMonto = row.querySelector('.celda-valor-pesos');
-            
+            const nombreInput = row.querySelector('.kpi-nombre');
+            const pctInput    = row.querySelector('.kpi-porcentaje');
+            const cellMonto   = row.querySelector('.celda-valor-pesos');
+
             if (!cellMonto) return;
-            if (!nombre || !pctInput) {
+
+            const nombre = nombreInput?.value?.trim().toUpperCase();
+            const pctRaw = pctInput?.value || '';
+
+            if (!nombre || !pctRaw) {
                 cellMonto.textContent = '—';
                 return;
             }
 
-            let pct = parseFloat(pctInput) || 0;
+            let pct = parseFloat(pctRaw.replace(',', '.')) || 0;
             if (pct > 0 && pct < 1) pct = pct * 100;
 
-            let part = parseFloat(partInput) || 100;
-            if (part > 0 && part < 1) part = part * 100;
-
-            // ⭐ Si es la primera vez que vemos el KPI, calculamos el monto base
-            if (!kpisProcesados[nombre]) {
-                const montoBase = (bonoMaximo * pct) / 100;
-                const montoFinal = (montoBase * part) / 100;
-                cellMonto.textContent = (cat === 'Decreased' ? '-' : '') + formatearMoneda(montoFinal);
-                kpisProcesados[nombre] = true;
-            } else {
-                // ⭐ Si es un piso repetido, mostrar 0 o indicar que no suma extra al presupuesto base
-                const montoBase = (bonoMaximo * pct) / 100; // El pct debería ser el mismo
-                const montoFinal = (montoBase * part) / 100;
-                cellMonto.textContent = (cat === 'Decreased' ? '-' : '') + formatearMoneda(montoFinal);
-                cellMonto.style.color = '#95a5a6'; // Gris para indicar que es un sub-valor
+            // Registro normal = 100% participación; Registro_pisos = leer input
+            let part = 100;
+            if (esPisos) {
+                const partInput = row.querySelector('.kpi-participacion');
+                const partRaw   = partInput?.value || '100';
+                part = parseFloat(partRaw.replace(',', '.')) || 100;
+                if (part > 0 && part < 1) part = part * 100;
             }
+
+            const montoBase  = (bonoMaximo * pct) / 100;
+            const montoFinal = (montoBase * part) / 100;
+            const esRepetido = !!kpisProcesados[nombre];
+
+            if (montoFinal > 0) {
+                const prefix = cat === 'Decreased' ? '-' : '';
+                cellMonto.textContent = prefix + formatearMoneda(montoFinal);
+                cellMonto.style.color = esRepetido
+                    ? '#95a5a6'
+                    : (cat === 'Decreased' ? '#e74c3c' : '#27ae60');
+            } else {
+                cellMonto.textContent = '—';
+                cellMonto.style.color = '#27ae60';
+            }
+
+            kpisProcesados[nombre] = true;
         });
     });
 }
-
 function actualizarIndicadorBono() {
     const salario = parseFloat(document.getElementById('salario').value) || 0;
     const porcentajeBono = parseFloat(document.getElementById('porcentajeBono').value) || 0;
@@ -4456,37 +4864,35 @@ function validarAntesDeGuardar() {
 function actualizarLimites() {
     const tipoHoja = document.getElementById('tipoHoja').value;
     const esPisos = (tipoHoja === 'Registro_pisos');
-    
-    console.log(`🔄 actualizarLimites: ${tipoHoja}, esPisos=${esPisos}`);
 
-    // 🔥 MOSTRAR/OCULTAR HEADERS POR ID (MÁS SEGURO)
-    const headerIds = [
-        'headerPartYellowBonus', 'headerPartGreenBonus',
-        'headerPartYellowAdditional', 'headerPartGreenAdditional',
-        'headerPartYellowDecreased', 'headerPartGreenDecreased'
-    ];
-    
-    headerIds.forEach(id => {
+    const yellowHeaders = ['headerPartYellowBonus', 'headerPartYellowAdditional', 'headerPartYellowDecreased'];
+    const greenHeaders  = ['headerPartGreenBonus',  'headerPartGreenAdditional',  'headerPartGreenDecreased'];
+
+    // % Part. (Yellow): solo en Registro_pisos
+    yellowHeaders.forEach(id => {
         const el = document.getElementById(id);
-        if (el) el.style.display = esPisos ? '' : 'none';
+        if (el) el.style.display = esPisos ? 'table-cell' : 'none';
     });
 
-    // 3️⃣ Mostrar/ocultar celdas de Participación (Yellow input)
+    // Valor Part. (Green): SIEMPRE visible
+    greenHeaders.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'table-cell';
+    });
+
+    // Input % Participación (td amarillo): solo en Registro_pisos
     document.querySelectorAll('.kpi-participacion').forEach(input => {
-        if (input.parentElement) {
-            input.parentElement.style.display = esPisos ? '' : 'none';
-        }
+        const td = input.closest('td');
+        if (td) td.style.display = esPisos ? 'table-cell' : 'none';
+        if (!esPisos && !input.value) input.value = '100';
     });
 
-    // 4️⃣ Mostrar/ocultar celdas de Valor en Pesos (Green td)
+    // Celda Valor en Pesos (td verde): SIEMPRE visible
     document.querySelectorAll('.celda-valor-pesos').forEach(celda => {
-        celda.style.display = esPisos ? '' : 'none';
+        celda.style.display = 'table-cell';
     });
 
-    // 5️⃣ Recalcular valores si es Registro_pisos
-    if (esPisos) {
-        calcularValoresPesosEnTiempoReal();
-    }
+    calcularValoresPesosEnTiempoReal();
 }
     
     
@@ -4599,7 +5005,6 @@ function actualizarLimites() {
         // ============================================================
 // 🎯 SIMULACIÓN CON MÉTRICAS REALES DEL CDM
 // ============================================================
-
 function simularConMetricasRealesUI() {
     const lob = document.getElementById('simSelectLob').value;
     const mes = document.getElementById('simSelectMes').value;
@@ -4609,14 +5014,8 @@ function simularConMetricasRealesUI() {
         return;
     }
 
-    // ⭐ Verificar que el usuario tenga acceso a esta LOB
-    if (datosUsuario && datosUsuario.rol === 'OM') {
-        // El dropdown simSelectLob ya está filtrado por ROL desde
-        // REGISTRO_obtenerLobsRegistradasPorUsuario() — no hace falta re-validar
-        console.log(`✅ OM "${datosUsuario.nombre}" simulando LOB "${lob}"`);
-    }
-
-    _ejecutarSimulacionReal(lob, mes);
+    // ⭐ Usar la función que siempre lee CDM del mes actual
+    _ejecutarSimulacionRealConMesActual(lob, mes);
 }
 
 // ============================================================
@@ -5901,6 +6300,300 @@ function simularTodasLOBsUnificado() {
     }
 }
 
+
+
+// ============================================================
+// 📥 DESCARGAR TODAS LAS ESTRUCTURAS DEL MES ACTUAL EN UN PDF
+// ============================================================
+
+
+
+
+
+function descargarTodasLasEstructurasPDF() {
+    // Mes actual en el mismo formato que usa el sistema (mes siguiente al calendario)
+    var mesesNombres = [
+        'Enero','Febrero','Marzo','Abril','Mayo','Junio',
+        'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'
+    ];
+    var mesActual = mesesNombres[(new Date().getMonth() + 1) % 12];
+
+    console.log('Mes actual del sistema: ' + mesActual);
+
+    // Leer todas las LOBs del dropdown simSelectLob
+    var selectLob = document.getElementById('simSelectLob');
+    var todasLasLobs = Array.from(selectLob.options)
+        .map(function(opt) { return opt.value; })
+        .filter(function(v) { return v && v !== ''; });
+
+    if (todasLasLobs.length === 0) {
+        mostrarToast('No hay LOBs disponibles en el selector', 'warning');
+        return;
+    }
+
+    mostrarLoading('Buscando estructuras de ' + mesActual + ' (' + todasLasLobs.length + ' LOBs)...');
+
+    var estructurasCargadas = [];
+    var pendientes = todasLasLobs.length;
+
+    todasLasLobs.forEach(function(lob) {
+        google.script.run
+            .withSuccessHandler(function(estructura) {
+                if (estructura && estructura.encontrado) {
+                    // Normalizar el mes de la estructura para comparar
+                    var mesEstructura = (estructura.mes || '').trim();
+
+                    // Si viene como fecha "2025-04-01", convertir a nombre
+                    if (mesEstructura.includes('-')) {
+                        var partes = mesEstructura.split('-');
+                        if (partes.length >= 2) {
+                            var numMes = parseInt(partes[1]) - 1;
+                            mesEstructura = mesesNombres[numMes] || mesEstructura;
+                        }
+                    }
+
+                    console.log('LOB: ' + (estructura.lob || lob) + ' | Mes estructura: "' + mesEstructura + '" | Mes actual: "' + mesActual + '" | Match: ' + (mesEstructura === mesActual));
+
+                    // Solo incluir si el mes de la estructura es el mes actual
+                    if (mesEstructura === mesActual) {
+                        estructurasCargadas.push(estructura);
+                    }
+                }
+
+                pendientes--;
+                if (pendientes === 0) {
+                    _finalizarDescargaPDF(estructurasCargadas, mesActual);
+                }
+            })
+            .withFailureHandler(function(err) {
+                console.error('Error cargando LOB ' + lob + ': ' + err);
+                pendientes--;
+                if (pendientes === 0) {
+                    _finalizarDescargaPDF(estructurasCargadas, mesActual);
+                }
+            })
+            .REGISTRO_obtenerEstructuraRegistrada(lob, mesActual, datosUsuario);
+    });
+}
+
+function _finalizarDescargaPDF(estructuras, mes) {
+    ocultarLoading();
+
+    if (estructuras.length === 0) {
+        mostrarToast('Ninguna LOB tiene estructura registrada para ' + mes, 'danger');
+        return;
+    }
+
+    // Ordenar alfabeticamente por nombre de LOB
+    estructuras.sort(function(a, b) {
+        return (a.lob || '').localeCompare(b.lob || '');
+    });
+
+    console.log('Estructuras encontradas para ' + mes + ': ' + estructuras.length);
+    estructuras.forEach(function(e) {
+        console.log('  - ' + e.lob + ' | Mes: ' + e.mes + ' | Tipo: ' + e.tipoHoja);
+    });
+
+    mostrarToast('Generando PDF con ' + estructuras.length + ' estructuras de ' + mes + '...', 'info');
+    _generarPDFTodasEstructuras(estructuras, mes);
+}
+
+function _generarPDFTodasEstructuras(estructuras, mes) {
+    if (!window.jspdf) {
+        mostrarToast('Biblioteca PDF no cargada', 'danger');
+        return;
+    }
+
+    var jsPDF = window.jspdf.jsPDF;
+    var doc = new jsPDF();
+    var margin = 15;
+
+    estructuras.forEach(function(estructura, index) {
+        if (index > 0) doc.addPage();
+
+        var y = 20;
+        var bonoMaximo = ((estructura.salario || 0) * (estructura.porcentaje || 0)) / 100;
+        var lob    = estructura.lob || '-';
+        var mesEst = estructura.mes || mes;
+        var esPisos = (estructura.tipoHoja === 'Registro_pisos');
+
+        // Titulo
+        doc.setFontSize(18);
+        doc.setTextColor(52, 152, 219);
+        doc.text('Estructura de Metricas  ', margin, y);
+        y += 10;
+
+        doc.setDrawColor(52, 152, 219);
+        doc.setLineWidth(0.5);
+        doc.line(margin, y, 195, y);
+        y += 8;
+
+        // Fila 1: LOB / Mes / Tipo
+        doc.setFontSize(10);
+        doc.setTextColor(44, 62, 80);
+
+        doc.setFont('helvetica', 'bold');   doc.text('LOB:',  margin,       y);
+        doc.setFont('helvetica', 'normal'); doc.text(lob,     margin + 10,  y);
+
+        doc.setFont('helvetica', 'bold');   doc.text('Mes:',  margin + 70,  y);
+        doc.setFont('helvetica', 'normal'); doc.text(mesEst,  margin + 80,  y);
+
+        doc.setFont('helvetica', 'bold');   doc.text('Tipo:', margin + 130, y);
+        doc.setFont('helvetica', 'normal'); doc.text(estructura.tipoHoja || '-', margin + 140, y);
+        y += 7;
+
+        // Fila 2: ACCM / OM / Fecha
+        doc.setFont('helvetica', 'bold');   doc.text('ACCM:',      margin,       y);
+        doc.setFont('helvetica', 'normal'); doc.text(estructura.accm || '-',  margin + 13,  y);
+
+        doc.setFont('helvetica', 'bold');   doc.text('OM:',        margin + 70,  y);
+        doc.setFont('helvetica', 'normal'); doc.text(estructura.om || '-',    margin + 78,  y);
+
+        doc.setFont('helvetica', 'bold');   doc.text('Fecha Reg:', margin + 130, y);
+        doc.setFont('helvetica', 'normal'); doc.text(estructura.fecha || mesEst, margin + 150, y);
+        y += 10;
+
+        // Cuadro resumen salarial
+        doc.setFillColor(248, 249, 250);
+        doc.setDrawColor(222, 226, 230);
+        doc.rect(margin, y, 180, 22, 'FD');
+        y += 13;
+
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');   doc.text('HC:',      margin + 10,  y);
+        doc.setFont('helvetica', 'normal'); doc.text(String(estructura.hc || '-'), margin + 18, y);
+
+        doc.setFont('helvetica', 'bold');   doc.text('Salario:', margin + 40,  y);
+        doc.setFont('helvetica', 'normal'); doc.text(formatearMoneda(estructura.salario || 0), margin + 55, y);
+
+        doc.setFont('helvetica', 'bold');   doc.text('% Bono:', margin + 95,  y);
+        doc.setFont('helvetica', 'normal'); doc.text((estructura.porcentaje || 0) + '%', margin + 112, y);
+
+        doc.setTextColor(39, 174, 96);
+        doc.setFont('helvetica', 'bold');   doc.text('Bono Max:', margin + 135, y);
+        doc.text(formatearMoneda(bonoMaximo), margin + 155, y);
+        doc.setTextColor(44, 62, 80);
+        y += 18;
+
+        // Comentarios
+        if (estructura.comentarios) {
+            doc.setFontSize(9);
+            doc.setTextColor(133, 100, 4);
+            doc.setFillColor(255, 243, 205);
+            var splitCom = doc.splitTextToSize('Comentarios: ' + estructura.comentarios, 170);
+            var comH = (splitCom.length * 5) + 6;
+            doc.rect(margin, y - 4, 180, comH, 'F');
+            doc.text(splitCom, margin + 5, y);
+            y += comH + 5;
+            doc.setTextColor(44, 62, 80);
+        }
+
+        // Helper secciones KPI — incluye columna Participacion si es Registro_pisos
+        var añadirSeccion = function(titulo, kpis, color) {
+            if (!kpis || kpis.length === 0) return;
+            if (y > 220) { doc.addPage(); y = 20; }
+
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(color[0], color[1], color[2]);
+            doc.text(titulo, margin, y);
+            y += 6;
+
+            var cabeceras, body;
+
+            if (esPisos) {
+                // Registro_pisos: mostrar % Participacion y Monto con participacion
+                cabeceras = [['KPI', 'Meta/Score', '% Asignado', '% Part.', 'Monto/Agente ($)']];
+                body = kpis.map(function(k) {
+                    var pct  = parseFloat(k.porcentaje)    || 0;
+                    var part = parseFloat(k.participacion) || 100;
+                    if (pct  > 0 && pct  < 1) pct  = pct  * 100;
+                    if (part > 0 && part < 1) part = part * 100;
+                    var bonoKPI = (bonoMaximo * pct * part) / 10000;
+                    return [
+                        k.nombre || '-',
+                        (k.comparacion || '') + ' ' + (k.score || '-'),
+                        pct  > 0 ? pct.toFixed(1)  + '%' : '-',
+                        part > 0 ? part.toFixed(0) + '%' : '-',
+                        bonoKPI > 0 ? formatearMoneda(bonoKPI) : '-'
+                    ];
+                });
+            } else {
+                // Registro normal: sin columna de participacion (es siempre 100%)
+                cabeceras = [['KPI', 'Meta/Score', '% Asignado', 'Monto/Agente ($)']];
+                body = kpis.map(function(k) {
+                    var pct = parseFloat(k.porcentaje) || 0;
+                    if (pct > 0 && pct < 1) pct = pct * 100;
+                    var bonoKPI = (bonoMaximo * pct) / 100;
+                    return [
+                        k.nombre || '-',
+                        (k.comparacion || '') + ' ' + (k.score || '-'),
+                        pct > 0 ? pct.toFixed(1) + '%' : '-',
+                        bonoKPI > 0 ? formatearMoneda(bonoKPI) : '-'
+                    ];
+                });
+            }
+
+            doc.autoTable({
+                startY: y,
+                head: cabeceras,
+                body: body,
+                headStyles: { fillColor: color },
+                margin: { left: margin },
+                theme: 'striped',
+                styles: { fontSize: 8, cellPadding: 2 },
+                columnStyles: {
+                    [cabeceras[0].length - 1]: { halign: 'right', fontStyle: 'bold' }
+                }
+            });
+
+            y = doc.lastAutoTable.finalY + 10;
+        };
+
+        if (estructura.kpis) {
+            añadirSeccion('Keys (Mandatorios)',    estructura.kpis.keys,                [52, 152, 219]);
+            añadirSeccion('Bonus Structure',       estructura.kpis.bonusStructure,       [46, 204, 113]);
+            añadirSeccion('Additional Incentives', estructura.kpis.additionalIncentives, [243, 156, 18]);
+            añadirSeccion('Decreased',             estructura.kpis.decreasedKPIs,        [231, 76, 60]);
+        }
+
+        // Indice en esquina superior derecha
+        doc.setFontSize(8);
+        doc.setTextColor(180);
+        doc.setFont('helvetica', 'normal');
+        doc.text((index + 1) + ' / ' + estructuras.length, 185, 10);
+    });
+
+    // Pie de pagina en todas las paginas
+    var totalPags = doc.internal.getNumberOfPages();
+    for (var i = 1; i <= totalPags; i++) {
+        doc.setPage(i);
+        doc.setFontSize(7);
+        doc.setTextColor(150);
+        doc.setFont('helvetica', 'normal');
+        doc.text(
+            'Generado por: Michel Angelo reporting analyst ' + new Date().toLocaleString() + ' - Sistema de Gestion de Metricas',
+            margin, 285
+        );
+        doc.text('Pag ' + i + ' / ' + totalPags, 183, 285);
+    }
+
+    doc.save('Estructuras_' + mes + '_' + new Date().getFullYear() + '.pdf');
+    mostrarToast('PDF generado con ' + estructuras.length + ' estructuras de ' + mes, 'success');
+}
+
+
+function limpiarTextoPDF(texto) {
+    if (!texto) return '-';
+    return String(texto)
+        .replace(/á/g, 'a').replace(/Á/g, 'A')
+        .replace(/é/g, 'e').replace(/É/g, 'E')
+        .replace(/í/g, 'i').replace(/Í/g, 'I')
+        .replace(/ó/g, 'o').replace(/Ó/g, 'O')
+        .replace(/ú/g, 'u').replace(/Ú/g, 'U')
+        .replace(/ü/g, 'u').replace(/Ü/g, 'U')
+        .replace(/ñ/g, 'n').replace(/Ñ/g, 'N');
+}
     </script>
 
     

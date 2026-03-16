@@ -10,42 +10,147 @@ const nMap = s => s ? String(s).split(' - ')[0].trim().toLowerCase() : '';
  * Asegura que el nombre del KPI y la Categoría sean mutuamente excluyentes.
  */
 function findAuditDetalleIndices(headers) {
-    const h = headers.map(s => norm(String(s)));
-    
-    // 1. Encontrar Categoría (congelar este índice)
-    const iCat = h.indexOf('categoria kpi') !== -1 ? h.indexOf('categoria kpi') : h.findIndex(s => s.includes('categor'));
-    
-    // 2. Encontrar KPI (NOMBRE) - Priorizar exacto y excluir categoría/fecha
-    let iKpi = -1;
-    // Intento A: Exacto "kpi"
-    const iExact = h.indexOf('kpi');
-    if (iExact !== -1 && iExact !== iCat) {
-        iKpi = iExact;
-    } else {
-        // Intento B: Parciales excluyendo categoría
-        iKpi = h.findIndex((s, idx) => {
-            return idx !== iCat && (s.includes('nombre kpi') || s.includes('kpi name') || s.includes('kpi nombre') || (s === 'kpi')) && !s.includes('categor') && !s.includes('fecha');
-        });
+    const h = headers.map(s => s ? String(s).normalize('NFD')
+        .replace(/[\u0300-\u036f]/g,'').toLowerCase().trim() : '');
+
+    // ── Categoría (congelar primero para no confundir con KPI)
+    let iCat = -1;
+    const catExactos = ['categoria kpi', 'categoria', 'category'];
+    for (const e of catExactos) {
+        iCat = h.indexOf(e);
+        if (iCat !== -1) break;
     }
-    
-    // Fallback de emergencia si iKpi sigue siendo iCat o -1
-    if (iKpi === -1 || iKpi === iCat) iKpi = 7; 
+    if (iCat === -1) iCat = h.findIndex(s => s.includes('categor'));
+
+    // ── KPI (nombre) — excluir la columna de categoría
+    let iKpi = -1;
+    const kpiExactos = ['kpi', 'nombre kpi', 'kpi name', 'kpi nombre'];
+    for (const e of kpiExactos) {
+        const idx = h.indexOf(e);
+        if (idx !== -1 && idx !== iCat) { iKpi = idx; break; }
+    }
+    if (iKpi === -1 || iKpi === iCat) {
+        iKpi = h.findIndex((s, idx) =>
+            idx !== iCat &&
+            s.includes('kpi') &&
+            !s.includes('categor') &&
+            !s.includes('fecha') &&
+            !s.includes('bono') &&
+            !s.includes('gate')
+        );
+    }
+    if (iKpi === -1 || iKpi === iCat) iKpi = 7; // fallback col H
+
+    // ── Score Objetivo — buscar variantes exactas primero
+    let iObj = -1;
+    const objExactos = [
+        'score objetivo',
+        'objetivo score',
+        'score_objetivo',
+        'scoremetaobjetivo',
+        'meta',
+        'objetivo',
+        'target',
+        'goal'
+    ];
+    for (const e of objExactos) {
+        iObj = h.indexOf(e);
+        if (iObj !== -1) break;
+    }
+    if (iObj === -1) {
+        iObj = h.findIndex(s =>
+            (s.includes('score') && s.includes('obj')) ||
+            (s.includes('obj') && !s.includes('kpi')) ||
+            s.includes('target') ||
+            s.includes('meta')
+        );
+    }
+
+    // ── Valor Obtenido — buscar variantes
+    let iVal = -1;
+    const valExactos = [
+        'valor obtenido',
+        'valor_obtenido',
+        'score obtenido',
+        'valor real',
+        'resultado',
+        'value'
+    ];
+    for (const e of valExactos) {
+        iVal = h.indexOf(e);
+        if (iVal !== -1) break;
+    }
+    if (iVal === -1) {
+        iVal = h.findIndex(s =>
+            s.includes('valor obt') ||
+            s.includes('obtenido') ||
+            s.includes('resultado') ||
+            s.includes('real')
+        );
+    }
+
+    // ── Estado
+    let iEst = h.indexOf('estado');
+    if (iEst === -1) iEst = h.findIndex(s => s.includes('estado') || s.includes('status') || s.includes('cumple'));
+
+    // ── Bono KPI
+    let iBono = h.indexOf('bono kpi');
+    if (iBono === -1) iBono = h.findIndex(s => s.includes('bono') && !s.includes('aprobado'));
+
+    // ── Gate
+    let iGate = h.indexOf('es gate');
+    if (iGate === -1) iGate = h.findIndex(s => s.includes('gate'));
+
+    // ── Mes CDM
+    let iMes = h.indexOf('mes cdm');
+    if (iMes === -1) iMes = h.findIndex(s => s === 'mes' || s.includes('mes cdm'));
+
+    // ── BMS ID
+    let iBms = h.indexOf('bms id');
+    if (iBms === -1) iBms = h.findIndex(s => s.includes('bms'));
+
+    // ── Nombre Agente
+    let iNom = h.indexOf('nombre agente');
+    if (iNom === -1) iNom = h.findIndex(s => s.includes('nombre') && !s.includes('kpi'));
+
+    // ── LOB
+    let iLob = h.indexOf('lob');
+    if (iLob === -1) iLob = h.findIndex(s => s === 'lob' || s.includes('lob'));
+
+    // ── Tipo Estructura
+    let iTipoEstr = h.findIndex(s => s.includes('estructura') || s.includes('tipo estructura'));
+
+    // ── LOG de detección para debug
+    Logger.log('📋 findAuditDetalleIndices:');
+    Logger.log('  bms='   + iBms  + ' ("' + (headers[iBms]  || '') + '")');
+    Logger.log('  nom='   + iNom  + ' ("' + (headers[iNom]  || '') + '")');
+    Logger.log('  lob='   + iLob  + ' ("' + (headers[iLob]  || '') + '")');
+    Logger.log('  mes='   + iMes  + ' ("' + (headers[iMes]  || '') + '")');
+    Logger.log('  cat='   + iCat  + ' ("' + (headers[iCat]  || '') + '")');
+    Logger.log('  kpi='   + iKpi  + ' ("' + (headers[iKpi]  || '') + '")');
+    Logger.log('  obj='   + iObj  + ' ("' + (headers[iObj]  || '') + '")');
+    Logger.log('  val='   + iVal  + ' ("' + (headers[iVal]  || '') + '")');
+    Logger.log('  est='   + iEst  + ' ("' + (headers[iEst]  || '') + '")');
+    Logger.log('  bono='  + iBono + ' ("' + (headers[iBono] || '') + '")');
+    Logger.log('  gate='  + iGate + ' ("' + (headers[iGate] || '') + '")');
 
     return {
-        bms:   h.indexOf('bms id') !== -1 ? h.indexOf('bms id') : h.findIndex(s => s.includes('bms')),
-        nom:   h.indexOf('nombre agente') !== -1 ? h.indexOf('nombre agente') : h.findIndex(s => s.includes('nombre')),
-        lob:   h.indexOf('lob') !== -1 ? h.indexOf('lob') : 3,
-        mes:   h.indexOf('mes cdm') !== -1 ? h.indexOf('mes cdm') : h.findIndex(s => s.includes('mes')),
-        cat:   iCat !== -1 ? iCat : 6,
-        kpi:   iKpi,
-        obj:   h.findIndex(s => s.includes('objetivo')),
-        val:   h.findIndex(s => s.includes('valor obt')),
-        est:   h.indexOf('estado') !== -1 ? h.indexOf('estado') : 10,
-        bono:  h.indexOf('bono kpi') !== -1 ? h.indexOf('bono kpi') : h.findIndex(s => s.includes('bono')),
-        gate:  h.indexOf('es gate') !== -1 ? h.indexOf('es gate') : h.findIndex(s => s.includes('gate')),
-        tipoEstructura: h.findIndex(s => s.includes('estructura') || s.includes('tipo estructura'))
+        bms:            iBms   !== -1 ? iBms   : 0,
+        nom:            iNom   !== -1 ? iNom   : 1,
+        lob:            iLob   !== -1 ? iLob   : 3,
+        mes:            iMes   !== -1 ? iMes   : 4,
+        cat:            iCat   !== -1 ? iCat   : 6,
+        kpi:            iKpi   !== -1 ? iKpi   : 7,
+        obj:            iObj,   // ← puede ser -1, se maneja afuera
+        val:            iVal,   // ← puede ser -1, se maneja afuera
+        est:            iEst   !== -1 ? iEst   : 10,
+        bono:           iBono  !== -1 ? iBono  : 11,
+        gate:           iGate,  // ← puede ser -1
+        tipoEstructura: iTipoEstr
     };
 }
+
+
 const SS_ID = '1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4';
 const CDM_ID = '1PtYuAb5C2kIoX8sE7dOvt1nVS-aLamZLOJQUSbTBBCw';
 
@@ -281,6 +386,20 @@ function obtenerDatosAuditCompleto() {
         detalles: d.comentarioDisputa || 'Disputa desde Audit',
         fila: d.filaHoja || 0
       });
+    }
+  });
+
+  // CRUCE DE DATOS: Traer bonoKPIsSelec de Disputa -> Audit usando el ID
+  auditData.forEach(a => {
+    if (a.id) {
+      const matchDisp = disputasRaw.find(d => String(d.idDisputa || d.bmsId + d.mesCDM) === String(a.id));
+      if (matchDisp) {
+        a.bonoKPIsSelec = matchDisp.bonoKPIsSelec || 0;
+      } else {
+        a.bonoKPIsSelec = 0;
+      }
+    } else {
+      a.bonoKPIsSelec = 0; // Sin ID no hay match posible
     }
   });
   
@@ -559,7 +678,7 @@ function obtenerDatosAuditSeguro() {
     Logger.log('🔐 BMS permitidos: ' + (bmsPermitidos ? bmsPermitidos.size : 'TODOS'));
 
     function pasaFiltroBms(bms) {
-      if (!bmsPermitidos) return true; // null = Admin/Analyst
+      if (!bmsPermitidos) return true;
       return bmsPermitidos.has(String(bms).trim());
     }
 
@@ -582,7 +701,7 @@ function obtenerDatosAuditSeguro() {
     }
     Logger.log('📦 Respuestas Analyst cargadas: ' + respuestasAnalyst.size);
 
-    // ── iCol ROBUSTO — case-insensitive + trim + sin tildes ────
+    // ── iCol ROBUSTO ────────────────────────────────────────────
     function makeICol(headerRow) {
       return function(n) {
         const nNorm = norm(n);
@@ -597,7 +716,7 @@ function obtenerDatosAuditSeguro() {
       };
     }
 
-    // ── parseBool ROBUSTO ──────────────────────────────────────
+    // ── parseBool ROBUSTO ───────────────────────────────────────
     function parseBool(val) {
       if (val === true || val === 1) return true;
       const s = norm(String(val || ''));
@@ -605,17 +724,14 @@ function obtenerDatosAuditSeguro() {
              s === 'x'  || s === 'verdadero';
     }
 
-    // ── parseFecha ROBUSTO ─────────────────────────────────────
+    // ── parseFecha ROBUSTO ──────────────────────────────────────
     function parseFecha(val) {
       if (!val) return '';
-
       if (val instanceof Date) {
         return Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss");
       }
-
       const str = String(val).trim();
       if (!str) return '';
-
       const matchCO = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}:\d{2}(?::\d{2})?))?/);
       if (matchCO) {
         const dd   = matchCO[1].padStart(2, '0');
@@ -624,17 +740,68 @@ function obtenerDatosAuditSeguro() {
         const hora = matchCO[4] || '00:00:00';
         return yyyy + '-' + mm + '-' + dd + 'T' + hora;
       }
-
       if (str.match(/^\d{4}-\d{2}-\d{2}/)) return str;
-
       try {
         const d = new Date(str);
         if (!isNaN(d)) {
           return Utilities.formatDate(d, Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss");
         }
       } catch(e) {}
-
       return str;
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // ── PRE-CARGA: Mapa de bonoKPIsSelec desde hoja Disputa ──────
+    // Clave: idDisputa (col A de Disputa) → valor: bonoKPIsSelec (col J)
+    // Esto resuelve el cruce: Audit col AB (ID Disputa) → Disputa col A → trae col J
+    // ══════════════════════════════════════════════════════════════
+    const mapaBonoKPIsPorIdDisputa = new Map();
+    // También mapa secundario por BMS+Mes como fallback
+    const mapaBonoKPIsPorBmsMes   = new Map();
+
+    if (hojaDisp && hojaDisp.getLastRow() > 1) {
+      const dDisp    = hojaDisp.getDataRange().getValues();
+      const hDisp    = dDisp[0].map(h => norm(String(h)));
+
+      // Col A = ID Disputa (índice 0)
+      const dIdxId  = 0;
+
+      // Col J = Bono KPIs Selec ($) — buscar por nombre primero, fallback índice 9
+      let dIdxBono  = -1;
+      const opcionesBonoKPI = ['bono kpis selec', 'bono kpi selec', 'kpis selec', 'bono seleccionado', 'bono selec'];
+      for (const op of opcionesBonoKPI) {
+        const i = hDisp.findIndex(h => h.includes(op));
+        if (i !== -1) { dIdxBono = i; break; }
+      }
+      if (dIdxBono === -1) dIdxBono = 9; // fallback col J
+
+      // BMS e índice Mes para mapa secundario
+      const dIdxBms = hDisp.findIndex(h => h.includes('bms'));
+      const dIdxMes = hDisp.findIndex(h => h === 'mes cdm' || h === 'mes' || h.includes('mes cdm'));
+
+      Logger.log('📋 Disputa — dIdxId=' + dIdxId + ' | dIdxBono=' + dIdxBono +
+                 ' | header col ' + dIdxBono + '="' + dDisp[0][dIdxBono] + '"' +
+                 ' | dIdxBms=' + dIdxBms + ' | dIdxMes=' + dIdxMes);
+
+      for (let r = 1; r < dDisp.length; r++) {
+        const idDisp    = String(dDisp[r][dIdxId]  || '').trim();
+        const bmsDisp   = String(dDisp[r][dIdxBms !== -1 ? dIdxBms : 1] || '').trim();
+        const mesDisp   = normalizarNombreMes(dDisp[r][dIdxMes !== -1 ? dIdxMes : 4]);
+        const bonoKPIs  = parseFloat(dDisp[r][dIdxBono]) || 0;
+
+        // Mapa primario: por ID Disputa exacto
+        if (idDisp) {
+          mapaBonoKPIsPorIdDisputa.set(idDisp, bonoKPIs);
+        }
+
+        // Mapa secundario: por BMS+Mes (fallback si ID no coincide)
+        if (bmsDisp && mesDisp) {
+          mapaBonoKPIsPorBmsMes.set(bmsDisp + '|' + mesDisp, bonoKPIs);
+        }
+      }
+
+      Logger.log('✅ mapaBonoKPIsPorIdDisputa: ' + mapaBonoKPIsPorIdDisputa.size +
+                 ' entradas | mapaBonoKPIsPorBmsMes: ' + mapaBonoKPIsPorBmsMes.size);
     }
 
     // ── Audit principal ────────────────────────────────────────
@@ -674,18 +841,28 @@ function obtenerDatosAuditSeguro() {
       const iCoDisp = iCol('Comentario Disputa');
       const iAdditional = iCol('Additional Incentives');
       const iDecreased  = iCol('Decreased KPIs');
-      const iMonDisp    = iCol('Monto Disputado');   // columna AC
-      const iID         = (function() {
-        const byT = h.findIndex(hdr => {
-          const hn = norm(String(hdr));
-          return hn === 'id' || hn.includes('id disputa') || hn.includes('disputa id');
-        });
-        return byT !== -1 ? byT : 27; // AB por defecto
-      })();
-      Logger.log('📌 iMonDisp (Monto Disputado $) = ' + iMonDisp + ' | iID = ' + iID);
 
-      Logger.log('📌 iLOB=' + iLOB + ' | iProrr=' + iProrr + ' | iDisp=' + iDisp +
-                 ' | iBMS=' + iBMS + ' | iMes=' + iMes + ' | iFecApr=' + iFecApr);
+      // ── Monto Disputado ($) — col AC — buscar EXACTO, NUNCA parcial ──
+      const iMonDisp = (function() {
+        const headers = h.map(hdr => norm(String(hdr)));
+        // Exacto primero
+        let idx = headers.indexOf('monto disputado ($)');
+        if (idx === -1) idx = headers.indexOf('monto disputado');
+        // Si aún no se encontró, fallback a col 28 (AC)
+        return idx !== -1 ? idx : 28;
+      })();
+
+      // ── ID Disputa — col AB (índice 27) — buscar EXACTO ──────────
+      const iID = (function() {
+        const headers = h.map(hdr => norm(String(hdr)));
+        let idx = headers.indexOf('id');
+        if (idx === -1) idx = headers.indexOf('id disputa');
+        if (idx === -1) idx = headers.findIndex(s => s.includes('id disputa') || s.includes('disputa id'));
+        return idx !== -1 ? idx : 27; // col AB fallback
+      })();
+
+      Logger.log('📌 iMonDisp=' + iMonDisp + ' header="' + h[iMonDisp] + '"' +
+                 ' | iID=' + iID + ' header="' + h[iID] + '"');
 
       for (let r = 1; r < data.length; r++) {
         const row = data[r];
@@ -694,28 +871,38 @@ function obtenerDatosAuditSeguro() {
         const rowBms  = String(row[iBMS]).trim();
         const lobFila = iLOB !== -1 ? String(row[iLOB] || '').trim() : '';
 
-        if (r === 1 && iLOB === -1) {
-          Logger.log('🚨 Columna LOB no encontrada. Headers: ' + JSON.stringify(h));
-        }
-
         if (!pasaFiltroLob(lobFila)) continue;
         if (!pasaFiltroBms(rowBms))  continue;
 
-        const bono    = iBono  !== -1 ? (parseFloat(row[iBono])  || 0) : 0;
-
-        // ✅ FIX: isProrr se calcula ANTES que monOr y monFin
-        // Si no fue prorrateado, montoOriginal y montoFinalProrrateo deben ser 0
+        const bono    = iBono !== -1 ? (parseFloat(row[iBono]) || 0) : 0;
         const isProrr = iProrr !== -1 ? parseBool(row[iProrr]) : false;
         const monOr   = isProrr ? (iMonOr  !== -1 ? (parseFloat(row[iMonOr])  || bono) : bono) : 0;
         const monFin  = isProrr ? (iMonFin !== -1 ? (parseFloat(row[iMonFin]) || bono) : bono) : 0;
-
-        const tieneD  = iDisp  !== -1 ? parseBool(row[iDisp])  : false;
-
+        const tieneD  = iDisp  !== -1 ? parseBool(row[iDisp]) : false;
         const fechaTs = iFecApr !== -1 ? parseFecha(row[iFecApr]) : '';
 
         const estadoAud = iEst !== -1 ? String(row[iEst] || '').trim() : '';
-        const esApelacionAud = estadoAud.toLowerCase().includes('apelac') || estadoAud.toLowerCase().includes('más info') || estadoAud.toLowerCase().includes('mas info');
+        const esApelacionAud = estadoAud.toLowerCase().includes('apelac') ||
+                               estadoAud.toLowerCase().includes('más info') ||
+                               estadoAud.toLowerCase().includes('mas info');
         const tipoAccionFila = esApelacionAud ? 'Apelación' : 'Aprobación';
+
+        // ── ID Disputa de esta fila (col AB) ──────────────────
+        const idDisputaFila = iID !== -1 ? String(row[iID] || '').trim() : '';
+
+        // ── CRUCE bonoKPIsSelec ───────────────────────────────
+        // 1° intento: por ID Disputa exacto (col AB de Audit = col A de Disputa)
+        // 2° intento: por BMS + Mes como fallback
+        let bonoKPIsSelec = 0;
+        if (idDisputaFila && mapaBonoKPIsPorIdDisputa.has(idDisputaFila)) {
+          bonoKPIsSelec = mapaBonoKPIsPorIdDisputa.get(idDisputaFila);
+        } else {
+          const mesFila = iMes !== -1 ? normalizarNombreMes(row[iMes]) : '';
+          const keyBmsMes = rowBms + '|' + mesFila;
+          if (mapaBonoKPIsPorBmsMes.has(keyBmsMes)) {
+            bonoKPIsSelec = mapaBonoKPIsPorBmsMes.get(keyBmsMes);
+          }
+        }
 
         auditData.push({
           timestamp          : fechaTs,
@@ -730,11 +917,11 @@ function obtenerDatosAuditSeguro() {
           monto              : bono,
           montoOriginal      : monOr,
           montoFinalProrrateo: monFin,
-          diferenciaProrrateo: iDif    !== -1 ? (parseFloat(row[iDif])  || 0) : 0,
-          diasLaborados      : iDias   !== -1 ? (parseFloat(row[iDias]) || 0) : 0,
-          horasSemanalesHC   : iHrsHC  !== -1 ? (parseFloat(row[iHrsHC])|| 42) : 42,
-          horasTrabajadas    : iHrsTr  !== -1 ? (parseFloat(row[iHrsTr])|| 0) : 0,
-          ausencias          : iAus    !== -1 ? (parseFloat(row[iAus])  || 0) : 0,
+          diferenciaProrrateo: iDif  !== -1 ? (parseFloat(row[iDif])  || 0) : 0,
+          diasLaborados      : iDias !== -1 ? (parseFloat(row[iDias]) || 0) : 0,
+          horasSemanalesHC   : iHrsHC !== -1 ? (parseFloat(row[iHrsHC]) || 42) : 42,
+          horasTrabajadas    : iHrsTr !== -1 ? (parseFloat(row[iHrsTr]) || 0) : 0,
+          ausencias          : iAus   !== -1 ? (parseFloat(row[iAus])   || 0) : 0,
           fueProrrateado     : isProrr,
           tieneDisputa       : tieneD,
           comentarioDisputa  : iCoDisp !== -1 ? String(row[iCoDisp] || '') : '',
@@ -745,14 +932,17 @@ function obtenerDatosAuditSeguro() {
           fechaKPI           : iFecKPI !== -1 ? String(row[iFecKPI] || '') : '',
           additionalMonto    : iAdditional !== -1 ? (parseFloat(row[iAdditional]) || 0) : 0,
           decreasedMonto     : iDecreased  !== -1 ? (parseFloat(row[iDecreased])  || 0) : 0,
-          bonoKPIsSelec      : iMonDisp    !== -1 ? (parseFloat(row[iMonDisp])    || 0) : 0,
-          id                 : iID !== -1 ? String(row[iID] || '').trim() : ''
+          // ✅ FIX: montoDisputado viene de col AC (Monto Disputado $) — NUNCA de Disputa
+          montoDisputado     : iMonDisp !== -1 ? (parseFloat(row[iMonDisp]) || 0) : 0,
+          // ✅ FIX: bonoKPIsSelec viene del cruce con hoja Disputa col J via ID Disputa
+          bonoKPIsSelec      : bonoKPIsSelec,
+          id                 : idDisputaFila
         });
       }
 
       Logger.log('✅ Audit rows leídas: ' + auditData.length +
-                 ' | LOBs únicas: ' + [...new Set(auditData.map(r => r.lob))].join(', ') +
-                 ' | Ejemplo timestamp: ' + (auditData[0] ? auditData[0].timestamp : 'N/A'));
+                 ' | Ejemplo bonoKPIsSelec: ' + (auditData[0] ? auditData[0].bonoKPIsSelec : 'N/A') +
+                 ' | Ejemplo montoDisputado: ' + (auditData[0] ? auditData[0].montoDisputado : 'N/A'));
     }
 
     // ── Disputas ──────────────────────────────────────────────
@@ -1000,7 +1190,7 @@ function obtenerDatosAuditSeguro() {
       alertasFinancieras = obtenerAlertasFinancierasAdditional(pasaFiltroLob, pasaFiltroBms);
     } catch(e) { Logger.log('❌ Alertas: ' + e.toString()); }
 
-    const alertas       = generarAlertas(auditData, traslados, prorrateos);
+    const alertas        = generarAlertas(auditData, traslados, prorrateos);
     const alertasFinales = [...alertas, ...alertasFinancieras];
 
     return {
@@ -1022,6 +1212,9 @@ function obtenerDatosAuditSeguro() {
     return null;
   }
 }
+
+
+
 // ============================================================
 // LECTURA DE DATOS
 // ============================================================
@@ -1085,18 +1278,15 @@ function obtenerDatosAprobaciones() {
       categoriaKPI: col('categoria') !== -1 ? col('categoria') : -1,
       tipoEstructura: col('estructura') !== -1 ? col('estructura') : -1,
       esGate: col('gate') !== -1 ? col('gate') : -1,
-      bonoKPIsSelec: (function() {
-        // Buscar por texto primero; fallback garantizado al índice 28 (columna AC)
-        const byText = headers.findIndex(h =>
-          h === 'monto disputado ($)' ||
-          h.includes('monto disputado') ||
-          h.includes('kpis selec')
-        );
-        return byText !== -1 ? byText : 28;
+      montoDisputado: (function() {
+        // En Audit, el monto disputado está en la Col AC -> índice 28
+        const acCol = headers.findIndex(h => h === 'monto disputado ($)' || h === 'monto disputado');
+        return acCol !== -1 ? acCol : 28;
       })(),
       id: (function() {
-        const byHex = headers.findIndex(h => h === 'id' || h.includes('id disputa') || h.includes('disputa id'));
-        return byHex !== -1 ? byHex : 27; // AB por defecto
+        // En Audit, ID Disputa está en Col AB -> índice 27
+        const byText = headers.findIndex(h => h === 'id disputa' || h === 'disputa id');
+        return byText !== -1 ? byText : 27; 
       })()
     };
 
@@ -1187,7 +1377,7 @@ function obtenerDatosAprobaciones() {
         tieneDisputa,
         comentarioDisputa,
         estadoDisputa: tieneDisputa ? 'Pendiente' : '',
-        bonoKPIsSelec: idx.bonoKPIsSelec !== -1 ? (parseFloat(f[idx.bonoKPIsSelec]) || 0) : 0,
+        montoDisputado: idx.montoDisputado !== -1 ? (parseFloat(f[idx.montoDisputado]) || 0) : 0,
         id: idx.id !== -1 ? String(f[idx.id] || '').trim() : '',
         detalles: `Aprobación ${String(f[idx.nombre] || 'N/A')}${esProrrateado ? ' (Prorrateado)' : ''}${tieneDisputa ? ' [DISPUTA]' : ''}`,
         filaHoja: i + 1,
@@ -1229,26 +1419,30 @@ function obtenerDatosDisputas() {
     const col = nombre => headers.findIndex(h => h.includes(nombre));
 
     const idx = {
-      fechaDisputa: col('fecha') !== -1 ? col('fecha') : 0,
-      bmsId: col('bms') !== -1 ? col('bms') : 1,
-      nombre: col('nombre') !== -1 ? col('nombre') : 2,
+      idDisputa: (() => {
+        // En Disputa, el ID está en la Col A ("ID Disputa")
+        const idCol = headers.findIndex(h => h === 'id' || h.includes('id disputa'));
+        return idCol !== -1 ? idCol : 0;
+      })(),
+      fechaDisputa: col('fecha') !== -1 ? col('fecha') : 1,
+      bmsId: col('bms') !== -1 ? col('bms') : 2,
+      nombre: col('nombre') !== -1 ? col('nombre') : 3,
       lob: col('lob') !== -1 ? col('lob') : 3,
       fechaKPI: col('fecha kpi') !== -1 ? col('fecha kpi') : 4,
-      total: col('bono') !== -1 ? col('bono') : (col('total') !== -1 ? col('total') : 5),
+total: col('bono aprobado') !== -1 ? col('bono aprobado') : (col('total') !== -1 ? col('total') : 7),
       comentario: col('comentario') !== -1 ? col('comentario') : 6,
       estado: col('estado') !== -1 ? col('estado') : 7,
       usuario: col('usuario') !== -1 ? col('usuario') : 8,
       correo: col('correo') !== -1 ? col('correo') : 9,
-      // ✅ NUEVO: Columna "Bono KPIs Selec ($)" — Col I en la hoja
+      // ✅ NUEVO: Columna "Bono KPIs Selec ($)" — Col J (9) en la hoja
       bonoKPIsSelec: (() => {
-        // Intentar múltiples nombres posibles para esta columna
-        const opciones = ['bono kpis selec', 'bono kpi selec', 'kpis selec', 'bono seleccionado', 'bono selec'];
-        for (const op of opciones) {
-          const i = headers.findIndex(h => h.includes(op));
-          if (i !== -1) return i;
-        }
-        // Fallback: columna I (índice 8) si las otras columnas coinciden
-        return -1;
+        const i = headers.findIndex(h => h === 'bono kpis selec ($)' || h.includes('kpis selec'));
+        return i !== -1 ? i : 9; // Fallback: columna J (índice 9)
+      })(),
+      // ✅ Columna "Monto Disputado ($)" — Col I (8) en la hoja
+      montoDisputadoDisputa: (() => {
+        const i = headers.findIndex(h => h === 'monto disputado ($)' || h.includes('monto disputado'));
+        return i !== -1 ? i : 8; // Fallback: columna I (índice 8)
       })(),
       // Buscar mes CDM específicamente
       mesCDM: headers.findIndex(h => h === 'mes cdm' || h === 'mes' || h.includes('mes cdm')) !== -1
@@ -1294,19 +1488,19 @@ function obtenerDatosDisputas() {
       }
 
       // ✅ NUEVO: Leer Bono KPIs Selec ($)
-      // Si encontramos la columna por nombre, usarla; si no, intentar col I (índice 8)
       let bonoKPIsSelec = 0;
       if (idx.bonoKPIsSelec !== -1) {
         bonoKPIsSelec = parseFloat(f[idx.bonoKPIsSelec]) || 0;
-      } else if (f[8] !== undefined && !isNaN(parseFloat(f[8]))) {
-        // Columna I (índice 8) como fallback — solo si el valor es numérico
-        const colIHeader = headers[8] || '';
-        if (!colIHeader.includes('estado') && !colIHeader.includes('usuario') && !colIHeader.includes('correo')) {
-          bonoKPIsSelec = parseFloat(f[8]) || 0;
-        }
+      }
+
+      // ✅ NUEVO: Leer Monto Disputado ($) para usarlo en el front (opcional, por si acaso)
+      let montoDisputadoDisputa = 0;
+      if (idx.montoDisputadoDisputa !== -1) {
+        montoDisputadoDisputa = parseFloat(f[idx.montoDisputadoDisputa]) || 0;
       }
 
       result.push({
+        idDisputa: String(f[idx.idDisputa] || '').trim(),
         timestamp: parsearFechaSegura(f[idx.fechaDisputa]),
         tipoAccion: 'Disputa',
         usuario: String(f[idx.usuario] || 'Sistema').trim(),
@@ -3204,51 +3398,173 @@ function obtenerDetallesCompletoAgente(bmsId) {
 /**
  * Obtiene todos los registros de KPI para un agente específico desde Audit_Detalle
  */
+
 function obtenerKPIsAgente(bmsId) {
-  try {
-    const ss = SpreadsheetApp.openById(SS_ID);
-    const hoja = ss.getSheetByName('Audit_Detalle');
-    if (!hoja) return [];
+    try {
+        const ss   = SpreadsheetApp.openById(SS_ID);
+        const hoja = ss.getSheetByName('Audit_Detalle');
+        if (!hoja) {
+            Logger.log('❌ obtenerKPIsAgente: No existe hoja Audit_Detalle');
+            return [];
+        }
 
-    const data = hoja.getDataRange().getValues();
-    const headers = data[0].map(h => String(h).toLowerCase().trim());
-    const idxBMS = headers.indexOf('bms id') !== -1 ? headers.indexOf('bms id') : headers.findIndex(h => h.includes('bms'));
-    if (idxBMS === -1) return [];
+        const data    = hoja.getDataRange().getValues();
+        const headers = data[0];
+        const idx     = findAuditDetalleIndices(headers);
 
-    const kpis = [];
-    const bmsStr = String(bmsId).trim().toLowerCase();
+        const idxBMS = idx.bms !== -1 ? idx.bms
+                     : headers.map(h => String(h).toLowerCase().trim())
+                              .findIndex(h => h.includes('bms'));
+        if (idxBMS === -1) {
+            Logger.log('❌ obtenerKPIsAgente: No se encontró columna BMS');
+            return [];
+        }
 
-    const idx = findAuditDetalleIndices(data[0]);
-    Logger.log('📋 Indices Maestros: kpi=' + idx.kpi + ' | cat=' + idx.cat + ' | lob=' + idx.lob);
+        const kpis   = [];
+        const bmsStr = String(bmsId).trim().toLowerCase();
 
-    for (let i = 1; i < data.length; i++) {
-        const row = data[i];
-        if (String(row[idxBMS] || '').trim().toLowerCase() === bmsStr) {
+        // ── Helper: formatear valor numérico siempre con punto decimal ──
+        function formatearValor(v) {
+            if (v === undefined || v === null || v === '') return '';
+            if (v instanceof Date) {
+                return Utilities.formatDate(v, Session.getScriptTimeZone(), 'dd/MM/yyyy');
+            }
+            if (typeof v === 'number') {
+                // ✅ FIX CRÍTICO: toString() nativo siempre usa punto decimal
+                // NUNCA usar toLocaleString() — usa configuración regional del servidor
+                // y puede devolver "12,92" en lugar de "12.92"
+                if (isNaN(v)) return '';
+                return v.toString();
+            }
+            // Es string — limpiar posible coma decimal
+            const str = String(v).trim();
+            // "12,92" → "12.92"
+            if (/^\d+,\d{1,4}$/.test(str)) {
+                return str.replace(',', '.');
+            }
+            // "1.234,56" → "1234.56"
+            if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(str)) {
+                return str.replace(/\./g, '').replace(',', '.');
+            }
+            return str;
+        }
+
+        // ── Helper: parsear número robusto ──────────────────────────────
+        function parsearNumero(v) {
+            if (v === null || v === undefined || v === '') return 0;
+            if (typeof v === 'number') return isNaN(v) ? 0 : v;
+            const str    = String(v).trim();
+            let   clean  = str;
+            if (/^\d+,\d{1,4}$/.test(clean))               clean = clean.replace(',', '.');
+            else if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(clean)) clean = clean.replace(/\./g, '').replace(',', '.');
+            else if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(clean)) clean = clean.replace(/,/g, '');
+            const n = parseFloat(clean);
+            return isNaN(n) ? 0 : n;
+        }
+
+        // ── Helper: parseBool robusto ────────────────────────────────────
+        function parseBoolLocal(val) {
+            if (val === true  || val === 1)  return true;
+            if (val === false || val === 0)  return false;
+            const s = String(val || '').normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase().trim();
+            return s === 'si' || s === 'true' || s === '1' || s === 'yes'
+                || s === 'x'  || s === 'verdadero' || s === 's';
+        }
+
+        // ── Debug: log primeras 3 filas del agente ───────────────────────
+        let logCount = 0;
+
+        for (let i = 1; i < data.length; i++) {
+            const row     = data[i];
+            const bmsFila = String(row[idxBMS] || '').trim().toLowerCase();
+            if (bmsFila !== bmsStr) continue;
+
+            // ── Score Objetivo ─────────────────────────────────────────
+            let scoreObjetivoRaw = '';
+            if (idx.obj !== -1 && row[idx.obj] !== undefined && row[idx.obj] !== null) {
+                scoreObjetivoRaw = String(row[idx.obj]).trim();
+            }
+
+            // ── Valor Obtenido ─────────────────────────────────────────
+            // ✅ FIX: formatearValor garantiza punto decimal siempre
+            const valorObtenidoRaw = idx.val !== -1 ? formatearValor(row[idx.val]) : '';
+
+            // ── Bono ───────────────────────────────────────────────────
+            const bonoRaw = idx.bono !== -1 ? parsearNumero(row[idx.bono]) : 0;
+
+            // ── Estado ─────────────────────────────────────────────────
+            const estadoRaw = idx.est !== -1 ? String(row[idx.est] || '').trim() : '';
+
+            // ── KPI nombre ─────────────────────────────────────────────
+            const kpiNom = idx.kpi !== -1 ? String(row[idx.kpi] || '').trim() : '';
+
+            // ── Categoría ──────────────────────────────────────────────
+            const catRaw = idx.cat !== -1 ? String(row[idx.cat] || '').trim() : '';
+
+            // ── LOB ────────────────────────────────────────────────────
+            const lobRaw = idx.lob !== -1 ? String(row[idx.lob] || '').trim() : '';
+
+            // ── Mes CDM ────────────────────────────────────────────────
+            const mesRaw = idx.mes !== -1 ? normalizarNombreMes(row[idx.mes]) : '';
+
+            // ── Tipo Estructura ────────────────────────────────────────
+            const tipoEstrRaw = idx.tipoEstructura !== -1
+                ? String(row[idx.tipoEstructura] || '').trim()
+                : '';
+
+            // ── Es Gate ────────────────────────────────────────────────
+            const esGateRaw = idx.gate !== -1 ? parseBoolLocal(row[idx.gate]) : false;
+
+            // ── Debug primeras 3 filas ─────────────────────────────────
+            if (logCount < 3) {
+                Logger.log('obtenerKPIsAgente fila ' + (i + 1) + ':'
+                    + ' bms="'       + bmsFila          + '"'
+                    + ' kpi="'       + kpiNom           + '"'
+                    + ' cat="'       + catRaw           + '"'
+                    + ' mes="'       + mesRaw           + '"'
+                    + ' scoreObj="'  + scoreObjetivoRaw + '"'
+                    + ' valorObt="'  + valorObtenidoRaw + '"'
+                    + ' (tipo orig=' + typeof row[idx.val !== -1 ? idx.val : 0] + ')'
+                    + ' estado="'    + estadoRaw        + '"'
+                    + ' bono='       + bonoRaw
+                    + ' esGate='     + esGateRaw
+                );
+                logCount++;
+            }
+
+            // ── Saltar filas sin KPI ───────────────────────────────────
+            if (!kpiNom && !catRaw) continue;
+
             kpis.push({
-                bmsId         : bmsStr,
-                lob           : idx.lob  !== -1 ? String(row[idx.lob]  || '').trim() : '',
-                mesCDM        : idx.mes  !== -1 ? normalizarNombreMes(row[idx.mes]) : '',
-                categoria     : idx.cat  !== -1 ? String(row[idx.cat] || '').trim() : '',
-                kpi           : idx.kpi  !== -1 ? String(row[idx.kpi] || '').trim() : '',
-                scoreObjetivo : idx.obj  !== -1 ? String(row[idx.obj] || '').trim() : '',
-                valorObtenido : idx.val  !== -1 ? row[idx.val] : '',
-                estado        : idx.est  !== -1 ? String(row[idx.est] || '').trim() : '',
-                bono          : idx.bono !== -1 ? (parseFloat(row[idx.bono]) || 0) : 0,
-                tipoEstructura: '',
-                esGate        : idx.gate !== -1 ? parseBool(row[idx.gate]) : false
+                bmsId         : String(row[idxBMS] || '').trim(),
+                nombreAgente  : idx.nom !== -1 ? String(row[idx.nom] || '').trim() : '',
+                lob           : lobRaw,
+                mesCDM        : mesRaw,
+                categoria     : catRaw,
+                kpi           : kpiNom,
+                scoreObjetivo : scoreObjetivoRaw,   // ✅ string limpio con operador ej: ">=4"
+                valorObtenido : valorObtenidoRaw,   // ✅ número como string con PUNTO decimal
+                estado        : estadoRaw,
+                bono          : bonoRaw,            // ✅ número nativo
+                tipoEstructura: tipoEstrRaw,
+                esGate        : esGateRaw
             });
         }
+
+        Logger.log('✅ obtenerKPIsAgente [' + bmsId + ']: ' + kpis.length + ' KPIs leídos'
+            + ' | Ejemplo valorObtenido: "' + (kpis[0] ? kpis[0].valorObtenido : 'N/A') + '"'
+            + ' | Ejemplo scoreObjetivo: "' + (kpis[0] ? kpis[0].scoreObjetivo : 'N/A') + '"'
+        );
+
+        return kpis;
+
+    } catch(e) {
+        Logger.log('❌ obtenerKPIsAgente: ' + e.toString() + '\n' + e.stack);
+        return [];
     }
-    return kpis;
-  } catch(e) {
-    Logger.log('❌ obtenerKPIsAgente error: ' + e.toString());
-    return [];
-  }
 }
-
-
-
-
 
 
 
@@ -4480,86 +4796,120 @@ function obtenerDisputasParaHTML() {
     }
     Logger.log('🔎 bmsYMesApelados: ' + bmsYMesApelados.size + ' combinaciones BMS+Mes con apelación');
 
-    // ════════════════════════════════════════════════════════
-    // 1. HOJA "Disputa" — disputas normales de agentes
-    // ════════════════════════════════════════════════════════
-    const hojaDisp = ss.getSheetByName('Disputa');
-    if (hojaDisp && hojaDisp.getLastRow() > 1) {
-      const dataDisp = hojaDisp.getDataRange().getValues();
-      const hD       = dataDisp[0].map(h => norm(String(h)));
+    
 
-      const iTS   = hD.findIndex(h => h.includes('fecha') || h.includes('timestamp'));
-      const iBMS  = hD.findIndex(h => h.includes('bms'));
-      const iNom  = hD.findIndex(h => h.includes('nombre'));
-      const iLob  = hD.findIndex(h => h === 'lob');
-      const iMes  = hD.findIndex(h => h.includes('mes'));
-      const iCom  = hD.findIndex(h => h.includes('comentario') || h.includes('motivo'));
-      const iMon  = hD.findIndex(h => h.includes('monto') || h.includes('bono'));
-      const iEst  = hD.findIndex(h => h === 'estado' || h.includes('estado'));
-      const iResp = hD.findIndex(h => h.includes('respuesta') && !h.includes('fecha'));
-      const iFila = hD.findIndex(h => h === 'fila' || h.includes('fila'));
+// ════════════════════════════════════════════════════════
+// 1. HOJA "Disputa" — disputas normales de agentes
+// ════════════════════════════════════════════════════════
+const hojaDisp = ss.getSheetByName('Disputa');
+if (hojaDisp && hojaDisp.getLastRow() > 1) {
+  const dataDisp = hojaDisp.getDataRange().getValues();
+  const hD       = dataDisp[0].map(h => norm(String(h)));
 
-      // Columna Bono KPIs Selec ($)
-      const iBonoKPIsSelec = (() => {
-        const opciones = ['bono kpis selec', 'bono kpi selec', 'kpis selec', 'bono seleccionado', 'bono selec'];
-        for (const op of opciones) {
-          const i = hD.findIndex(h => h.includes(op));
-          if (i !== -1) return i;
-        }
-        return -1;
-      })();
+  const iTS   = hD.findIndex(h => h.includes('fecha') || h.includes('timestamp'));
+  const iBMS  = hD.findIndex(h => h.includes('bms'));
+  const iNom  = hD.findIndex(h => h.includes('nombre'));
+  const iLob  = hD.findIndex(h => h === 'lob');
+  const iMes  = hD.findIndex(h => h.includes('mes'));
+  const iCom  = hD.findIndex(h => h.includes('comentario') || h.includes('motivo'));
+  const iEst  = hD.findIndex(h => h === 'estado' || h.includes('estado'));
+  const iResp = hD.findIndex(h => h.includes('respuesta') && !h.includes('fecha'));
+  const iFila = hD.findIndex(h => h === 'fila' || h.includes('fila'));
 
-      Logger.log('📋 obtenerDisputasParaHTML - iBonoKPIsSelec=' + iBonoKPIsSelec +
-                 (iBonoKPIsSelec !== -1 ? ' → "' + dataDisp[0][iBonoKPIsSelec] + '"' : ' (no encontrado)'));
+  // ✅ NUEVO — índice dedicado para col H "Bono Aprobado ($)"
+  const iBonoAprobado = (() => {
+    let i = hD.findIndex(h => h === 'bono aprobado ($)' || h === 'bono aprobado');
+    if (i === -1) i = 7; // fallback col H
+    return i;
+  })();
 
-      for (let r = 1; r < dataDisp.length; r++) {
-        const fila   = dataDisp[r];
-        const lobVal = String(fila[iLob !== -1 ? iLob : 3] || '').trim();
-        if (!pasaLob(lobVal)) continue;
+  // Columna Monto Disputado ($)
+  const iMontoDisputado = (() => {
+    let i = hD.findIndex(h => h === 'monto disputado ($)' || h === 'monto disputado');
+    if (i === -1) i = 8; // fallback col I
+    return i;
+  })();
 
-        const bmsId   = String(fila[iBMS  !== -1 ? iBMS  : 1] || '').trim();
-        const nombre  = String(fila[iNom  !== -1 ? iNom  : 2] || '').trim();
-        const mesCDM  = String(fila[iMes  !== -1 ? iMes  : 4] || '').trim();
-        const estadoV = String(fila[iEst  !== -1 ? iEst  : 5] || 'Pendiente').trim();
-        const comDisp = String(fila[iCom  !== -1 ? iCom  : 6] || '').trim();
-        const montoV  = parseFloat(fila[iMon !== -1 ? iMon : 7]) || 0;
-        const tsVal   = fila[iTS  !== -1 ? iTS  : 0];
-        const filaNum = iFila !== -1 ? (parseInt(fila[iFila]) || r + 1) : r + 1;
-        if (!bmsId) continue;
+  // Columna Bono KPIs Selec ($)
+  const iBonoKPIsSelec = (() => {
+    const opciones = ['bono kpis selec', 'bono kpi selec', 'kpis selec', 'bono seleccionado', 'bono selec'];
+    for (const op of opciones) {
+      const i = hD.findIndex(h => h.includes(op));
+      if (i !== -1) return i;
+    }
+    return -1;
+  })();
 
-        const bonoKPIsSelec = iBonoKPIsSelec !== -1 ? (parseFloat(fila[iBonoKPIsSelec]) || 0) : 0;
+  Logger.log('📋 obtenerDisputasParaHTML - iBonoAprobado=' + iBonoAprobado +
+             ' → "' + dataDisp[0][iBonoAprobado] + '"' +
+             ' | iBonoKPIsSelec=' + iBonoKPIsSelec);
 
-        const respondida = estadoV.toLowerCase().includes('aprobada') ||
-                           estadoV.toLowerCase().includes('rechazada') ||
-                           estadoV.toLowerCase().includes('proceso')   ||
-                           (iResp !== -1 && String(fila[iResp] || '').trim() !== '');
+  for (let r = 1; r < dataDisp.length; r++) {
+    const fila = dataDisp[r];
 
-        // ✅ FIX: si esta combinación BMS+Mes ya tiene apelación registrada,
-        //        cambiar origen a 'Audit' para que el frontend muestre
-        //        badge ⚖️ APELACIÓN y mantenga el botón "Ver"
-        const claveApe   = bmsId + '|' + norm(mesCDM);
-        const yaApelada  = bmsYMesApelados.has(claveApe);
-
-        resultado.push({
-          origenTipo:        yaApelada ? 'Apelacion' : 'Disputa',  // ✅ CAMBIADO
-          origen:            yaApelada ? 'Audit'     : 'Disputa',  // ✅ CAMBIADO
-          timestamp:         tsVal ? new Date(tsVal).toISOString() : new Date().toISOString(),
-          bmsId,
-          nombreAgente:      nombre,
-          lob:               lobVal,
-          mesCDM,
-          estadoDisputa:     estadoV,
-          comentarioDisputa: comDisp,
-          monto:             montoV,
-          bonoKPIsSelec,
-          fila:              filaNum,
-          respondida,
-          respondidoPor:     respondida ? 'REPORTING' : '',
-          rol:               ''
-        });
-      }
+    // ✅ LOG ANTES DEL FILTRO
+    if (r <= 3) {
+      Logger.log('Fila ' + r +
+        ' | col7=' + fila[7] +
+        ' | col9=' + fila[9] +
+        ' | lob=' + fila[iLob !== -1 ? iLob : 3] +
+        ' | headers=' + JSON.stringify(dataDisp[0])
+      );
     }
 
+    const lobVal = String(fila[iLob !== -1 ? iLob : 3] || '').trim();
+    if (!pasaLob(lobVal)) continue;
+
+    const bmsId   = String(fila[iBMS  !== -1 ? iBMS  : 1] || '').trim();
+    const nombre  = String(fila[iNom  !== -1 ? iNom  : 2] || '').trim();
+    const mesCDM  = String(fila[iMes  !== -1 ? iMes  : 4] || '').trim();
+    const estadoV = String(fila[iEst  !== -1 ? iEst  : 5] || 'Pendiente').trim();
+    const comDisp = String(fila[iCom  !== -1 ? iCom  : 6] || '').trim();
+    const tsVal   = fila[iTS  !== -1 ? iTS  : 0];
+    const filaNum = iFila !== -1 ? (parseInt(fila[iFila]) || r + 1) : r + 1;
+    if (!bmsId) continue;
+
+    // ✅ CORREGIDO — leer Bono Aprobado ($) desde col H
+    const montoAprobado = parseFloat(fila[iBonoAprobado]) || 0;
+    const montoDisputado = parseFloat(fila[iMontoDisputado]) || 0;
+    const bonoKPIsSelec = iBonoKPIsSelec !== -1 ? (parseFloat(fila[iBonoKPIsSelec]) || 0) : 0;
+
+    // ✅ LOG DIAGNÓSTICO — quitar después de confirmar
+    if (r <= 3) {
+      Logger.log('Fila ' + r +
+        ' | iBonoAprobado=' + iBonoAprobado + ' val=' + fila[iBonoAprobado] +
+        ' | iBonoKPIsSelec=' + iBonoKPIsSelec + ' val=' + (iBonoKPIsSelec !== -1 ? fila[iBonoKPIsSelec] : 'N/A')
+      );
+    }
+
+    const respondida = estadoV.toLowerCase().includes('aprobada') ||
+                       estadoV.toLowerCase().includes('rechazada') ||
+                       estadoV.toLowerCase().includes('proceso')   ||
+                       (iResp !== -1 && String(fila[iResp] || '').trim() !== '');
+
+    const claveApe   = bmsId + '|' + norm(mesCDM);
+    const yaApelada  = bmsYMesApelados.has(claveApe);
+
+resultado.push({
+      origenTipo:        yaApelada ? 'Apelacion' : 'Disputa',
+      origen:            yaApelada ? 'Audit'     : 'Disputa',
+      timestamp:         tsVal ? new Date(tsVal).toISOString() : new Date().toISOString(),
+      bmsId,
+      nombreAgente:      nombre,
+      lob:               lobVal,
+      mesCDM,
+      estadoDisputa:     estadoV,
+      comentarioDisputa: comDisp,
+      pago:              montoAprobado,   // ✅ col H — Bono Aprobado ($)
+      montoDisputado,                      // ✅ col I — Monto Disputado ($)
+      bonoKPIsSelec,                       // ✅ col J — Bono KPIs Selec ($)
+      fila:              filaNum,
+      respondida,
+      respondidoPor:     respondida ? 'REPORTING' : '',
+      rol:               ''
+    });
+  }
+}
     // ════════════════════════════════════════════════════════
     // 2. HOJA "Disputa_Apelaciones" — apelaciones de OM/ACCM
     // ════════════════════════════════════════════════════════
@@ -5313,3 +5663,72 @@ function responderDisputa(datos) {
     return { success: false, error: err.message };
   }
 }
+
+
+
+
+
+
+
+
+
+function diagnosticarEscalaKPIs() {
+    const ss   = SpreadsheetApp.openById(SS_ID);
+    const hoja = ss.getSheetByName('Audit_Detalle');
+    if (!hoja) { Logger.log('No existe'); return; }
+
+    const data    = hoja.getDataRange().getValues();
+    const headers = data[0];
+    const idx     = findAuditDetalleIndices(headers);
+
+    // Agrupar por KPI y ver rango de valores
+    const kpiMap = {};
+    for (let i = 1; i < data.length; i++) {
+        const row    = data[i];
+        const kpi    = String(row[idx.kpi] || '').trim();
+        const obj    = String(row[idx.obj] || '').trim();
+        const val    = row[idx.val];
+        const estado = String(row[idx.est] || '').trim();
+        if (!kpi) continue;
+
+        if (!kpiMap[kpi]) {
+            kpiMap[kpi] = {
+                obj,
+                valores: [],
+                estados: new Set()
+            };
+        }
+        if (typeof val === 'number') kpiMap[kpi].valores.push(val);
+        kpiMap[kpi].estados.add(estado);
+    }
+
+    Logger.log('═══════════════════════════════════════');
+    Logger.log('RANGO DE VALORES POR KPI:');
+    Logger.log('───────────────────────────────────────');
+    Object.entries(kpiMap).forEach(([kpi, info]) => {
+        const vals = info.valores;
+        if (!vals.length) return;
+        const min  = Math.min(...vals).toFixed(4);
+        const max  = Math.max(...vals).toFixed(4);
+        const prom = (vals.reduce((a,b) => a+b,0) / vals.length).toFixed(4);
+        Logger.log(
+            'KPI: "' + kpi + '"'
+            + ' | Obj: "' + info.obj + '"'
+            + ' | Min: ' + min
+            + ' | Max: ' + max
+            + ' | Prom: ' + prom
+            + ' | N: ' + vals.length
+            + ' | Estados: [' + Array.from(info.estados).join(', ') + ']'
+        );
+    });
+    Logger.log('═══════════════════════════════════════');
+}
+
+
+
+
+
+
+
+
+

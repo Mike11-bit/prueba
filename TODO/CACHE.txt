@@ -1,0 +1,429 @@
+// ========================================
+// CACHE MANAGER - Sistema Multinivel de Cache
+// ========================================
+// Soporta 50+ usuarios simultáneos sin exceder límites de API
+// Autor: Sistema OM
+// Fecha: 2024-12-04
+// ========================================
+
+/**
+ * Cache multinivel con fallback automático
+ * @param {string} key - Identificador único del cache
+ * @param {function} fetchFunction - Función para obtener datos si no está en cache
+ * @param {number} ttlSeconds - Tiempo de vida en segundos (default: 1 hora)
+ * @returns {*} Datos cacheados o frescos
+ */
+function getCached(key, fetchFunction, ttlSeconds = 3600) {
+  try {
+    const startTime = new Date();
+    
+    // ========================================
+    // NIVEL 1: CacheService (Temporal - Más rápido)
+    // ========================================
+    const userCache = CacheService.getUserCache();
+    let cached = userCache.get(key);
+    
+    if (cached) {
+      logCacheHit('L1-CacheService', key, startTime);
+      return JSON.parse(cached);
+    }
+    
+    // ========================================
+    // NIVEL 2: PropertiesService (Persistente - Pequeño)
+    // ========================================
+    const userProps = PropertiesService.getUserProperties();
+    cached = userProps.getProperty(key);
+    
+    if (cached) {
+      // Promover a L1 para próximas lecturas
+      userCache.put(key, cached, Math.min(ttlSeconds, 21600)); // Max 6 horas
+      logCacheHit('L2-Properties', key, startTime);
+      return JSON.parse(cached);
+    }
+    
+    // ========================================
+    // NIVEL 3: Hoja Cache_Data (Histórico - Grande)
+    // ========================================
+    const cacheSheetData = getFromCacheSheet(key);
+    
+    if (cacheSheetData) {
+      const json = JSON.stringify(cacheSheetData);
+      
+      // Promover a L1 y L2
+      if (json.length < 9000) { // Límite de PropertiesService
+        userProps.setProperty(key, json);
+      }
+      userCache.put(key, json, Math.min(ttlSeconds, 21600));
+      
+      logCacheHit('L3-Sheet', key, startTime);
+      return cacheSheetData;
+    }
+    
+    // ========================================
+    // CACHE MISS: Fetch + Store en todos los niveles
+    // ========================================
+    Logger.log(`⚠️ CACHE MISS: ${key} - Ejecutando fetchFunction...`);
+    
+    const data = fetchFunction();
+    const json = JSON.stringify(data);
+    const dataSize = json.length;
+    
+    // Guardar en L1 (siempre)
+    if (dataSize < 100000) { // Límite de CacheService
+      userCache.put(key, json, Math.min(ttlSeconds, 21600));
+      Logger.log(`✅ Guardado en L1 (CacheService): ${key} - ${(dataSize / 1024).toFixed(2)} KB`);
+    }
+    
+    // Guardar en L2 (si es pequeño)
+    if (dataSize < 9000) {
+      userProps.setProperty(key, json);
+      Logger.log(`✅ Guardado en L2 (Properties): ${key}`);
+    }
+    
+    // Guardar en L3 (siempre, si está habilitado)
+    saveToCacheSheet(key, data, ttlSeconds);
+    
+    const duration = (new Date() - startTime) / 1000;
+    Logger.log(`⏱️ Total fetch time: ${duration.toFixed(3)}s para ${key}`);
+    
+    return data;
+    
+  } catch (error) {
+    Logger.log(`❌ Error en getCached(${key}): ${error.message}`);
+    // Si falla cache, ejecutar función directamente
+    return fetchFunction();
+  }
+}
+
+/**
+ * Invalida cache por clave exacta o patrón
+ * @param {string} pattern - Clave exacta o patrón (ej: "hc_*")
+ */
+function invalidateCache(pattern) {
+  try {
+    Logger.log(`🗑️ Invalidando cache: ${pattern}`);
+    
+    const userCache = CacheService.getUserCache();
+    const userProps = PropertiesService.getUserProperties();
+    
+    if (pattern.includes('*')) {
+      // Invalidar por patrón (solo Props y Sheet)
+      const prefix = pattern.replace('*', '');
+      const allProps = userProps.getProperties();
+      
+      let removed = 0;
+      for (const key in allProps) {
+        if (key.startsWith(prefix)) {
+          userProps.deleteProperty(key);
+          userCache.remove(key);
+          removed++;
+        }
+      }
+      
+      Logger.log(`✅ Invalidados ${removed} items con patrón: ${pattern}`);
+      
+    } else {
+      // Invalidar clave exacta
+      userCache.remove(pattern);
+      userProps.deleteProperty(pattern);
+      invalidateFromCacheSheet(pattern);
+      
+      Logger.log(`✅ Invalidado: ${pattern}`);
+    }
+    
+    return { success: true, pattern: pattern };
+    
+  } catch (error) {
+    Logger.log(`❌ Error en invalidateCache: ${error.message}`);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Pre-calienta cache con datos críticos
+ * Se recomienda ejecutar vía trigger cada mañana
+ */
+function warmUpCache() {
+  try {
+    Logger.log('🔥 ========== WARM UP CACHE ==========');
+    const startTime = new Date();
+    
+    // Datos que TODOS los usuarios necesitan
+    const criticalData = [
+      { key: 'all_lobs', fn: () => obtenerTodasLasLobs(), ttl: 21600 },           // 6h
+      { key: 'cdm_meses', fn: () => obtenerMesesCDMDisponibles(), ttl: 86400 },    // 24h
+      { key: 'hc_agentes', fn: () => obtenerAgentesPermitidos(), ttl: 3600 }       // 1h
+    ];
+    
+    let successCount = 0;
+    
+    criticalData.forEach(item => {
+      try {
+        getCached(item.key, item.fn, item.ttl);
+        successCount++;
+        Logger.log(`✅ Pre-cargado: ${item.key}`);
+      } catch (error) {
+        Logger.log(`⚠️ Error pre-cargando ${item.key}: ${error.message}`);
+      }
+    });
+    
+    const duration = (new Date() - startTime) / 1000;
+    Logger.log(`🔥 Warm-up completado: ${successCount}/${criticalData.length} en ${duration.toFixed(2)}s`);
+    
+    return { success: true, loaded: successCount, total: criticalData.length };
+    
+  } catch (error) {
+    Logger.log(`❌ Error en warmUpCache: ${error.message}`);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Lee datos desde la hoja Cache_Data (Nivel 3)
+ */
+function getFromCacheSheet(key) {
+  try {
+    const ss = SpreadsheetApp.openById('1PtYuAb5C2kIoX8sE7dOvt1nVS-aLamZLOJQUSbTBBCw');
+    let sheet = ss.getSheetByName('Cache_Data');
+    
+    if (!sheet) {
+      return null;
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    
+    // Headers: Timestamp | Cache Key | Data (JSON) | TTL | Expires At
+    for (let i = 1; i < data.length; i++) {
+      const cacheKey = data[i][1];
+      
+      if (cacheKey === key) {
+        const expiresAt = new Date(data[i][4]);
+        const now = new Date();
+        
+        if (expiresAt > now) {
+          // Cache válido
+          try {
+            return JSON.parse(data[i][2]);
+          } catch (e) {
+            Logger.log(`⚠️ Error parseando JSON de cache: ${key}`);
+            return null;
+          }
+        } else {
+          // Cache expirado - eliminar fila
+          sheet.deleteRow(i + 1);
+          Logger.log(`🗑️ Cache expirado eliminado: ${key}`);
+          return null;
+        }
+      }
+    }
+    
+    return null;
+    
+  } catch (error) {
+    Logger.log(`⚠️ Error leyendo Cache_Data: ${error.message}`);
+    return null;
+  }
+}
+
+/**
+ * Guarda datos en la hoja Cache_Data (Nivel 3)
+ */
+function saveToCacheSheet(key, data, ttlSeconds) {
+  try {
+    const ss = SpreadsheetApp.openById('1PtYuAb5C2kIoX8sE7dOvt1nVS-aLamZLOJQUSbTBBCw');
+    let sheet = ss.getSheetByName('Cache_Data');
+    
+    // Crear hoja si no existe
+    if (!sheet) {
+      sheet = ss.insertSheet('Cache_Data');
+      sheet.appendRow(['Timestamp', 'Cache Key', 'Data (JSON)', 'TTL (seconds)', 'Expires At']);
+      
+      const headerRange = sheet.getRange(1, 1, 1, 5);
+      headerRange.setBackground('#8e44ad');
+      headerRange.setFontColor('#FFFFFF');
+      headerRange.setFontWeight('bold');
+      
+      Logger.log('✅ Hoja Cache_Data creada');
+    }
+    
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + (ttlSeconds * 1000));
+    const json = JSON.stringify(data);
+    
+    // Verificar si ya existe
+    const existingData = sheet.getDataRange().getValues();
+    let updated = false;
+    
+    for (let i = 1; i < existingData.length; i++) {
+      if (existingData[i][1] === key) {
+        // Actualizar fila existente
+        sheet.getRange(i + 1, 1, 1, 5).setValues([[now, key, json, ttlSeconds, expiresAt]]);
+        updated = true;
+        Logger.log(`🔄 Cache actualizado en hoja: ${key}`);
+        break;
+      }
+    }
+    
+    // Si no existe, agregar nueva fila
+    if (!updated) {
+      sheet.appendRow([now, key, json, ttlSeconds, expiresAt]);
+      Logger.log(`✅ Cache guardado en hoja: ${key} - ${(json.length / 1024).toFixed(2)} KB`);
+    }
+    
+    // Limpiar cache expirado (solo si hay más de 100 filas)
+    if (sheet.getLastRow() > 100) {
+      cleanupExpiredCache();
+    }
+    
+  } catch (error) {
+    Logger.log(`⚠️ Error guardando en Cache_Data: ${error.message}`);
+    // No es crítico si falla, L1 y L2 ya funcionan
+  }
+}
+
+/**
+ * Elimina entrada de Cache_Data
+ */
+function invalidateFromCacheSheet(key) {
+  try {
+    const ss = SpreadsheetApp.openById('1PtYuAb5C2kIoX8sE7dOvt1nVS-aLamZLOJQUSbTBBCw');
+    const sheet = ss.getSheetByName('Cache_Data');
+    
+    if (!sheet) return;
+    
+    const data = sheet.getDataRange().getValues();
+    
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][1] === key) {
+        sheet.deleteRow(i + 1);
+        Logger.log(`🗑️ Eliminado de Cache_Data: ${key}`);
+        break;
+      }
+    }
+    
+  } catch (error) {
+    Logger.log(`⚠️ Error invalidando Cache_Data: ${error.message}`);
+  }
+}
+
+/**
+ * Limpia cache expirado de la hoja
+ */
+function cleanupExpiredCache() {
+  try {
+    const ss = SpreadsheetApp.openById('1PtYuAb5C2kIoX8sE7dOvt1nVS-aLamZLOJQUSbTBBCw');
+    const sheet = ss.getSheetByName('Cache_Data');
+    
+    if (!sheet) return;
+    
+    const data = sheet.getDataRange().getValues();
+    const now = new Date();
+    let removed = 0;
+    
+    // Recorrer de abajo hacia arriba para evitar problemas con índices
+    for (let i = data.length - 1; i >= 1; i--) {
+      const expiresAt = new Date(data[i][4]);
+      
+      if (expiresAt < now) {
+        sheet.deleteRow(i + 1);
+        removed++;
+      }
+    }
+    
+    if (removed > 0) {
+      Logger.log(`🗑️ Limpiados ${removed} registros expirados de Cache_Data`);
+    }
+    
+  } catch (error) {
+    Logger.log(`⚠️ Error limpiando cache: ${error.message}`);
+  }
+}
+
+/**
+ * Logger de cache hits para debugging
+ */
+function logCacheHit(level, key, startTime) {
+  const duration = (new Date() - startTime) / 1000;
+  Logger.log(`✅ CACHE HIT [${level}]: ${key} - ${(duration * 1000).toFixed(2)}ms`);
+}
+
+/**
+ * Obtiene estadísticas de uso de cache
+ */
+function getCacheStats() {
+  try {
+    const ss = SpreadsheetApp.openById('1PtYuAb5C2kIoX8sE7dOvt1nVS-aLamZLOJQUSbTBBCw');
+    const sheet = ss.getSheetByName('Cache_Data');
+    
+    if (!sheet) {
+      return { total: 0, expired: 0, active: 0 };
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    const now = new Date();
+    let expired = 0;
+    let active = 0;
+    
+    for (let i = 1; i < data.length; i++) {
+      const expiresAt = new Date(data[i][4]);
+      if (expiresAt < now) {
+        expired++;
+      } else {
+        active++;
+      }
+    }
+    
+    return {
+      total: data.length - 1,
+      expired: expired,
+      active: active
+    };
+    
+  } catch (error) {
+    Logger.log(`⚠️ Error obteniendo stats: ${error.message}`);
+    return { total: 0, expired: 0, active: 0 };
+  }
+}
+
+/**
+ * Trigger automático para warm-up diario
+ * Configurar en: Edit > Current project's triggers
+ * Ejecutar: warmUpCacheTrigger() cada día a las 6:00 AM
+ */
+function warmUpCacheTrigger() {
+  Logger.log('🌅 Ejecutando warm-up automático...');
+  warmUpCache();
+  
+  // Limpiar cache expirado
+  cleanupExpiredCache();
+}
+
+/**
+ * Lee múltiples hojas en una sola ejecución (Batch Read)
+ * @param {Array<{id: string, sheet: string}>} sheetsConfig - Lista de hojas a leer
+ * @returns {Array<Array<Array<string>>>} Lista de datos de cada hoja
+ */
+function batchReadSheets(sheetsConfig) {
+  try {
+    Logger.log(`📦 Batch Read: Leyendo ${sheetsConfig.length} hojas...`);
+    const startTime = new Date();
+    
+    const results = sheetsConfig.map(config => {
+      const ss = SpreadsheetApp.openById(config.id);
+      const sheet = ss.getSheetByName(config.sheet);
+      if (!sheet) return [];
+      return sheet.getDataRange().getValues();
+    });
+    
+    const duration = (new Date() - startTime) / 1000;
+    Logger.log(`✅ Batch Read completado en ${duration.toFixed(2)}s`);
+    
+    return results;
+    
+  } catch (error) {
+    Logger.log(`❌ Error en batchReadSheets: ${error.message}`);
+    return [];
+  }
+}
+
+Logger.log('✅ Cache Manager cargado correctamente');

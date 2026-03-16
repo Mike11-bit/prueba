@@ -816,6 +816,10 @@ code {
                     <option value="rechazada">❌ Rechazada</option>
                     <option value="mas_info">📋 Más Info</option>
                     <option value="en_proceso">⏳ En Proceso</option>
+                        <option value="con_disputa">⚠️ Con Disputa</option>
+                         <option value="sin_disputa">✔️ Sin Disputa</option>
+
+                    
                 </select>
             </div>
             <div class="filter-group"><label class="filter-label">🏢 LOB</label><select id="fa-lob"><option value="">Todas</option></select></div>
@@ -838,9 +842,9 @@ code {
     <div class="table-container">
         <div class="table-scroll">
             <table>
-              <thead><tr><th>Fecha</th><th>Tipo</th><th>LOB</th><th>BMS ID</th><th>Nombre</th><th>Role</th><th>Supervisor</th><th>ACCM</th><th>Monto</th><th>Prorrateado</th><th>Monto Orig</th><th>Monto Pror</th><th>Días Lab</th><th>Disputa</th><th>Bono KPIs Selec ($)</th><th>Estado</th><th>Acciones</th></tr></thead>
+              <thead><tr><th>Fecha</th><th>Tipo</th><th>LOB</th><th>BMS ID</th><th>Nombre</th><th>Role</th><th>Supervisor</th><th>ACCM</th><th>Monto</th><th>Prorrateado</th><th>Monto Orig</th><th>Monto Pror</th><th>Días Lab</th><th>Disputa</th><th>Monto Disputado ($)</th><th>Bono KPIs Selec ($)</th><th>Estado</th><th>Acciones</th></tr></thead>
 
-                <tbody id="tbody-audit"><tr><td colspan="17" class="loading">Cargando datos...</td></tr></tbody>
+                <tbody id="tbody-audit"><tr><td colspan="18" class="loading">Cargando datos...</td></tr></tbody>
             </table>
         </div>
         <div class="pagination">
@@ -914,7 +918,7 @@ code {
         <div class="table-container">
             <div class="table-scroll">
                 <table>
-<thead><tr><th>ID Disputa</th><th>Fecha</th><th>Tipo</th><th>LOB</th><th>BMS</th><th>Agente</th><th>Mes</th><th>Monto Aprobado</th><th style="color:#7c3aed;">Bono KPIs Selec ($)</th><th>Comentario</th><th>Estado</th><th>Acciones</th></tr></thead>
+<thead><tr><th>ID Disputa</th><th>Fecha</th><th>Tipo</th><th>LOB</th><th>BMS</th><th>Agente</th><th>Mes</th><th style="color:#16a34a;">Bono Aprobado ($)</th><th>Monto Disputado ($)</th><th style="color:#7c3aed;">Bono KPIs Selec ($)</th><th>Comentario</th><th>Estado</th><th>Acciones</th></tr></thead>
                     <tbody id="tbody-disputas"></tbody>
                 </table>
             </div>
@@ -1507,7 +1511,8 @@ function filtrarDisputas() {
         const nombre  = (d.nombreAgente || '').toLowerCase();
         const bms     = (d.bmsId || '').toLowerCase();
 
-        const esApe = d.origen === 'Audit' || d.origen === 'Apelacion' || d.comentarioDisputa?.includes('Apelación');
+        const esApe = d.origen === 'Audit' || d.origen === 'Apelacion' 
+                   || d.comentarioDisputa?.includes('Apelación');
 
         let matchEstado = true;
         if (estado) {
@@ -1527,131 +1532,20 @@ function filtrarDisputas() {
     if (!tbody) return;
 
     if (!filtradas.length) {
-        tbody.innerHTML = '<tr><td colspan="12" class="loading">No se encontraron disputas con los filtros seleccionados</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="13" class="loading">No se encontraron disputas con los filtros seleccionados</td></tr>';
         window._disputasRenderizadas = [];
         return;
     }
 
+    // ✅ FIX: delegar a renderDisputas para usar siempre el mismo HTML
     window._disputasRenderizadas = filtradas;
-
-    tbody.innerHTML = filtradas.map((d, index) => {
-        const estadoDisp = d.estadoDisputa || d.estado || 'Pendiente';
-        const eL         = estadoDisp.toLowerCase();
-        let badgeClass   = 'badge-warning';
-        if (eL.includes('aprobada') || estadoDisp.includes('✅')) badgeClass = 'badge-success';
-        if (eL.includes('rechazada')|| estadoDisp.includes('❌')) badgeClass = 'badge-danger';
-        if (eL.includes('proceso')  || estadoDisp.includes('⏳') && !eL.includes('pendiente')) badgeClass = 'badge-info';
-
-        const esApe   = d.origen === 'Audit' || d.origen === 'Apelacion' || d.comentarioDisputa?.includes('Apelación');
-        const esAudit = d.origen === 'Audit' || d.origen === 'Apelacion' || d.origenTipo === 'Apelacion';
-
-        const reportingYaRespondio = (d.respondidoPor || '').toUpperCase() === 'REPORTING'
-                                  || (d.respondida === true && esAudit)
-                                  || eL.includes('(reporting)')
-                                  || eL.includes('aprobada (reporting)')
-                                  || eL.includes('rechazada (reporting)');
-
-        const pendienteParaReporting = esAudit && !reportingYaRespondio;
-        const pendienteNormal        = !esAudit && eL.includes('pendiente');
-        const esPendiente            = pendienteParaReporting || pendienteNormal;
-
-        const rolActual  = (STATE.usuario?.rol || '').toLowerCase();
-        const esAnalyst  = rolActual === 'reporting analyst' || rolActual.includes('analyst');
-        const puedeResponder = esAnalyst && esPendiente;
-
-        // ✅ FIX: serializar objeto completo para evitar datos vacíos al abrir modal
-        const dJSON = JSON.stringify({
-            idDisputa:         d.idDisputa || d.idApelacion || d.id || '',
-            bmsId:             d.bmsId || '',
-            nombreAgente:      d.nombreAgente || '',
-            lob:               d.lob || '',
-            monto:             d.monto || 0,
-            mesCDM:            d.mesCDM || '',
-            comentarioDisputa: d.comentarioDisputa || d.detalles || '',
-            fila:              d.fila || d.filaHoja || 0,
-            timestamp:         d.timestamp || '',
-            origen:            esAudit ? 'Audit' : 'Disputa',
-            kpisDetalle:       d.kpisDetalle || '',
-            montoAjustado:     d.montoAjustado || 0,
-            respondidoPor:     d.respondidoPor || ''
-        }).replace(/"/g, '&quot;');
-
-        // Fix label estado para apelaciones
-        let estadoLabel = estadoDisp;
-        if (esApe && !estadoLabel.toLowerCase().includes('apel')) {
-            estadoLabel = 'Apelación ' + estadoLabel.replace(/[✅❌⏳⚖️📋]/g, '').trim();
-            if (estadoLabel.toLowerCase().includes('aprobada'))  estadoLabel = '✅ ' + estadoLabel;
-            else if (estadoLabel.toLowerCase().includes('rechazada')) estadoLabel = '❌ ' + estadoLabel;
-            else if (estadoLabel.toLowerCase().includes('proceso'))   estadoLabel = '⏳ ' + estadoLabel;
-            else estadoLabel = '⚖️ ' + estadoLabel;
-        }
-
-        const badgeEstado = `<span class="badge ${badgeClass}">${estadoLabel}</span>`;
-
-        const badgeOrigen = esApe
-            ? '<span style="background:#eff6ff;color:#1d4ed8;padding:2px 8px;border-radius:10px;font-size:0.7rem;font-weight:700;border:1px solid #bfdbfe;">⚖️ APELACIÓN</span>'
-            : '<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;font-size:0.7rem;font-weight:700;border:1px solid #fde68a;">⚠️ DISPUTA</span>';
-
-        let labelRespuesta = '';
-        if (reportingYaRespondio) {
-            labelRespuesta = '<span class="badge badge-success" style="margin-bottom:4px;display:block;font-size:0.65rem;">✅ REPORTING_RESPONDIO</span>';
-        }
-
-        let accionBtn = '';
-        if (!puedeResponder && esPendiente) {
-            accionBtn = `<span class="badge badge-secondary" title="Sin permisos">🔒 Sin acceso</span>`;
-
-        } else if (esPendiente && puedeResponder) {
-            // ✅ Pasa JSON completo, no índice numérico
-            accionBtn = `
-                <div style="display:flex;flex-direction:column;align-items:center;gap:3px;">
-                    ${labelRespuesta}
-                    <button class="btn-primary btn-sm"
-                        onclick="abrirModalDisputa(${index}, '${esAudit ? 'Audit' : 'Disputa'}')">
-                        💬 ${esAudit ? 'Responder Apelación' : 'Responder'}
-                    </button>
-                </div>`;
-
-        } else {
-            accionBtn = `
-                <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
-                    ${labelRespuesta}
-                    <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:center;">
-                        <button class="btn-info btn-sm" onclick="verRespuestaDisputa(${index})">👁️ Ver</button>
-                    </div>
-                </div>`;
-        }
-
-        const fmtMoney = amount => `$${(amount || 0).toLocaleString('es-CO')}`;
-
-        return `<tr style="${esPendiente && puedeResponder ? 'background:#fffbeb;' : ''}">
-            <td style="font-weight:600;font-size:0.8rem;">${d.idDisputa || d.idApelacion || d.id || '—'}</td>
-            <td style="white-space:nowrap;">${fmtDate(d.timestamp)}</td>
-            <td style="text-align:center;">${badgeOrigen}</td>
-            <td style="text-align:center;">${d.lob || '—'}</td>
-            <td style="text-align:center;">
-                <code style="background:var(--bg-subtle);padding:2px 5px;border-radius:4px;">
-                    ${d.bmsId || '—'}
-                </code>
-            </td>
-            <td><strong>${d.nombreAgente || '—'}</strong></td>
-            <td style="text-align:center;">${d.mesCDM || '—'}</td>
-            <td style="text-align:right;font-weight:700;">${fmtMoney(d.monto)}</td>
-            <td style="text-align:center;">
-                <span style="color:#7c3aed;font-weight:700;">
-                    ${fmtMoney(d.bonoKPIsSelec || 0)}
-                </span>
-            </td>
-            <td style="max-width:250px;">
-                <div class="text-truncate" title="${d.comentarioDisputa || ''}">
-                    ${d.comentarioDisputa || '—'}
-                </div>
-            </td>
-            <td style="text-align:center;">${badgeEstado}</td>
-            <td style="text-align:center;">${accionBtn}</td>
-        </tr>`;
-    }).join('');
+    const disputasOriginales = STATE.disputas;
+    STATE.disputas = filtradas;
+    renderDisputas();
+    STATE.disputas = disputasOriginales;
 }
+
+
 function procesarDatos(resp) {
     const ls = document.getElementById('loading-screen');
     if (ls) ls.style.display = 'none';
@@ -1814,7 +1708,7 @@ function renderResumen() {
     }
 }
 
-function renderDisputas() {
+ /*function renderDisputas() {
     const tbody = document.getElementById('tbody-disputas');
     if (!tbody) return;
     const disputas = STATE.disputas || [];
@@ -1936,7 +1830,9 @@ function renderDisputas() {
             </td>
             <td><strong>${d.nombreAgente || '—'}</strong></td>
             <td style="text-align:center;">${d.mesCDM || '—'}</td>
-            <td style="text-align:right;font-weight:700;">${fmtMoney(d.monto)}</td>
+
+<td style="text-align:right;font-weight:700;">${fmtMoney(d.pago ?? 0)}</td>
+
             <td style="text-align:center;">
                 <span style="color:#7c3aed;font-weight:700;">
                     ${fmtMoney(d.bonoKPIsSelec || 0)}
@@ -1952,7 +1848,7 @@ function renderDisputas() {
         </tr>`;
     }).join('');
 }
-
+*/
 function verDetallesAgente(bmsId, nombre) {
     var modal = document.getElementById('modal-detalles');
     if (!modal) { toast('Modal de detalles no encontrado', 'error'); return; }
@@ -3174,7 +3070,7 @@ function renderDisputas() {
     if (!tbody) return;
     const disputas = STATE.disputas || [];
     if (!disputas.length) {
-        tbody.innerHTML = '<tr><td colspan="10" class="loading">Sin disputas registradas</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="13" class="loading">Sin disputas registradas</td></tr>';
         return;
     }
 
@@ -3284,7 +3180,9 @@ function renderDisputas() {
             </td>
             <td><strong>${d.nombreAgente || '—'}</strong></td>
             <td style="text-align:center;">${d.mesCDM || '—'}</td>
-            <td style="text-align:right;font-weight:700;">${fmtMoney(d.monto)}</td>
+
+        <td style="text-align:right;font-weight:700;color:#16a34a;">${fmtMoney(d.pago ?? 0)}</td>
+            <td style="text-align:right;font-weight:700;">${fmtMoney(d.montoDisputado ?? d.monto ?? 0)}</td>
             <td style="text-align:center;">
                 <span style="color:#7c3aed;font-weight:700;">
                     ${fmtMoney(d.bonoKPIsSelec || 0)}
@@ -4430,15 +4328,22 @@ function filtrarAudit() {
             }
         }
 
-        let matchEstadoApe = true;
-        if (estadoApe) {
-            const eN = (r.estado || '').toLowerCase();
-            if      (estadoApe === 'en_apelacion') matchEstadoApe = eN.includes('apelaci');
-            else if (estadoApe === 'aprobada')     matchEstadoApe = eN.includes('aprobad') && !eN.includes('apelaci');
-            else if (estadoApe === 'rechazada')    matchEstadoApe = eN.includes('rechazad');
-            else if (estadoApe === 'mas_info')     matchEstadoApe = eN.includes('info');
-            else if (estadoApe === 'en_proceso')   matchEstadoApe = eN.includes('proceso');
-        }
+     let matchEstadoApe = true;
+if (estadoApe) {
+    const eN = (r.estado || '').toLowerCase();
+    if      (estadoApe === 'en_apelacion') matchEstadoApe = eN.includes('apelaci');
+    else if (estadoApe === 'aprobada')     matchEstadoApe = eN.includes('aprobad') && !eN.includes('apelaci');
+    else if (estadoApe === 'rechazada')    matchEstadoApe = eN.includes('rechazad');
+    else if (estadoApe === 'mas_info')     matchEstadoApe = eN.includes('info');
+    else if (estadoApe === 'en_proceso')   matchEstadoApe = eN.includes('proceso');
+    // ✅ NUEVO: filtrar por disputa
+    else if (estadoApe === 'con_disputa')  matchEstadoApe = r.tieneDisputa === true 
+                                                         || r.tipoAccion === 'Disputa'
+                                                         || (r.comentarioDisputa || '').trim() !== '';
+    else if (estadoApe === 'sin_disputa')  matchEstadoApe = !r.tieneDisputa 
+                                                         && r.tipoAccion !== 'Disputa'
+                                                         && !(r.comentarioDisputa || '').trim();
+}
 
         return matchBusq && matchTipo && matchLob && matchFecha && matchEstadoApe;
     });
@@ -4453,34 +4358,43 @@ function _renderContadoresEstadoApe() {
     const cont = document.getElementById('fa-estado-contadores');
     if (!cont) return;
 
-    const conteos = {
-        total:        STATE.audit.length,
-        en_apelacion: 0,
-        aprobada:     0,
-        rechazada:    0,
-        mas_info:     0,
-        en_proceso:   0,
-        sin_disputa:  0
-    };
+const conteos = {
+    total:        STATE.audit.length,
+    en_apelacion: 0,
+    aprobada:     0,
+    rechazada:    0,
+    mas_info:     0,
+    en_proceso:   0,
+    con_disputa:  0,
+    sin_disputa:  0
+};
 
-    STATE.audit.forEach(r => {
-        const eN = (r.estado || '').toLowerCase();
-        if      (eN.includes('apelaci'))  conteos.en_apelacion++;
-        else if (eN.includes('aprobad'))  conteos.aprobada++;
-        else if (eN.includes('rechazad')) conteos.rechazada++;
-        else if (eN.includes('info'))     conteos.mas_info++;
-        else if (eN.includes('proceso'))  conteos.en_proceso++;
-        else                              conteos.sin_disputa++;
-    });
+STATE.audit.forEach(r => {
+    const eN = (r.estado || '').toLowerCase();
+    if      (eN.includes('apelaci'))  conteos.en_apelacion++;
+    else if (eN.includes('aprobad'))  conteos.aprobada++;
+    else if (eN.includes('rechazad')) conteos.rechazada++;
+    else if (eN.includes('info'))     conteos.mas_info++;
+    else if (eN.includes('proceso'))  conteos.en_proceso++;
+    else                              conteos.sin_disputa++;
 
-    const pills = [
-        { key: '',             label: '📋 Total',        count: conteos.total,        bg: '#f1f5f9', color: '#475569' },
-        { key: 'en_apelacion', label: '⚖️ En Apelación', count: conteos.en_apelacion, bg: '#eff6ff', color: '#1d4ed8' },
-        { key: 'aprobada',     label: '✅ Aprobadas',     count: conteos.aprobada,     bg: '#dcfce7', color: '#166534' },
-        { key: 'rechazada',    label: '❌ Rechazadas',    count: conteos.rechazada,    bg: '#fee2e2', color: '#991b1b' },
-        { key: 'mas_info',     label: '📋 Más Info',      count: conteos.mas_info,     bg: '#fef3c7', color: '#92400e' },
-        { key: 'en_proceso',   label: '⏳ En Proceso',    count: conteos.en_proceso,   bg: '#f5f3ff', color: '#6d28d9' },
-    ].filter(p => p.count > 0 || p.key === '');
+    // ✅ NUEVO: contar disputas (independiente del estado)
+    if (r.tieneDisputa === true || r.tipoAccion === 'Disputa' || (r.comentarioDisputa || '').trim() !== '') {
+        conteos.con_disputa++;
+    }
+});
+
+const pills = [
+    { key: '',             label: '📋 Total',        count: conteos.total,        bg: '#f1f5f9', color: '#475569' },
+    { key: 'en_apelacion', label: '⚖️ En Apelación', count: conteos.en_apelacion, bg: '#eff6ff', color: '#1d4ed8' },
+    { key: 'aprobada',     label: '✅ Aprobadas',     count: conteos.aprobada,     bg: '#dcfce7', color: '#166534' },
+    { key: 'rechazada',    label: '❌ Rechazadas',    count: conteos.rechazada,    bg: '#fee2e2', color: '#991b1b' },
+    { key: 'mas_info',     label: '📋 Más Info',      count: conteos.mas_info,     bg: '#fef3c7', color: '#92400e' },
+    { key: 'en_proceso',   label: '⏳ En Proceso',    count: conteos.en_proceso,   bg: '#f5f3ff', color: '#6d28d9' },
+    // ✅ NUEVAS PILLS
+    { key: 'con_disputa',  label: '⚠️ Con Disputa',  count: conteos.con_disputa,  bg: '#fef3c7', color: '#b45309' },
+    { key: 'sin_disputa',  label: '✔️ Sin Disputa',  count: conteos.sin_disputa,  bg: '#f0fdf4', color: '#166534' },
+].filter(p => p.count > 0 || p.key === '');
 
     const selActual = document.getElementById('fa-estado-apelacion')?.value || '';
 
@@ -4511,7 +4425,7 @@ function renderAudit() {
     setVal('pag-audit-total', Math.ceil(STATE.auditFilt.length / STATE.pageSize) || 1);
 
     if (!page.length) {
-        tbody.innerHTML = '<tr><td colspan="17" class="loading">No se encontraron registros</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="18" class="loading">No se encontraron registros</td></tr>';
         return;
     }
 
@@ -4608,7 +4522,8 @@ function renderAudit() {
             + '<td style="text-align:right;color:' + (r.fueProrrateado ? 'var(--warning)' : 'var(--success)') + ';">$' + (r.montoFinalProrrateo || 0).toLocaleString('es-CO') + '</td>'
             + '<td style="text-align:center;">' + (r.diasLaborados || '—') + '</td>'
             + '<td style="text-align:center;">' + dispBadge + '</td>'
-            + '<td style="text-align:right;font-weight:700;color:var(--warning);">' + (r.bonoKPIsSelec != null ? '$' + Number(r.bonoKPIsSelec).toLocaleString('es-CO') : '—') + '</td>'
+            + '<td style="text-align:right;color:var(--text-main);font-weight:600;">' + (r.montoDisputado != null && r.montoDisputado > 0 ? '$' + Number(r.montoDisputado).toLocaleString('es-CO') : '—') + '</td>'
+            + '<td style="text-align:right;font-weight:700;color:var(--warning);">' + (r.bonoKPIsSelec != null && r.bonoKPIsSelec > 0 ? '$' + Number(r.bonoKPIsSelec).toLocaleString('es-CO') : '—') + '</td>'
             + '<td><span class="badge ' + ecls + '">' + estadoStr + '</span></td>'
             + '<td style="min-width:110px;">' + estructuraBadge + gateBadge + '</td>'
             + '<td><button class="btn-info btn-sm" onclick="verDetallesAgente(\'' + r.bmsId + '\',\'' + (r.nombreAgente || '').replace(/'/g, "\\'") + '\')">👁️ Ver</button></td>'
@@ -4704,6 +4619,7 @@ const EXPORT_COLS_DEFAULT = [
     { key: 'ausencias',          label: 'Ausencias',           activa: false },
     { key: 'tieneDisputa',       label: 'Tiene Disputa',       activa: true  },
     { key: 'comentarioDisputa',  label: 'Comentario Disputa',  activa: true  },
+    { key: 'montoDisputado',     label: 'Monto Disputado ($)', activa: true  },
     { key: 'bonoKPIsSelec',      label: 'Bono KPIs Selec ($)', activa: true  },
     { key: 'estado',             label: 'Estado',              activa: true  },
     { key: 'mesCDM',             label: 'Mes CDM',             activa: true  },
@@ -5002,21 +4918,77 @@ function percentil(arr,p) { const s = [...arr].sort((a,b) => a-b); const idx = (
 function detectarKPIs() {
     const detalle = STATE.kpiDetalle || [];
     if (!detalle.length) { _detectarKPIsFallback(); return; }
+
     const kpiMap = {};
+
     detalle.forEach(r => {
-        const nombreKPI = (r.kpi || r.nombreKPI || r.kpiNombre || r.nombre || r.concepto || r.descripcion || r.incentivo || r.tipoKPI || '').trim();
+        const nombreKPI = (
+            r.kpi || r.nombreKPI || r.kpiNombre ||
+            r.nombre || r.concepto || r.descripcion ||
+            r.incentivo || r.tipoKPI || ''
+        ).trim();
+
         const categoria = (r.categoria || '').trim();
-        const kpiId     = nombreKPI ? (nombreKPI + '||' + categoria) : ('SIN_NOMBRE||' + categoria + '||' + (r.lob||''));
-        if (!kpiMap[kpiId]) kpiMap[kpiId] = { id: kpiId, nombre: nombreKPI || ('⚠️ KPI sin nombre [' + categoria + ']'), categoria: _normalizarCategoria(categoria), registros: [], lobs: new Set(), meses: new Set(), montos: [], scoreObjetivoMuestra: '' };
+        const kpiId     = nombreKPI
+            ? (nombreKPI + '||' + categoria)
+            : ('SIN_NOMBRE||' + categoria + '||' + (r.lob || ''));
+
+        if (!kpiMap[kpiId]) {
+            kpiMap[kpiId] = {
+                id:                   kpiId,
+                nombre:               nombreKPI || ('⚠️ KPI sin nombre [' + categoria + ']'),
+                categoria:            _normalizarCategoria(categoria),
+                registros:            [],
+                lobs:                 new Set(),
+                meses:                new Set(),
+                montos:               [],
+                // ✅ FIX: guardar TODOS los objetivos únicos, no solo uno
+                objetivosUnicos:      new Set(),
+                scoreObjetivoMuestra: ''
+            };
+        }
+
         kpiMap[kpiId].registros.push(r);
-        kpiMap[kpiId].montos.push(parseFloat(r.bono) || 0);
+        kpiMap[kpiId].montos.push(parseFloat(String(r.bono || '0').replace(',', '.')) || 0);
         if (r.lob)    kpiMap[kpiId].lobs.add(r.lob);
         if (r.mesCDM) kpiMap[kpiId].meses.add(r.mesCDM);
-        if (!kpiMap[kpiId].scoreObjetivoMuestra && r.scoreObjetivo) kpiMap[kpiId].scoreObjetivoMuestra = r.scoreObjetivo;
-    });
-    ANALISIS_STATE.kpis = Object.values(kpiMap).map(k => ({ ...k, lobs: Array.from(k.lobs), meses: Array.from(k.meses), montosPositivos: k.montos.filter(m => m > 0) })).filter(k => k.registros.length > 0).sort((a,b) => b.registros.length - a.registros.length);
-}
 
+        // ✅ FIX: recoger Score Objetivo limpiando coma decimal
+        if (r.scoreObjetivo && String(r.scoreObjetivo).trim() !== '') {
+            const objLimpio = String(r.scoreObjetivo).trim().replace(',', '.');
+            kpiMap[kpiId].objetivosUnicos.add(objLimpio);
+
+            // Guardar muestra del primero que tenga valor
+            if (!kpiMap[kpiId].scoreObjetivoMuestra) {
+                kpiMap[kpiId].scoreObjetivoMuestra = objLimpio;
+            }
+        }
+    });
+
+    ANALISIS_STATE.kpis = Object.values(kpiMap).map(k => ({
+        ...k,
+        lobs:            Array.from(k.lobs),
+        meses:           Array.from(k.meses),
+        // ✅ FIX: convertir Set a Array ordenado de objetivos
+        objetivosUnicos: Array.from(k.objetivosUnicos).sort((a, b) => {
+            const nA = parseFloat(a), nB = parseFloat(b);
+            return isNaN(nA) || isNaN(nB) ? a.localeCompare(b) : nA - nB;
+        }),
+        montosPositivos: k.montos.filter(m => m > 0)
+    }))
+    .filter(k => k.registros.length > 0)
+    .sort((a, b) => b.registros.length - a.registros.length);
+
+    // ✅ DEBUG: verificar que los objetivos llegaron bien
+    console.log('🔍 KPIs detectados:', ANALISIS_STATE.kpis.length);
+    console.table(ANALISIS_STATE.kpis.slice(0, 10).map(k => ({
+        nombre:          k.nombre,
+        categoria:       k.categoria,
+        registros:       k.registros.length,
+        objetivos:       k.objetivosUnicos.join(' | '),
+        scoreObjMuestra: k.scoreObjetivoMuestra
+    })));
+}
 function _detectarKPIsFallback() {
     const aprobaciones = (STATE.audit||[]).filter(r => r.tipoAccion === 'Aprobación' && (r.monto||0) > 0);
     const kpiMap = {};
@@ -5226,11 +5198,17 @@ function _renderSelectorMes() {
     if (!cont) return;
     const mesesDisp = window.MESES_DISPONIBLES || [];
     const mesPrin   = window.MES_PRINCIPAL     || '';
-    const nCtx      = window.MESES_CONTEXTO_N  || 2;
+    const nCtx      = window.MESES_CONTEXTO_N  !== undefined ? window.MESES_CONTEXTO_N : 2;
     const paleta    = window.PALETA_MESES       || {};
     const mesesAnalisis = _calcularMesesAnalisis(mesPrin, nCtx, mesesDisp);
+
+    // ✅ Detectar si están TODOS los meses seleccionados
+    const todosSeleccionados = nCtx >= mesesDisp.length - 1 && mesesDisp.length > 1;
+
     cont.innerHTML = `
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;width:100%;">
+
+            <!-- Mes principal -->
             <span style="font-size:0.78rem;color:var(--text-muted);font-weight:700;white-space:nowrap;">📅 Mes principal:</span>
             <div style="display:flex;flex-wrap:wrap;gap:5px;">
                 ${mesesDisp.map(m => {
@@ -5238,32 +5216,107 @@ function _renderSelectorMes() {
                     const esCtx  = mesesAnalisis.contexto.includes(m);
                     const color  = paleta[m] || 'var(--secondary)';
                     const label  = m.charAt(0).toUpperCase() + m.slice(1);
-                    return `<button onclick="seleccionarMesPrincipal('${m}')" style="padding:5px 13px;border-radius:20px;cursor:pointer;font-size:0.78rem;font-weight:${esPrin?'700':'500'};font-family:inherit;transition:all 0.15s;border:1.5px solid ${esPrin||esCtx?color:'var(--border)'};background:${esPrin?color:esCtx?color+'22':'var(--bg-card)'};color:${esPrin?'white':esCtx?color:'var(--text-sub)'};box-shadow:${esPrin?'0 3px 8px '+color+'44':'none'};transform:${esPrin?'scale(1.05)':'scale(1)'};">${esPrin?'📊 ':esCtx?'◈ ':''}${label}</button>`;
+                    return `<button onclick="seleccionarMesPrincipal('${m}')"
+                        style="padding:5px 13px;border-radius:20px;cursor:pointer;
+                        font-size:0.78rem;font-weight:${esPrin ? '700' : '500'};
+                        font-family:inherit;transition:all 0.15s;
+                        border:1.5px solid ${esPrin || esCtx ? color : 'var(--border)'};
+                        background:${esPrin ? color : esCtx ? color + '22' : 'var(--bg-card)'};
+                        color:${esPrin ? 'white' : esCtx ? color : 'var(--text-sub)'};
+                        box-shadow:${esPrin ? '0 3px 8px ' + color + '44' : 'none'};
+                        transform:${esPrin ? 'scale(1.05)' : 'scale(1)'};">
+                        ${esPrin ? '📊 ' : esCtx ? '◈ ' : ''}${label}
+                    </button>`;
                 }).join('')}
             </div>
-            <div style="display:flex;align-items:center;gap:7px;margin-left:6px;background:var(--bg-subtle);border-radius:20px;padding:6px 12px;border:1px solid var(--border);">
+
+            <!-- Contexto: slider + label + botón Todos -->
+            <div style="display:flex;align-items:center;gap:7px;margin-left:6px;
+                background:var(--bg-subtle);border-radius:20px;padding:6px 12px;
+                border:1px solid var(--border);">
                 <span style="font-size:0.74rem;color:var(--text-muted);white-space:nowrap;">📉 Contexto:</span>
-                <input type="range" min="0" max="${Math.min(mesesDisp.length-1,5)}" value="${nCtx}" oninput="cambiarContexto(this.value,this)" style="width:75px;accent-color:var(--secondary);cursor:pointer;">
-                <span id="ctx-label" style="font-size:0.8rem;font-weight:700;color:var(--secondary);min-width:58px;white-space:nowrap;">${nCtx===0?'Solo este':nCtx+' mes'+(nCtx>1?'es':'')+' atrás'}</span>
+                <input type="range"
+                    min="0"
+                    max="${mesesDisp.length - 1}"
+                    value="${nCtx}"
+                    oninput="cambiarContexto(this.value, this)"
+                    style="width:75px;accent-color:var(--secondary);cursor:pointer;">
+                <span id="ctx-label"
+                    style="font-size:0.8rem;font-weight:700;color:var(--secondary);
+                    min-width:58px;white-space:nowrap;">
+                    ${nCtx === 0
+                        ? 'Solo este'
+                        : todosSeleccionados
+                        ? 'Todos'
+                        : nCtx + ' mes' + (nCtx > 1 ? 'es' : '') + ' atrás'}
+                </span>
+
+                <!-- ✅ Botón Todos -->
+                <button onclick="seleccionarTodosLosMeses()"
+                    style="padding:3px 12px;border-radius:20px;cursor:pointer;
+                    font-size:0.72rem;font-weight:700;font-family:inherit;
+                    transition:all 0.15s;white-space:nowrap;
+                    border:1.5px solid var(--secondary);
+                    background:${todosSeleccionados ? 'var(--secondary)' : 'transparent'};
+                    color:${todosSeleccionados ? 'white' : 'var(--secondary)'};
+                    box-shadow:${todosSeleccionados ? '0 2px 8px rgba(59,130,246,0.35)' : 'none'};">
+                    📅 Todos
+                </button>
             </div>
         </div>
+
+        <!-- Barra "Analizando:" -->
         <div style="width:100%;margin-top:10px;">
-            <div style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;background:var(--bg-card);border-radius:var(--radius);padding:7px 14px;border:1px solid var(--border);">
+            <div style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;
+                background:var(--bg-card);border-radius:var(--radius);
+                padding:7px 14px;border:1px solid var(--border);">
                 <span style="font-size:0.76rem;color:var(--text-sub);font-weight:600;">Analizando:</span>
-                ${mesesAnalisis.todos.map((m,i) => {
+                ${mesesAnalisis.todos.map((m, i) => {
                     const esPrin = m === mesPrin;
                     const color  = paleta[m] || 'var(--secondary)';
-                    return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:10px;background:${esPrin?color:color+'18'};color:${esPrin?'white':color};font-size:0.76rem;font-weight:${esPrin?'700':'600'};">
-                        <span style="width:6px;height:6px;border-radius:50%;background:${esPrin?'rgba(255,255,255,0.8)':color};flex-shrink:0;"></span>
-                        ${m.charAt(0).toUpperCase()+m.slice(1)}
-                        ${esPrin?'<span style="font-size:0.62rem;opacity:0.8;">(principal)</span>':''}
-                    </span>${i<mesesAnalisis.todos.length-1?'<span style="color:var(--border-2);">→</span>':''}`;
+                    return `<span style="display:inline-flex;align-items:center;gap:4px;
+                        padding:3px 10px;border-radius:10px;
+                        background:${esPrin ? color : color + '18'};
+                        color:${esPrin ? 'white' : color};
+                        font-size:0.76rem;font-weight:${esPrin ? '700' : '600'};">
+                        <span style="width:6px;height:6px;border-radius:50%;
+                            background:${esPrin ? 'rgba(255,255,255,0.8)' : color};
+                            flex-shrink:0;"></span>
+                        ${m.charAt(0).toUpperCase() + m.slice(1)}
+                        ${esPrin ? '<span style="font-size:0.62rem;opacity:0.8;">(principal)</span>' : ''}
+                    </span>${i < mesesAnalisis.todos.length - 1
+                        ? '<span style="color:var(--border-2);">→</span>'
+                        : ''}`;
                 }).join('')}
-                <span style="font-size:0.72rem;color:var(--text-muted);margin-left:2px;">· ${mesesAnalisis.todos.length} período${mesesAnalisis.todos.length>1?'s':''}</span>
+                <span style="font-size:0.72rem;color:var(--text-muted);margin-left:2px;">
+                    · ${mesesAnalisis.todos.length} período${mesesAnalisis.todos.length > 1 ? 's' : ''}
+                </span>
+
+                ${todosSeleccionados ? `
+                    <span style="background:#dcfce7;color:#166534;padding:2px 10px;
+                        border-radius:10px;font-size:0.7rem;font-weight:700;
+                        border:1px solid #bbf7d0;margin-left:4px;">
+                        ✅ Todos los períodos
+                    </span>` : ''}
             </div>
         </div>`;
 }
 
+
+function seleccionarTodosLosMeses() {
+    const mesesDisp = window.MESES_DISPONIBLES || [];
+    if (!mesesDisp.length) return;
+    
+    // Poner el mes principal como el ÚLTIMO mes disponible
+    window.MES_PRINCIPAL    = mesesDisp[mesesDisp.length - 1];
+    // Contexto = todos los meses anteriores
+    window.MESES_CONTEXTO_N = mesesDisp.length - 1;
+    
+    _renderSelectorMes();
+    _refrescarAnalisis();
+    
+    toast('📅 Analizando todos los meses: ' + mesesDisp.length + ' período(s)', 'info');
+}
 function _calcularMesesAnalisis(mesPrin, nCtx, mesesDisp) {
     const idxPrin = mesesDisp.indexOf(mesPrin);
     if (idxPrin === -1) return { principal: mesPrin, contexto: [], todos: [mesPrin] };
@@ -5283,10 +5336,21 @@ function getMesesActivos() {
 
 function seleccionarMesPrincipal(mes) { window.MES_PRINCIPAL = mes; _renderSelectorMes(); _refrescarAnalisis(); }
 function cambiarContexto(val, slider) {
+    const mesesDisp = window.MESES_DISPONIBLES || [];
     window.MESES_CONTEXTO_N = parseInt(val);
     const label = document.getElementById('ctx-label');
-    if (label) label.textContent = val == 0 ? 'Solo este' : val + ' mes' + (val>1?'es':'')+' atrás';
-    _renderSelectorMes(); _refrescarAnalisis();
+    if (label) {
+        const n = parseInt(val);
+        if (n === 0) {
+            label.textContent = 'Solo este';
+        } else if (n >= mesesDisp.length - 1) {
+            label.textContent = 'Todos';
+        } else {
+            label.textContent = n + ' mes' + (n > 1 ? 'es' : '') + ' atrás';
+        }
+    }
+    _renderSelectorMes();
+    _refrescarAnalisis();
 }
 function _refrescarAnalisis() { renderKPISelectorGrid(); if (ANALISIS_STATE.kpiSeleccionado) seleccionarKPI(ANALISIS_STATE.kpiSeleccionado); }
 
@@ -5298,196 +5362,600 @@ function filtrarCategoriaAnalisis(cat, btn) {
     renderKPISelectorGrid();
 }
 
-// seleccionarKPI, renderRankingDetalle, renderRecomendaciones — sin cambios
+// ============================================================
+// FUNCIÓN GLOBAL parsearNum — reemplaza TODAS las ocurrencias
+// Pega esto al inicio del <script>, antes de cualquier otra función
+// ============================================================
+function parsearNumGlobal(val) {
+    if (val === null || val === undefined || val === '') return null;
+    
+    // ✅ Si ya es número nativo, devolverlo directo
+    if (typeof val === 'number') return isNaN(val) ? null : val;
+    
+    const str = String(val).trim();
+    if (str === '' || str === '-' || str === '—') return null;
+    
+    let clean = str;
+    
+    // ✅ Caso Colombia/España: "12,92" → 12.92
+    // Regla: UNA sola coma, dígitos después son 1-4
+    if (/^\d+,\d{1,4}$/.test(clean)) {
+        clean = clean.replace(',', '.');
+    }
+    // Formato europeo con miles: "1.234,56" → 1234.56
+    else if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(clean)) {
+        clean = clean.replace(/\./g, '').replace(',', '.');
+    }
+    // Formato americano con miles: "1,234.56" → 1234.56
+    else if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(clean)) {
+        clean = clean.replace(/,/g, '');
+    }
+    // Ya tiene punto decimal: "12.92"
+    else if (/^\d+\.\d+$/.test(clean)) {
+        // ya está bien
+    }
+    // Número entero o con signo negativo
+    else {
+        clean = clean.replace(/[^0-9.\-]/g, '');
+    }
+    
+    const n = parseFloat(clean);
+    return isNaN(n) ? null : n;
+}
+
+
+// ============================================================
+// seleccionarKPI — FUNCIÓN COMPLETA CON TODOS LOS FIXES
+// ============================================================
 function seleccionarKPI(nombre) {
     ANALISIS_STATE.kpiSeleccionado = nombre;
     renderKPISelectorGrid();
+
     const lobFil = document.getElementById('an-lob')?.value || '';
     const kpi    = ANALISIS_STATE.kpis.find(k => k.nombre === nombre);
     if (!kpi) return;
+
     let registros = kpi.registros;
     if (lobFil) registros = registros.filter(r => r.lob === lobFil);
     const mesesActivos = getMesesActivos();
     if (mesesActivos) registros = registros.filter(r => mesesActivos.includes(r.mesCDM));
     if (!registros.length) { toast('Sin datos para los filtros seleccionados', 'warning'); return; }
-    const registrosCumple   = registros.filter(r => String(r.estado||'').toLowerCase().trim() === 'cumple');
-    const registrosNoCumple = registros.filter(r => String(r.estado||'').toLowerCase().trim() !== 'cumple');
+
+    // ✅ parsearNum LOCAL — robusto para coma/punto decimal
+    function parsearNum(val) {
+        return parsearNumGlobal(val);
+    }
+
+    function parsearScoreObjetivo(texto) {
+        if (!texto) return { umbral: null, pct: null, op: '>=', raw: '' };
+        const t        = String(texto).trim();
+        const matchOp  = t.match(/^([<>]=?)/);
+        const op       = matchOp ? matchOp[1] : '>=';
+        const matchPct = t.match(/\((\d+(?:[.,]\d+)?)\s*%?\)/);
+        const pct      = matchPct ? parseFloat(matchPct[1].replace(',', '.')) : null;
+        const sinParen = t.replace(/\(.*?\)/g, '').trim();
+        const matchUmb = sinParen.match(/(\d+(?:[.,]\d+)?)/);
+        return {
+            umbral: matchUmb ? parseFloat(matchUmb[1].replace(',', '.')) : null,
+            pct, op, raw: t
+        };
+    }
+
+    const registrosCumple   = registros.filter(r => String(r.estado || '').toLowerCase().trim() === 'cumple');
+    const registrosNoCumple = registros.filter(r => String(r.estado || '').toLowerCase().trim() !== 'cumple');
+
     document.getElementById('analisis-detail').style.display = '';
-    const objetivosUnicosDisplay = [...new Set(registros.map(r => (r.scoreObjetivo||'').trim()).filter(Boolean))].slice(0,4).join(' | ');
+
+    const objetivosUnicosDisplay = [...new Set(
+        registros.map(r => (r.scoreObjetivo || '').trim()).filter(Boolean)
+    )].slice(0, 4).join(' | ');
+
     document.getElementById('analisis-kpi-titulo').innerHTML =
         '📊 KPI: <span style="color:var(--secondary);font-weight:800;">' + nombre + '</span>'
-        + (objetivosUnicosDisplay ? ` <span style="font-size:0.78rem;background:#f0e6ff;color:#6c3483;padding:2px 10px;border-radius:10px;font-weight:700;margin-left:6px;">🎯 Objetivo: ${objetivosUnicosDisplay}</span>` : '')
+        + (objetivosUnicosDisplay
+            ? ` <span style="font-size:0.78rem;background:#f0e6ff;color:#6c3483;padding:2px 10px;border-radius:10px;font-weight:700;margin-left:6px;">🎯 Objetivo: ${objetivosUnicosDisplay}</span>`
+            : '')
         + ' — ' + registros.length + ' registros'
         + ` <small style="color:var(--text-muted);font-size:0.78rem;">(${registrosCumple.length} ✅ / ${registrosNoCumple.length} ❌)</small>`;
 
-    function parsearNum(val) { if(val===null||val===undefined||val==='')return null; const n=parseFloat(String(val).replace(/[^0-9.,\-]/g,'').replace(',','.')); return isNaN(n)?null:n; }
-    function parsearScoreObjetivo(texto) {
-        if (!texto) return { umbral:null,pct:null,op:'>=',raw:'' };
-        const t=String(texto).trim(), matchOp=t.match(/^([<>]=?)/), op=matchOp?matchOp[1]:'>=';
-        const matchPct=t.match(/\((\d+(?:[.,]\d+)?)\s*%?\)/), pct=matchPct?parseFloat(matchPct[1].replace(',','.')):null;
-        const sinParen=t.replace(/\(.*?\)/g,'').trim(), matchUmb=sinParen.match(/(\d+(?:[.,]\d+)?)/);
-        return { umbral:matchUmb?parseFloat(matchUmb[1].replace(',','.')):null, pct, op, raw:t };
-    }
-
+    // ── Pisos ───────────────────────────────────────────────────────
     const pisosMap = {};
-    registros.forEach(r => { const parsed = parsearScoreObjetivo(r.scoreObjetivo); if (parsed.umbral !== null) { const k = parsed.umbral; if (!pisosMap[k]) pisosMap[k] = { ...parsed, registros: [] }; pisosMap[k].registros.push(r); } });
-    const pisos      = Object.values(pisosMap).sort((a,b) => a.umbral - b.umbral);
-    const tienePisos = pisos.length > 1;
+    registros.forEach(r => {
+        const parsed = parsearScoreObjetivo(r.scoreObjetivo);
+        if (parsed.umbral !== null) {
+            const k = parsed.umbral;
+            if (!pisosMap[k]) pisosMap[k] = { ...parsed, registros: [] };
+            pisosMap[k].registros.push(r);
+        }
+    });
+    const pisos         = Object.values(pisosMap).sort((a, b) => a.umbral - b.umbral);
+    const tienePisos    = pisos.length > 1;
     const objetivosUnicos = pisos.map(p => p.umbral);
 
-    const mapaAgenteMes = {};
+    // ── Detectar outliers de escala ─────────────────────────────────
+    const todosValoresRaw = registros
+        .map(r => parsearNum(
+            r.valorObtenido !== undefined && r.valorObtenido !== null && r.valorObtenido !== ''
+                ? r.valorObtenido
+                : (r.score !== undefined ? r.score : null)
+        ))
+        .filter(v => v !== null);
+
+    const objParsedRef  = parsearScoreObjetivo(registros[0]?.scoreObjetivo || '');
+    const umbralObjRef  = objParsedRef.umbral;
+    const opObjRef      = objParsedRef.op;
+
+    function esOutlierEscala(val, umbral, op) {
+        if (!umbral || val === null) return false;
+        if ((op === '<=' || op === '<') && umbral <= 20) {
+            const valoresEnRango = todosValoresRaw.filter(v => v <= umbral * 3).length;
+            if (valoresEnRango / todosValoresRaw.length >= 0.2 && val > umbral * 5) return true;
+        }
+        return false;
+    }
+
+    // ── Mapa agente/mes ─────────────────────────────────────────────
+    const mapaAgenteMes  = {};
+    let   outliersCount  = 0;
+    const outliersDetect = [];
+
     registros.forEach(r => {
-        const key         = (r.bmsId||'') + '|' + (r.mesCDM||'');
-        const scoreAgente = parsearNum(r.valorObtenido ?? r.score ?? r.valorCDM);
-        const cumple      = String(r.estado||'').toLowerCase().trim() === 'cumple';
-        const bono        = parsearNum(r.bono) ?? 0;
-        if (!mapaAgenteMes[key]) mapaAgenteMes[key] = { bmsId: r.bmsId, nombreAgente: r.nombreAgente, lob: r.lob, mesCDM: r.mesCDM, scoreAgente: null, cumpleAlgunPiso: false, bonoPositivo: 0, bonoPenalizacion: 0 };
+        const key      = (r.bmsId || '') + '|' + (r.mesCDM || '');
+        const rawScore = r.valorObtenido !== undefined && r.valorObtenido !== null && r.valorObtenido !== ''
+                       ? r.valorObtenido
+                       : (r.score !== undefined ? r.score : (r.valorCDM !== undefined ? r.valorCDM : null));
+
+        let scoreAgente = parsearNum(rawScore);
+        const cumple    = String(r.estado || '').toLowerCase().trim() === 'cumple';
+        const bono      = parsearNum(r.bono) ?? 0;
+
+        // ✅ Detectar y corregir outlier
+        const esOutlier = umbralObjRef !== null && esOutlierEscala(scoreAgente, umbralObjRef, opObjRef);
+        if (esOutlier) {
+            outliersCount++;
+            outliersDetect.push({
+                bms:    r.bmsId,
+                nombre: r.nombreAgente,
+                val:    scoreAgente,
+                mes:    r.mesCDM
+            });
+            const factorCorr = umbralObjRef > 0
+                ? Math.pow(10, Math.floor(Math.log10(scoreAgente / umbralObjRef)))
+                : 1;
+            if (factorCorr > 1) scoreAgente = scoreAgente / factorCorr;
+        }
+
+        if (!mapaAgenteMes[key]) {
+            mapaAgenteMes[key] = {
+                bmsId:            r.bmsId,
+                nombreAgente:     r.nombreAgente,
+                lob:              r.lob,
+                mesCDM:           r.mesCDM,
+                scoreAgente:      null,
+                cumpleAlgunPiso:  false,
+                bonoPositivo:     0,
+                bonoPenalizacion: 0,
+                rawScoreMuestra:  rawScore,
+                esOutlier:        esOutlier
+            };
+        }
         if (cumple) mapaAgenteMes[key].cumpleAlgunPiso = true;
         if (bono > 0) mapaAgenteMes[key].bonoPositivo    += bono;
         if (bono < 0) mapaAgenteMes[key].bonoPenalizacion += bono;
-        if (scoreAgente !== null && (mapaAgenteMes[key].scoreAgente === null || scoreAgente > mapaAgenteMes[key].scoreAgente)) mapaAgenteMes[key].scoreAgente = scoreAgente;
+
+        if (scoreAgente !== null) {
+            if (mapaAgenteMes[key].scoreAgente === null) {
+                mapaAgenteMes[key].scoreAgente = scoreAgente;
+            } else {
+                mapaAgenteMes[key].scoreAgente = Math.max(
+                    mapaAgenteMes[key].scoreAgente, scoreAgente
+                );
+            }
+        }
     });
+
+    // ✅ Log outliers detectados
+    if (outliersCount > 0) {
+        console.warn('⚠️ Outliers detectados para "' + nombre + '": ' + outliersCount);
+        console.table(outliersDetect);
+    }
+
     const agentesData = Object.values(mapaAgenteMes);
 
-    const mapaBonoNeto = {};
-    (STATE.kpiDetalle||[]).forEach(r => { const key=(r.bmsId||'')+'|'+(r.mesCDM||''); const bono=parsearNum(r.bono)??0; if(!mapaBonoNeto[key])mapaBonoNeto[key]=0; mapaBonoNeto[key]+=bono; });
-    agentesData.forEach(a => { const key=(a.bmsId||'')+'|'+(a.mesCDM||''); a.bonoNeto=mapaBonoNeto[key]??(a.bonoPositivo+a.bonoPenalizacion); a.bonoNetoKPI=a.bonoPositivo+a.bonoPenalizacion; });
+    // ── Debug: verificar scores parseados ──────────────────────────
+    console.log('🔍 Scores parseados para KPI: ' + nombre);
+    console.table(agentesData.slice(0, 10).map(a => ({
+        bms:          a.bmsId,
+        rawScore:     a.rawScoreMuestra,
+        scoreParseado: a.scoreAgente,
+        cumple:       a.cumpleAlgunPiso,
+        esOutlier:    a.esOutlier
+    })));
 
+    // ── Bono neto por agente ────────────────────────────────────────
+    const mapaBonoNeto = {};
+    (STATE.kpiDetalle || []).forEach(r => {
+        const key  = (r.bmsId || '') + '|' + (r.mesCDM || '');
+        const bono = parsearNum(r.bono) ?? 0;
+        if (!mapaBonoNeto[key]) mapaBonoNeto[key] = 0;
+        mapaBonoNeto[key] += bono;
+    });
+    agentesData.forEach(a => {
+        const key    = (a.bmsId || '') + '|' + (a.mesCDM || '');
+        a.bonoNeto   = mapaBonoNeto[key] ?? (a.bonoPositivo + a.bonoPenalizacion);
+        a.bonoNetoKPI = a.bonoPositivo + a.bonoPenalizacion;
+    });
+
+    // ── Estadísticas ────────────────────────────────────────────────
     const scores       = agentesData.map(a => a.scoreAgente).filter(v => v !== null);
-    const scoresSorted = [...scores].sort((a,b) => a-b);
-    const mediaS   = scores.length>0?calcMedia(scores):0;
-    const medianaS = scores.length>0?calcMediana(scores):0;
-    const modaS    = scores.length>0?calcModa(scores):0;
-    const desvS    = scores.length>0?calcDesvest(scores):0;
-    const minS     = scores.length>0?scoresSorted[0]:0;
-    const maxS     = scores.length>0?scoresSorted[scoresSorted.length-1]:0;
-    const p10S     = scores.length>0?percentil(scoresSorted,10):0;
-    const p90S     = scores.length>0?percentil(scoresSorted,90):0;
-    const cvS      = mediaS>0?((desvS/mediaS)*100).toFixed(1)+'%':'—';
+    const scoresSorted = [...scores].sort((a, b) => a - b);
+    const mediaS   = scores.length > 0 ? calcMedia(scores)   : 0;
+    const medianaS = scores.length > 0 ? calcMediana(scores) : 0;
+    const modaS    = scores.length > 0 ? calcModa(scores)    : 0;
+    const desvS    = scores.length > 0 ? calcDesvest(scores) : 0;
+    const minS     = scores.length > 0 ? scoresSorted[0]     : 0;
+    const maxS     = scores.length > 0 ? scoresSorted[scoresSorted.length - 1] : 0;
+    const p10S     = scores.length > 0 ? percentil(scoresSorted, 10) : 0;
+    const p90S     = scores.length > 0 ? percentil(scoresSorted, 90) : 0;
+    const cvS      = mediaS > 0 ? ((desvS / mediaS) * 100).toFixed(1) + '%' : '—';
     const nTotal   = agentesData.length;
-    const nCumplen = agentesData.filter(a=>a.cumpleAlgunPiso).length;
-    const pctCobranStr = nTotal>0?nCumplen+' / '+nTotal+' ('+((nCumplen/nTotal)*100).toFixed(0)+'%)':'—';
-    const totalPositivo     = registros.map(r=>parsearNum(r.bono)??0).filter(v=>v>0).reduce((s,v)=>s+v,0);
-    const totalPenalizacion = registros.map(r=>parsearNum(r.bono)??0).filter(v=>v<0).reduce((s,v)=>s+v,0);
+    const nCumplen = agentesData.filter(a => a.cumpleAlgunPiso).length;
+    const pctCobranStr = nTotal > 0
+        ? nCumplen + ' / ' + nTotal + ' (' + ((nCumplen / nTotal) * 100).toFixed(0) + '%)'
+        : '—';
+
+    const totalPositivo     = registros.map(r => parsearNum(r.bono) ?? 0).filter(v => v > 0).reduce((s, v) => s + v, 0);
+    const totalPenalizacion = registros.map(r => parsearNum(r.bono) ?? 0).filter(v => v < 0).reduce((s, v) => s + v, 0);
     const totalBonoNeto     = totalPositivo + totalPenalizacion;
 
-    const fmt2 = v => (isNaN(v)||v===null)?'—':Number(v).toFixed(2);
-    setVal('an-media',   fmt2(mediaS));    setVal('an-mediana', fmt2(medianaS));
-    setVal('an-moda',    fmt2(modaS));     setVal('an-desvest', fmt2(desvS));
-    setVal('an-min',     fmt2(minS));      setVal('an-max',     fmt2(maxS));
-    setVal('an-rango',   fmt2(p90S-p10S)); setVal('an-cobran',  pctCobranStr);
-    setVal('an-total',   fmtMoney(totalBonoNeto)); setVal('an-cv', cvS);
+    const fmt2 = v => (isNaN(v) || v === null) ? '—' : Number(v).toFixed(2);
+    setVal('an-media',   fmt2(mediaS));
+    setVal('an-mediana', fmt2(medianaS));
+    setVal('an-moda',    fmt2(modaS));
+    setVal('an-desvest', fmt2(desvS));
+    setVal('an-min',     fmt2(minS));
+    setVal('an-max',     fmt2(maxS));
+    setVal('an-rango',   fmt2(p90S - p10S));
+    setVal('an-cobran',  pctCobranStr);
+    setVal('an-total',   fmtMoney(totalBonoNeto));
+    setVal('an-cv',      cvS);
 
-    // Histograma
+    // ✅ Alerta outliers en UI
+    const alertaOutlier = document.getElementById('analisis-alerta-outlier');
+    if (alertaOutlier) {
+        if (outliersCount > 0) {
+            alertaOutlier.style.display = 'block';
+            alertaOutlier.innerHTML = `
+                <div style="
+                    background:linear-gradient(135deg,#fef3c7,#fffbeb);
+                    border:1.5px solid #f59e0b;
+                    border-left:4px solid #d97706;
+                    border-radius:12px;
+                    padding:14px 18px;
+                    margin-bottom:16px;
+                    display:flex;
+                    align-items:flex-start;
+                    gap:12px;
+                ">
+                    <div style="font-size:1.5rem;flex-shrink:0;">⚠️</div>
+                    <div>
+                        <div style="font-weight:800;font-size:0.9rem;color:#92400e;margin-bottom:5px;">
+                            Valores fuera de escala detectados — ${outliersCount} registro(s) corregidos automáticamente
+                        </div>
+                        <div style="font-size:0.82rem;color:#78350f;line-height:1.5;">
+                            Se detectaron <strong>${outliersCount} valor(es)</strong> fuera de escala 
+                            para el KPI <strong>"${nombre}"</strong> 
+                            (objetivo: <strong>${registros[0]?.scoreObjetivo || '?'}</strong>).
+                            <br>
+                            Valores originales sospechosos: 
+                            <strong style="color:#92400e;">${outliersDetect.map(o => o.val).join(', ')}</strong>
+                            <br>
+                            Agentes afectados: 
+                            <strong>${outliersDetect.map(o => o.nombre || o.bms).slice(0, 5).join(', ')}</strong>
+                            <br>
+                            <span style="color:#92400e;font-size:0.78rem;">
+                                💡 Revisa estos registros en la hoja <strong>Audit_Detalle</strong> 
+                                y corrige los valores ingresados incorrectamente.
+                            </span>
+                        </div>
+                    </div>
+                </div>`;
+        } else {
+            alertaOutlier.style.display = 'none';
+        }
+    }
+
+    // ── Histograma ──────────────────────────────────────────────────
     (function() {
         const ctx = document.getElementById('chart-histograma');
         if (!ctx || !scores.length) return;
         if (ANALISIS_STATE.charts.histograma) ANALISIS_STATE.charts.histograma.destroy();
-        const min=scoresSorted[0], max=scoresSorted[scoresSorted.length-1], bins=8, step=(max-min)/bins||1;
-        const buckets=Array.from({length:bins},(_,i)=>({label:(min+i*step).toFixed(1)+'–'+(min+(i+1)*step).toFixed(1),count:0}));
-        scores.forEach(v=>{buckets[Math.min(Math.floor((v-min)/step),bins-1)].count++;});
-        const minObj=objetivosUnicos.length>0?Math.min(...objetivosUnicos):null;
+        const min  = scoresSorted[0];
+        const max  = scoresSorted[scoresSorted.length - 1];
+        const bins = 8;
+        const step = (max - min) / bins || 1;
+        const buckets = Array.from({ length: bins }, (_, i) => ({
+            label: (min + i * step).toFixed(1) + '–' + (min + (i + 1) * step).toFixed(1),
+            count: 0
+        }));
+        scores.forEach(v => { buckets[Math.min(Math.floor((v - min) / step), bins - 1)].count++; });
+        const minObj = objetivosUnicos.length > 0 ? Math.min(...objetivosUnicos) : null;
         ANALISIS_STATE.charts.histograma = new Chart(ctx, {
-            type:'bar',
-            data:{labels:buckets.map(b=>b.label),datasets:[{label:'Agentes',data:buckets.map(b=>b.count),backgroundColor:buckets.map((_,i)=>{const c=min+(i+0.5)*step;return minObj===null?'rgba(59,130,246,0.75)':c>=minObj?'rgba(16,185,129,0.75)':'rgba(239,68,68,0.75)';}),borderRadius:5,borderWidth:0}]},
-            options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{maxRotation:45,font:{size:9}},grid:{display:false}},y:{beginAtZero:true,ticks:{stepSize:1},grid:{color:'#f1f5f9'}}}}
+            type: 'bar',
+            data: {
+                labels: buckets.map(b => b.label),
+                datasets: [{
+                    label: 'Agentes',
+                    data:  buckets.map(b => b.count),
+                    backgroundColor: buckets.map((_, i) => {
+                        const c = min + (i + 0.5) * step;
+                        return minObj === null ? 'rgba(59,130,246,0.75)'
+                             : c >= minObj     ? 'rgba(16,185,129,0.75)'
+                             :                   'rgba(239,68,68,0.75)';
+                    }),
+                    borderRadius: 5,
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks: { maxRotation: 45, font: { size: 9 } }, grid: { display: false } },
+                    y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: '#f1f5f9' } }
+                }
+            }
         });
     })();
 
-    // Tendencia
+    // ── Tendencia por mes ───────────────────────────────────────────
     (function() {
         const ctx = document.getElementById('chart-tendencia');
         if (!ctx) return;
         if (ANALISIS_STATE.charts.tendencia) ANALISIS_STATE.charts.tendencia.destroy();
-        const ORDEN={enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,agosto:8,septiembre:9,octubre:10,noviembre:11,diciembre:12};
-        const porMes={};
-        agentesData.forEach(a=>{const mes=(a.mesCDM||'').trim();if(!mes)return;if(!porMes[mes])porMes[mes]={scores:[],cumple:0,total:0};if(a.scoreAgente!==null)porMes[mes].scores.push(a.scoreAgente);if(a.cumpleAlgunPiso)porMes[mes].cumple++;porMes[mes].total++;});
-        const meses=Object.keys(porMes).sort((a,b)=>(ORDEN[a.toLowerCase()]||99)-(ORDEN[b.toLowerCase()]||99));
-        if(!meses.length)return;
-        const objRef=objetivosUnicos.length>0?objetivosUnicos[0]:null;
-        const datasets=[
-            {label:'Score promedio',data:meses.map(m=>porMes[m].scores.length>0?+calcMedia(porMes[m].scores).toFixed(2):null),borderColor:'var(--secondary)',backgroundColor:'rgba(59,130,246,0.08)',tension:0.4,fill:true,yAxisID:'y',pointRadius:5,pointHoverRadius:8,pointBorderColor:'#fff',pointBorderWidth:2,spanGaps:true},
-            {label:'% Cumple',data:meses.map(m=>porMes[m].total>0?+((porMes[m].cumple/porMes[m].total)*100).toFixed(0):null),borderColor:'var(--success)',tension:0.4,fill:false,yAxisID:'y2',borderDash:[5,3],pointRadius:4,spanGaps:true},
-            {label:'N° Agentes',data:meses.map(m=>porMes[m].total),borderColor:'var(--warning)',tension:0,fill:false,yAxisID:'y3',borderDash:[2,4],pointRadius:3,borderWidth:1}
+        const ORDEN = { enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,agosto:8,septiembre:9,octubre:10,noviembre:11,diciembre:12 };
+        const porMes = {};
+        agentesData.forEach(a => {
+            const mes = (a.mesCDM || '').trim();
+            if (!mes) return;
+            if (!porMes[mes]) porMes[mes] = { scores: [], cumple: 0, total: 0 };
+            if (a.scoreAgente !== null) porMes[mes].scores.push(a.scoreAgente);
+            if (a.cumpleAlgunPiso) porMes[mes].cumple++;
+            porMes[mes].total++;
+        });
+        const meses  = Object.keys(porMes).sort((a, b) => (ORDEN[a.toLowerCase()] || 99) - (ORDEN[b.toLowerCase()] || 99));
+        if (!meses.length) return;
+        const objRef = objetivosUnicos.length > 0 ? objetivosUnicos[0] : null;
+        const datasets = [
+            {
+                label: 'Score promedio',
+                data: meses.map(m => porMes[m].scores.length > 0 ? +calcMedia(porMes[m].scores).toFixed(2) : null),
+                borderColor: 'var(--secondary)', backgroundColor: 'rgba(59,130,246,0.08)',
+                tension: 0.4, fill: true, yAxisID: 'y',
+                pointRadius: 5, pointHoverRadius: 8,
+                pointBorderColor: '#fff', pointBorderWidth: 2, spanGaps: true
+            },
+            {
+                label: '% Cumple',
+                data: meses.map(m => porMes[m].total > 0 ? +((porMes[m].cumple / porMes[m].total) * 100).toFixed(0) : null),
+                borderColor: 'var(--success)', tension: 0.4, fill: false,
+                yAxisID: 'y2', borderDash: [5, 3], pointRadius: 4, spanGaps: true
+            },
+            {
+                label: 'N° Agentes',
+                data: meses.map(m => porMes[m].total),
+                borderColor: 'var(--warning)', tension: 0, fill: false,
+                yAxisID: 'y3', borderDash: [2, 4], pointRadius: 3, borderWidth: 1
+            }
         ];
-        if(objRef!==null)datasets.push({label:`Objetivo (${objRef})`,data:meses.map(()=>objRef),borderColor:'var(--danger)',borderDash:[8,4],borderWidth:2,pointRadius:0,fill:false,yAxisID:'y',tension:0});
-        ANALISIS_STATE.charts.tendencia = new Chart(ctx,{
-            type:'line',data:{labels:meses,datasets},
-            options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'top',labels:{font:{size:10},usePointStyle:true}}},scales:{y:{type:'linear',position:'left',grid:{color:'#f1f5f9'}},y2:{type:'linear',position:'right',grid:{drawOnChartArea:false},ticks:{callback:v=>v+'%'},min:0,max:100},y3:{type:'linear',position:'right',display:false},x:{grid:{display:false}}}}
+        if (objRef !== null) {
+            datasets.push({
+                label: `Objetivo (${objRef})`,
+                data: meses.map(() => objRef),
+                borderColor: 'var(--danger)', borderDash: [8, 4],
+                borderWidth: 2, pointRadius: 0, fill: false, yAxisID: 'y', tension: 0
+            });
+        }
+        ANALISIS_STATE.charts.tendencia = new Chart(ctx, {
+            type: 'line',
+            data: { labels: meses, datasets },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: { legend: { position: 'top', labels: { font: { size: 10 }, usePointStyle: true } } },
+                scales: {
+                    y:  { type: 'linear', position: 'left',  grid: { color: '#f1f5f9' } },
+                    y2: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: v => v + '%' }, min: 0, max: 100 },
+                    y3: { type: 'linear', position: 'right', display: false },
+                    x:  { grid: { display: false } }
+                }
+            }
         });
     })();
 
-    // BoxPlot
+    // ── BoxPlot ─────────────────────────────────────────────────────
     (function() {
         const ctx = document.getElementById('chart-boxplot');
         if (!ctx || !scoresSorted.length) return;
         if (ANALISIS_STATE.charts.boxplot) ANALISIS_STATE.charts.boxplot.destroy();
-        const p25=percentil(scoresSorted,25), p75=percentil(scoresSorted,75);
-        const data=[{label:'Mín',v:scoresSorted[0]},{label:'P10',v:p10S},{label:'P25',v:p25},{label:'Median',v:medianaS},{label:'Media',v:mediaS},{label:'P75',v:p75},{label:'P90',v:p90S},{label:'Máx',v:scoresSorted[scoresSorted.length-1]}];
-        ANALISIS_STATE.charts.boxplot = new Chart(ctx,{
-            type:'bar',data:{labels:data.map(d=>d.label),datasets:[{label:'Score',data:data.map(d=>d.v),backgroundColor:['#94a3b8','#cbd5e1','#93c5fd','#3b82f6','#ef4444','#60a5fa','#475569','#1e293b'],borderRadius:5,borderWidth:0}]},
-            options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false}},y:{grid:{color:'#f1f5f9'}}}}
+        const p25 = percentil(scoresSorted, 25);
+        const p75 = percentil(scoresSorted, 75);
+        const data = [
+            { label: 'Mín',    v: scoresSorted[0] },
+            { label: 'P10',    v: p10S },
+            { label: 'P25',    v: p25 },
+            { label: 'Median', v: medianaS },
+            { label: 'Media',  v: mediaS },
+            { label: 'P75',    v: p75 },
+            { label: 'P90',    v: p90S },
+            { label: 'Máx',    v: scoresSorted[scoresSorted.length - 1] }
+        ];
+        ANALISIS_STATE.charts.boxplot = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: data.map(d => d.label),
+                datasets: [{
+                    label: 'Score',
+                    data:  data.map(d => d.v),
+                    backgroundColor: ['#94a3b8','#cbd5e1','#93c5fd','#3b82f6','#ef4444','#60a5fa','#475569','#1e293b'],
+                    borderRadius: 5, borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { x: { grid: { display: false } }, y: { grid: { color: '#f1f5f9' } } }
+            }
         });
     })();
 
-    // LOB chart
+    // ── Chart por LOB ───────────────────────────────────────────────
     (function() {
         const ctx = document.getElementById('chart-por-lob');
         if (!ctx) return;
         if (ANALISIS_STATE.charts.porLob) ANALISIS_STATE.charts.porLob.destroy();
-        const porLob={};
-        agentesData.forEach(a=>{if(!a.lob||a.scoreAgente===null)return;if(!porLob[a.lob])porLob[a.lob]=[];porLob[a.lob].push(a.scoreAgente);});
-        const lobs=Object.keys(porLob).sort();
-        const palette=['#3b82f6','#10b981','#f59e0b','#8b5cf6','#06b6d4','#ef4444'];
-        ANALISIS_STATE.charts.porLob = new Chart(ctx,{
-            type:'bar',data:{labels:lobs,datasets:[{label:'Score promedio',data:lobs.map(l=>+calcMedia(porLob[l]).toFixed(2)),backgroundColor:palette.slice(0,lobs.length),borderRadius:7,borderWidth:0}]},
-            options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:'#f1f5f9'}},y:{grid:{display:false},ticks:{font:{size:10}}}}}
+        const porLob = {};
+        agentesData.forEach(a => {
+            if (!a.lob || a.scoreAgente === null) return;
+            if (!porLob[a.lob]) porLob[a.lob] = [];
+            porLob[a.lob].push(a.scoreAgente);
+        });
+        const lobs    = Object.keys(porLob).sort();
+        const palette = ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#06b6d4','#ef4444'];
+        ANALISIS_STATE.charts.porLob = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: lobs,
+                datasets: [{
+                    label: 'Score promedio',
+                    data:  lobs.map(l => +calcMedia(porLob[l]).toFixed(2)),
+                    backgroundColor: palette.slice(0, lobs.length),
+                    borderRadius: 7, borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { color: '#f1f5f9' } },
+                    y: { grid: { display: false }, ticks: { font: { size: 10 } } }
+                }
+            }
         });
     })();
 
-    // Tabla distribución
+    // ── Tabla distribución por rangos ───────────────────────────────
     (function() {
         const tbody = document.getElementById('tbody-distribucion');
         if (!tbody || !scores.length) return;
         const thead = tbody.closest('table')?.querySelector('thead tr');
-        if (thead) thead.innerHTML = `<th>Rango de Score</th><th style="text-align:center;">Agentes</th><th style="text-align:center;">%</th><th style="text-align:center;">Cumple / No Cumple</th><th style="text-align:right;">Score Prom.</th><th style="text-align:center;">vs Media</th>`;
-        const min=scoresSorted[0], max=scoresSorted[scoresSorted.length-1], step=(max-min)/6||1;
-        const rangos=Array.from({length:6},(_,i)=>({desde:min+i*step, hasta:min+(i+1)*step, items:[]}));
-        agentesData.forEach(a=>{if(a.scoreAgente===null)return;rangos[Math.min(Math.floor((a.scoreAgente-min)/step),5)].items.push(a);});
-        tbody.innerHTML=rangos.map(r=>{
-            const n=r.items.length;
-            if(!n)return `<tr><td style="color:var(--text-muted);">${r.desde.toFixed(2)} – ${r.hasta.toFixed(2)}</td><td colspan="5" style="text-align:center;color:var(--border-2);">—</td></tr>`;
-            const promScore=calcMedia(r.items.map(a=>a.scoreAgente));
-            const pct=((n/agentesData.length)*100).toFixed(1);
-            const cumplenN=r.items.filter(a=>a.cumpleAlgunPiso).length;
-            const vsMedia=promScore>mediaS*1.03?'<span class="trend-up">↑ Superior</span>':promScore<mediaS*0.97?'<span class="trend-down">↓ Inferior</span>':'<span class="trend-flat">≈ Similar</span>';
-            const pisoLabel=pisos.filter(p=>p.umbral>=r.desde&&p.umbral<=r.hasta).map(p=>`<span style="background:#dbeafe;color:#1d4ed8;padding:1px 6px;border-radius:6px;font-size:0.68rem;margin-left:4px;">Piso ${p.umbral}</span>`).join('');
-            return `<tr><td style="font-weight:600;">${r.desde.toFixed(2)} – ${r.hasta.toFixed(2)}${pisoLabel}</td><td style="text-align:center;font-weight:700;">${n}</td><td style="text-align:center;color:var(--text-sub);">${pct}%</td><td style="text-align:center;"><span style="color:var(--success);font-weight:700;">✅ ${cumplenN}</span>${n-cumplenN>0?` / <span style="color:var(--danger);">❌ ${n-cumplenN}</span>`:''}</td><td style="text-align:right;font-weight:600;">${promScore.toFixed(2)}</td><td style="text-align:center;">${vsMedia}</td></tr>`;
+        if (thead) thead.innerHTML = `
+            <th>Rango de Score</th>
+            <th style="text-align:center;">Agentes</th>
+            <th style="text-align:center;">%</th>
+            <th style="text-align:center;">Cumple / No Cumple</th>
+            <th style="text-align:right;">Score Prom.</th>
+            <th style="text-align:center;">vs Media</th>`;
+
+        const min   = scoresSorted[0];
+        const max   = scoresSorted[scoresSorted.length - 1];
+        const step  = (max - min) / 6 || 1;
+        const rangos = Array.from({ length: 6 }, (_, i) => ({
+            desde: min + i * step,
+            hasta: min + (i + 1) * step,
+            items: []
+        }));
+        agentesData.forEach(a => {
+            if (a.scoreAgente === null) return;
+            rangos[Math.min(Math.floor((a.scoreAgente - min) / step), 5)].items.push(a);
+        });
+
+        tbody.innerHTML = rangos.map(r => {
+            const n = r.items.length;
+            if (!n) return `
+                <tr>
+                    <td style="color:var(--text-muted);">${r.desde.toFixed(2)} – ${r.hasta.toFixed(2)}</td>
+                    <td colspan="5" style="text-align:center;color:var(--border-2);">—</td>
+                </tr>`;
+            const promScore = calcMedia(r.items.map(a => a.scoreAgente));
+            const pct       = ((n / agentesData.length) * 100).toFixed(1);
+            const cumplenN  = r.items.filter(a => a.cumpleAlgunPiso).length;
+            const vsMedia   = promScore > mediaS * 1.03
+                ? '<span class="trend-up">↑ Superior</span>'
+                : promScore < mediaS * 0.97
+                ? '<span class="trend-down">↓ Inferior</span>'
+                : '<span class="trend-flat">≈ Similar</span>';
+            const pisoLabel = pisos
+                .filter(p => p.umbral >= r.desde && p.umbral <= r.hasta)
+                .map(p => `<span style="background:#dbeafe;color:#1d4ed8;padding:1px 6px;border-radius:6px;font-size:0.68rem;margin-left:4px;">Piso ${p.umbral}</span>`)
+                .join('');
+            return `
+                <tr>
+                    <td style="font-weight:600;">${r.desde.toFixed(2)} – ${r.hasta.toFixed(2)}${pisoLabel}</td>
+                    <td style="text-align:center;font-weight:700;">${n}</td>
+                    <td style="text-align:center;color:var(--text-sub);">${pct}%</td>
+                    <td style="text-align:center;">
+                        <span style="color:var(--success);font-weight:700;">✅ ${cumplenN}</span>
+                        ${n - cumplenN > 0 ? ` / <span style="color:var(--danger);">❌ ${n - cumplenN}</span>` : ''}
+                    </td>
+                    <td style="text-align:right;font-weight:600;">${promScore.toFixed(2)}</td>
+                    <td style="text-align:center;">${vsMedia}</td>
+                </tr>`;
         }).join('');
     })();
 
-    renderRecomendaciones({ nombre, montos:agentesData.map(a=>a.bonoPositivo).filter(v=>v>0), total:totalBonoNeto, totalPositivo, totalPenalizacion, media:mediaS, mediana:medianaS, moda:modaS, desvest:desvS, minVal:minS, maxVal:maxS, p10:p10S, p90:p90S, agentesUnicos:nTotal, agentesQueCobraron:nCumplen, totalAgentesAudit:nTotal, registros, registrosCumple, registrosNoCumple, todosLosRegistros:registros, agentesData, pisos, tienePisos, objetivosUnicos, mediaScores:mediaS, todosScores:scores, scoresUnicos:agentesData });
+    // ── Recomendaciones y Ranking ───────────────────────────────────
+    renderRecomendaciones({
+        nombre,
+        montos:             agentesData.map(a => a.bonoPositivo).filter(v => v > 0),
+        total:              totalBonoNeto,
+        totalPositivo,
+        totalPenalizacion,
+        media:              mediaS,
+        mediana:            medianaS,
+        moda:               modaS,
+        desvest:            desvS,
+        minVal:             minS,
+        maxVal:             maxS,
+        p10:                p10S,
+        p90:                p90S,
+        agentesUnicos:      nTotal,
+        agentesQueCobraron: nCumplen,
+        totalAgentesAudit:  nTotal,
+        registros,
+        registrosCumple,
+        registrosNoCumple,
+        todosLosRegistros:  registros,
+        agentesData,
+        pisos,
+        tienePisos,
+        objetivosUnicos,
+        mediaScores:        mediaS,
+        todosScores:        scores,
+        scoresUnicos:       agentesData
+    });
+
     renderRankingDetalle(registros);
 
-    // ── Análisis Financiero Histórico
-    // Pasa TODOS los registros del KPI (sin filtro de mes) para mostrar la línea de tiempo completa.
-    // El filtro de LOB sí se aplica para mantener coherencia con el contexto seleccionado.
+    // ── Análisis financiero histórico ───────────────────────────────
     {
         let regHistorico = kpi.registros;
         if (lobFil) regHistorico = regHistorico.filter(r => r.lob === lobFil);
-        // Enriquecer con campos necesarios para el análisis financiero
         const regFinanciero = regHistorico.map(r => ({
-            mesCDM:       r.mesCDM   || r.mes || '',
-            bmsId:        r.bmsId    || r.id  || '',
-            bono:         parsearNum(r.bono) ?? 0,
-            estado:       r.estado   || '',
-            lob:          r.lob      || ''
+            mesCDM: r.mesCDM  || r.mes || '',
+            bmsId:  r.bmsId   || r.id  || '',
+            bono:   parsearNum(r.bono) ?? 0,
+            estado: r.estado  || '',
+            lob:    r.lob     || ''
         }));
         renderAnalisisFinanciero(nombre, regFinanciero);
     }
 
-    document.getElementById('analisis-detail').scrollIntoView({behavior:'smooth',block:'start'});
+    document.getElementById('analisis-detail').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
+
+
 
 function renderRankingDetalle(registros) {
     const tbody = document.getElementById('tbody-ranking');
@@ -5521,142 +5989,695 @@ function renderRankingDetalle(registros) {
     }).join('');
 }
 
+
+
 function renderRecomendaciones({ nombre, montos, total, totalPositivo, totalPenalizacion, media, mediana, moda, desvest, minVal, maxVal, p10, p90, agentesUnicos, agentesQueCobraron, totalAgentesAudit, registros, registrosCumple, registrosNoCumple, todosLosRegistros, agentesData, pisos, tienePisos, objetivosUnicos, mediaScores, todosScores, scoresUnicos }) {
     const cont = document.getElementById('recomendaciones-container');
     if (!cont) return;
     const recs = [];
 
-    function parsearNum(val) { if(val===null||val===undefined||val==='')return null; const n=parseFloat(String(val).replace(/[^0-9.,\-]/g,'').replace(',','.')); return isNaN(n)?null:n; }
+    function parsearNum(val) {
+        if (val === null || val === undefined || val === '') return null;
+        const str = String(val).trim();
+        if (str === '' || str === '-' || str === '—') return null;
+        let clean = str;
+        if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(clean)) {
+            clean = clean.replace(/\./g, '').replace(',', '.');
+        } else if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(clean)) {
+            clean = clean.replace(/,/g, '');
+        } else if (/^\d+,\d{1,4}$/.test(clean)) {
+            clean = clean.replace(',', '.');
+        } else if (/^\d+\.\d+$/.test(clean)) {
+            // ya está bien
+        } else {
+            clean = clean.replace(/[^0-9.\-]/g, '');
+        }
+        const n = parseFloat(clean);
+        return isNaN(n) ? null : n;
+    }
+
     function parsearScoreObjetivo(texto) {
-        if(!texto)return{umbral:null,pct:null,op:'>=',raw:''};
-        const t=String(texto).trim(),matchOp=t.match(/^([<>]=?)/),op=matchOp?matchOp[1]:'>=';
-        const matchPct=t.match(/\((\d+(?:[.,]\d+)?)\s*%?\)/),pct=matchPct?parseFloat(matchPct[1].replace(',','.')):null;
-        const sinParen=t.replace(/\(.*?\)/g,'').trim(),matchUmb=sinParen.match(/(\d+(?:[.,]\d+)?)/);
-        return{umbral:matchUmb?parseFloat(matchUmb[1].replace(',','.')):null,pct,op,raw:t};
+        if (!texto) return { umbral: null, pct: null, op: '>=', raw: '' };
+        const t = String(texto).trim();
+        const matchOp  = t.match(/^([<>]=?)/);
+        const op       = matchOp ? matchOp[1] : '>=';
+        const matchPct = t.match(/\((\d+(?:[.,]\d+)?)\s*%?\)/);
+        const pct      = matchPct ? parseFloat(matchPct[1].replace(',', '.')) : null;
+        const sinParen = t.replace(/\(.*?\)/g, '').trim();
+        const matchUmb = sinParen.match(/(\d+(?:[.,]\d+)?)/);
+        return {
+            umbral: matchUmb ? parseFloat(matchUmb[1].replace(',', '.')) : null,
+            pct, op, raw: t
+        };
     }
 
     const configKPIs   = STATE.configKPIs || {};
     const masAltaMejor = configKPIs.hasOwnProperty(nombre)
-        ? parseInt(configKPIs[nombre])===1
-        : (()=>{for(const r of(registros||[])){const p=parsearScoreObjetivo(r.scoreObjetivo);if(p.op==='<='||p.op==='<')return false;}return true;})();
+        ? parseInt(configKPIs[nombre]) === 1
+        : (() => {
+            for (const r of (registros || [])) {
+                const p = parsearScoreObjetivo(r.scoreObjetivo);
+                if (p.op === '<=' || p.op === '<') return false;
+            }
+            return true;
+        })();
 
-    const scores=todosScores||[], scoresSorted=[...scores].sort((a,b)=>a-b);
-    const nAgentes=agentesData?agentesData.length:(agentesUnicos||0);
-    const mesesU=new Set((registros||[]).map(r=>r.mesCDM)).size||1;
-    const costoMens=(total||0)/mesesU;
-    const agentesConCumple=agentesData?agentesData.filter(a=>a.cumpleAlgunPiso).length:(agentesQueCobraron||0);
-    const pctCumpleGlobal=nAgentes>0?agentesConCumple/nAgentes:0;
-    const pisosOrdenados=pisos&&pisos.length>0?[...pisos].sort((a,b)=>masAltaMejor?a.umbral-b.umbral:b.umbral-a.umbral):[];
-    const pisoBajo=pisosOrdenados.length>0?pisosOrdenados[0].umbral:null;
-    const pisoAlto=pisosOrdenados.length>0?pisosOrdenados[pisosOrdenados.length-1].umbral:null;
-    const objPrincipal=pisoAlto??pisoBajo;
-    const mediaReal=media||mediaScores||0, medianaReal=mediana||0;
-    const minReal=minVal||(scoresSorted[0]??0), maxReal=maxVal||(scoresSorted[scoresSorted.length-1]??0);
-    const totalPuntos=scores.reduce((s,v)=>s+v,0);
-    const gapVsObjPrincipal=objPrincipal!==null?(masAltaMejor?mediaReal-objPrincipal:objPrincipal-mediaReal):null;
+    const scores       = todosScores || [];
+    const scoresSorted = [...scores].sort((a, b) => a - b);
+    const nAgentes     = agentesData ? agentesData.length : (agentesUnicos || 0);
+    const mesesU       = new Set((registros || []).map(r => r.mesCDM)).size || 1;
+    const costoMens    = (total || 0) / mesesU;
 
+    const agentesConCumple  = agentesData
+        ? agentesData.filter(a => a.cumpleAlgunPiso).length
+        : (agentesQueCobraron || 0);
+    const pctCumpleGlobal   = nAgentes > 0 ? agentesConCumple / nAgentes : 0;
+
+    const pisosOrdenados = pisos && pisos.length > 0
+        ? [...pisos].sort((a, b) => masAltaMejor ? a.umbral - b.umbral : b.umbral - a.umbral)
+        : [];
+    const pisoBajo     = pisosOrdenados.length > 0 ? pisosOrdenados[0].umbral : null;
+    const pisoAlto     = pisosOrdenados.length > 0 ? pisosOrdenados[pisosOrdenados.length - 1].umbral : null;
+    const objPrincipal = pisoAlto ?? pisoBajo;
+
+    const mediaReal   = media  || mediaScores || 0;
+    const medianaReal = mediana || 0;
+    const minReal     = minVal || (scoresSorted[0] ?? 0);
+    const maxReal     = maxVal || (scoresSorted[scoresSorted.length - 1] ?? 0);
+    const totalPuntos = scores.reduce((s, v) => s + v, 0);
+
+    const gapVsObjPrincipal = objPrincipal !== null
+        ? (masAltaMejor ? mediaReal - objPrincipal : objPrincipal - mediaReal)
+        : null;
+
+    // ══════════════════════════════════════════════════════════
+    // BLOQUE 1 — Score real del equipo
+    // ══════════════════════════════════════════════════════════
     if (scores.length > 0) {
-        const scoresCumplen=agentesData?agentesData.filter(a=>a.cumpleAlgunPiso&&a.scoreAgente!==null).map(a=>a.scoreAgente):[];
-        const scoresNoCumplen=agentesData?agentesData.filter(a=>!a.cumpleAlgunPiso&&a.scoreAgente!==null).map(a=>a.scoreAgente):[];
-        const mediaCumplen=scoresCumplen.length>0?calcMedia(scoresCumplen):null;
-        const mediaNoCumplen=scoresNoCumplen.length>0?calcMedia(scoresNoCumplen):null;
+        const scoresCumplen   = agentesData
+            ? agentesData.filter(a => a.cumpleAlgunPiso && a.scoreAgente !== null).map(a => a.scoreAgente)
+            : [];
+        const scoresNoCumplen = agentesData
+            ? agentesData.filter(a => !a.cumpleAlgunPiso && a.scoreAgente !== null).map(a => a.scoreAgente)
+            : [];
+        const mediaCumplen   = scoresCumplen.length   > 0 ? calcMedia(scoresCumplen)   : null;
+        const mediaNoCumplen = scoresNoCumplen.length > 0 ? calcMedia(scoresNoCumplen) : null;
 
-        recs.push({tipo:'mantener',titulo:`📈 Score real del equipo — ${nAgentes} agentes | ${mesesU} mes${mesesU>1?'es':''} | ${masAltaMejor?'↑ Más alto mejor':'↓ Más bajo mejor'}`,cuerpo:`
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:12px;">
-                <div style="background:var(--bg-subtle);border-radius:var(--radius);padding:12px;text-align:center;border-bottom:2px solid var(--secondary);border:1px solid var(--border);border-bottom-width:2px;"><div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;margin-bottom:5px;">Promedio</div><div style="font-size:1.4rem;font-weight:800;color:var(--text-main);">${mediaReal.toFixed(2)}</div>${objPrincipal!==null?`<div style="font-size:0.72rem;font-weight:600;margin-top:4px;color:${gapVsObjPrincipal>=0?'var(--success)':'var(--danger)'};">${gapVsObjPrincipal>=0?'✅':'⚠️'} ${gapVsObjPrincipal>=0?'+':''}${gapVsObjPrincipal.toFixed(2)} vs obj</div>`:''}</div>
-                <div style="background:var(--bg-subtle);border-radius:var(--radius);padding:12px;text-align:center;border:1px solid var(--border);border-bottom:2px solid var(--purple);"><div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;margin-bottom:5px;">Mediana</div><div style="font-size:1.4rem;font-weight:800;color:var(--text-main);">${medianaReal.toFixed(2)}</div></div>
-                <div style="background:var(--bg-subtle);border-radius:var(--radius);padding:12px;text-align:center;border:1px solid var(--border);border-bottom:2px solid var(--danger);"><div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;margin-bottom:5px;">${masAltaMejor?'↓ Mínimo':'↑ Máximo'}</div><div style="font-size:1.4rem;font-weight:800;color:var(--danger);">${(masAltaMejor?minReal:maxReal).toFixed(2)}</div></div>
-                <div style="background:var(--bg-subtle);border-radius:var(--radius);padding:12px;text-align:center;border:1px solid var(--border);border-bottom:2px solid var(--success);"><div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;margin-bottom:5px;">${masAltaMejor?'↑ Máximo':'↓ Mínimo'}</div><div style="font-size:1.4rem;font-weight:800;color:var(--success);">${(masAltaMejor?maxReal:minReal).toFixed(2)}</div></div>
-                <div style="background:#f0fdf4;border-radius:var(--radius);padding:12px;text-align:center;border:1px solid #bbf7d0;border-bottom:2px solid var(--success);"><div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;margin-bottom:5px;">✅ Cumplen</div><div style="font-size:1.4rem;font-weight:800;color:var(--success);">${agentesConCumple}</div><div style="font-size:0.7rem;color:var(--text-muted);">${mediaCumplen!==null?'Prom: '+mediaCumplen.toFixed(2):(pctCumpleGlobal*100).toFixed(0)+'%'}</div></div>
-                <div style="background:#fef2f2;border-radius:var(--radius);padding:12px;text-align:center;border:1px solid #fecaca;border-bottom:2px solid var(--danger);"><div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;margin-bottom:5px;">❌ No Cumplen</div><div style="font-size:1.4rem;font-weight:800;color:var(--danger);">${nAgentes-agentesConCumple}</div><div style="font-size:0.7rem;color:var(--text-muted);">${mediaNoCumplen!==null?'Prom: '+mediaNoCumplen.toFixed(2):((1-pctCumpleGlobal)*100).toFixed(0)+'%'}</div></div>
-                <div style="background:var(--bg-subtle);border-radius:var(--radius);padding:12px;text-align:center;border:1px solid var(--border);border-bottom:2px solid var(--warning);"><div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;margin-bottom:5px;">Total puntos</div><div style="font-size:1.2rem;font-weight:800;color:var(--text-main);">${totalPuntos.toFixed(1)}</div></div>
-            </div>`,metricas:[]});
+        recs.push({
+            tipo: 'mantener',
+            titulo: `📈 Score real del equipo — ${nAgentes} agentes | ${mesesU} mes${mesesU > 1 ? 'es' : ''} | ${masAltaMejor ? '↑ Más alto mejor' : '↓ Más bajo mejor'}`,
+            cuerpo: `
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:12px;">
+                    <div style="background:var(--bg-subtle);border-radius:var(--radius);padding:12px;text-align:center;border:1px solid var(--border);border-bottom:2px solid var(--secondary);">
+                        <div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;margin-bottom:5px;">Promedio</div>
+                        <div style="font-size:1.4rem;font-weight:800;color:var(--text-main);">${mediaReal.toFixed(2)}</div>
+                        ${objPrincipal !== null ? `<div style="font-size:0.72rem;font-weight:600;margin-top:4px;color:${gapVsObjPrincipal >= 0 ? 'var(--success)' : 'var(--danger)'};">${gapVsObjPrincipal >= 0 ? '✅' : '⚠️'} ${gapVsObjPrincipal >= 0 ? '+' : ''}${gapVsObjPrincipal.toFixed(2)} vs obj</div>` : ''}
+                    </div>
+                    <div style="background:var(--bg-subtle);border-radius:var(--radius);padding:12px;text-align:center;border:1px solid var(--border);border-bottom:2px solid var(--purple);">
+                        <div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;margin-bottom:5px;">Mediana</div>
+                        <div style="font-size:1.4rem;font-weight:800;color:var(--text-main);">${medianaReal.toFixed(2)}</div>
+                    </div>
+                    <div style="background:var(--bg-subtle);border-radius:var(--radius);padding:12px;text-align:center;border:1px solid var(--border);border-bottom:2px solid var(--danger);">
+                        <div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;margin-bottom:5px;">${masAltaMejor ? '↓ Mínimo' : '↑ Máximo'}</div>
+                        <div style="font-size:1.4rem;font-weight:800;color:var(--danger);">${(masAltaMejor ? minReal : maxReal).toFixed(2)}</div>
+                    </div>
+                    <div style="background:var(--bg-subtle);border-radius:var(--radius);padding:12px;text-align:center;border:1px solid var(--border);border-bottom:2px solid var(--success);">
+                        <div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;margin-bottom:5px;">${masAltaMejor ? '↑ Máximo' : '↓ Mínimo'}</div>
+                        <div style="font-size:1.4rem;font-weight:800;color:var(--success);">${(masAltaMejor ? maxReal : minReal).toFixed(2)}</div>
+                    </div>
+                    <div style="background:#f0fdf4;border-radius:var(--radius);padding:12px;text-align:center;border:1px solid #bbf7d0;border-bottom:2px solid var(--success);">
+                        <div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;margin-bottom:5px;">✅ Cumplen</div>
+                        <div style="font-size:1.4rem;font-weight:800;color:var(--success);">${agentesConCumple}</div>
+                        <div style="font-size:0.7rem;color:var(--text-muted);">${mediaCumplen !== null ? 'Prom: ' + mediaCumplen.toFixed(2) : (pctCumpleGlobal * 100).toFixed(0) + '%'}</div>
+                    </div>
+                    <div style="background:#fef2f2;border-radius:var(--radius);padding:12px;text-align:center;border:1px solid #fecaca;border-bottom:2px solid var(--danger);">
+                        <div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;margin-bottom:5px;">❌ No Cumplen</div>
+                        <div style="font-size:1.4rem;font-weight:800;color:var(--danger);">${nAgentes - agentesConCumple}</div>
+                        <div style="font-size:0.7rem;color:var(--text-muted);">${mediaNoCumplen !== null ? 'Prom: ' + mediaNoCumplen.toFixed(2) : ((1 - pctCumpleGlobal) * 100).toFixed(0) + '%'}</div>
+                    </div>
+                    <div style="background:var(--bg-subtle);border-radius:var(--radius);padding:12px;text-align:center;border:1px solid var(--border);border-bottom:2px solid var(--warning);">
+                        <div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;margin-bottom:5px;">Total puntos</div>
+                        <div style="font-size:1.2rem;font-weight:800;color:var(--text-main);">${totalPuntos.toFixed(1)}</div>
+                    </div>
+                </div>`,
+            metricas: []
+        });
 
+        // ══════════════════════════════════════════════════════
+        // BLOQUE 2 — Análisis por Pisos
+        // ══════════════════════════════════════════════════════
         if (tienePisos && pisos?.length > 0) {
-            const pisoRows=[...pisos].sort((a,b)=>a.umbral-b.umbral).map(p=>{
-                const regPiso=p.registros||[], cumplePiso=regPiso.filter(r=>String(r.estado||'').toLowerCase().trim()==='cumple'), noPiso=regPiso.filter(r=>String(r.estado||'').toLowerCase().trim()!=='cumple');
-                const pctPiso=regPiso.length>0?cumplePiso.length/regPiso.length:0;
-                const scoresPiso=regPiso.map(r=>parsearNum(r.score??r.valorObtenido??r.valorCDM)).filter(v=>v!==null);
-                const mediaPiso=scoresPiso.length>0?calcMedia(scoresPiso):0;
-                const gapPiso=masAltaMejor?mediaPiso-p.umbral:p.umbral-mediaPiso;
-                const bonosPiso=cumplePiso.map(r=>parsearNum(r.bono)??0).filter(v=>v>0);
-                const bonoPiso=bonosPiso.length>0?bonosPiso[0]:0;
-                let diag=pctPiso>=0.85&&gapPiso>=2?`<span style="color:var(--success);font-weight:600;">⬆️ ${masAltaMejor?'Subir':'Bajar'} umbral</span>`:pctPiso>=0.85?'<span style="color:var(--warning);font-weight:600;">🔍 Revisar</span>':pctPiso<0.35?'<span style="color:var(--danger);font-weight:600;">🚨 Muy difícil</span>':'<span style="color:var(--secondary);font-weight:600;">✅ Equilibrado</span>';
-                return{p,cumplePiso,noPiso,pctPiso,mediaPiso,gapPiso,bonoPiso,diag};
+            const pisoRows = [...pisos].sort((a, b) => a.umbral - b.umbral).map(p => {
+                const regPiso   = p.registros || [];
+                const cumplePiso   = regPiso.filter(r => String(r.estado || '').toLowerCase().trim() === 'cumple');
+                const noPiso       = regPiso.filter(r => String(r.estado || '').toLowerCase().trim() !== 'cumple');
+                const pctPiso      = regPiso.length > 0 ? cumplePiso.length / regPiso.length : 0;
+                const scoresPiso   = regPiso.map(r => parsearNum(r.score ?? r.valorObtenido ?? r.valorCDM)).filter(v => v !== null);
+                const mediaPiso    = scoresPiso.length > 0 ? calcMedia(scoresPiso) : 0;
+                const gapPiso      = masAltaMejor ? mediaPiso - p.umbral : p.umbral - mediaPiso;
+                const bonosPiso    = cumplePiso.map(r => parsearNum(r.bono) ?? 0).filter(v => v > 0);
+                const bonoPiso     = bonosPiso.length > 0 ? bonosPiso[0] : 0;
+                let diag = pctPiso >= 0.85 && gapPiso >= 2
+                    ? `<span style="color:var(--success);font-weight:600;">⬆️ ${masAltaMejor ? 'Subir' : 'Bajar'} umbral</span>`
+                    : pctPiso >= 0.85
+                    ? '<span style="color:var(--warning);font-weight:600;">🔍 Revisar</span>'
+                    : pctPiso < 0.35
+                    ? '<span style="color:var(--danger);font-weight:600;">🚨 Muy difícil</span>'
+                    : '<span style="color:var(--secondary);font-weight:600;">✅ Equilibrado</span>';
+                return { p, cumplePiso, noPiso, pctPiso, mediaPiso, gapPiso, bonoPiso, diag };
             });
-            recs.push({tipo:'mantener',titulo:`🏗️ Análisis por Piso — ${pisos.length} piso${pisos.length>1?'s':''}`,cuerpo:`
-                <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.83rem;"><thead><tr style="background:var(--bg-subtle);"><th style="padding:9px 12px;border-bottom:1px solid var(--border);font-size:0.72rem;text-transform:uppercase;color:var(--text-sub);">Umbral</th><th style="padding:9px 12px;border-bottom:1px solid var(--border);font-size:0.72rem;text-transform:uppercase;color:var(--text-sub);">% Pago</th><th style="padding:9px 12px;border-bottom:1px solid var(--border);font-size:0.72rem;text-transform:uppercase;color:var(--text-sub);">Bono</th><th style="padding:9px 12px;border-bottom:1px solid var(--border);font-size:0.72rem;text-transform:uppercase;color:var(--text-sub);">✅</th><th style="padding:9px 12px;border-bottom:1px solid var(--border);font-size:0.72rem;text-transform:uppercase;color:var(--text-sub);">❌</th><th style="padding:9px 12px;border-bottom:1px solid var(--border);font-size:0.72rem;text-transform:uppercase;color:var(--text-sub);">% Cumple</th><th style="padding:9px 12px;border-bottom:1px solid var(--border);font-size:0.72rem;text-transform:uppercase;color:var(--text-sub);">Score Prom.</th><th style="padding:9px 12px;border-bottom:1px solid var(--border);font-size:0.72rem;text-transform:uppercase;color:var(--text-sub);">Gap</th><th style="padding:9px 12px;border-bottom:1px solid var(--border);font-size:0.72rem;text-transform:uppercase;color:var(--text-sub);">Diagnóstico</th></tr></thead><tbody>
-                ${pisoRows.map(({p,cumplePiso,noPiso,pctPiso,mediaPiso,gapPiso,bonoPiso,diag})=>`<tr style="border-bottom:1px solid var(--border);"><td style="padding:9px 12px;"><span style="background:var(--primary);color:white;padding:2px 10px;border-radius:10px;font-size:0.78rem;font-weight:700;">${masAltaMejor?'≥':'≤'} ${p.umbral}</span></td><td style="padding:9px 12px;text-align:center;color:var(--text-sub);">${p.pct!==null?p.pct+'%':'—'}</td><td style="padding:9px 12px;text-align:center;color:var(--purple);font-weight:700;">${bonoPiso>0?fmtMoney(bonoPiso):'—'}</td><td style="padding:9px 12px;text-align:center;font-weight:700;color:var(--success);">${cumplePiso.length}</td><td style="padding:9px 12px;text-align:center;font-weight:700;color:var(--danger);">${noPiso.length}</td><td style="padding:9px 12px;text-align:center;"><div style="display:flex;align-items:center;gap:6px;justify-content:center;"><div style="background:var(--bg-muted);border-radius:3px;height:6px;width:55px;overflow:hidden;"><div style="width:${(pctPiso*100).toFixed(0)}%;background:${pctPiso>=0.6?'var(--success)':pctPiso>=0.35?'var(--warning)':'var(--danger)'};height:100%;"></div></div><strong>${(pctPiso*100).toFixed(0)}%</strong></div></td><td style="padding:9px 12px;text-align:center;font-weight:700;">${mediaPiso.toFixed(2)}</td><td style="padding:9px 12px;text-align:center;font-weight:700;color:${gapPiso>=0?'var(--success)':'var(--danger)'};">${gapPiso>=0?'+':''}${gapPiso.toFixed(2)} pts</td><td style="padding:9px 12px;">${diag}</td></tr>`).join('')}
-                </tbody></table></div>`,metricas:[]});
+
+            recs.push({
+                tipo: 'mantener',
+                titulo: `🏗️ Análisis por Piso — ${pisos.length} piso${pisos.length > 1 ? 's' : ''}`,
+                cuerpo: `
+                    <div style="overflow-x:auto;">
+                        <table style="width:100%;border-collapse:collapse;font-size:0.83rem;">
+                            <thead>
+                                <tr style="background:var(--bg-subtle);">
+                                    <th style="padding:9px 12px;border-bottom:1px solid var(--border);font-size:0.72rem;text-transform:uppercase;color:var(--text-sub);">Umbral</th>
+                                    <th style="padding:9px 12px;border-bottom:1px solid var(--border);font-size:0.72rem;text-transform:uppercase;color:var(--text-sub);">% Pago</th>
+                                    <th style="padding:9px 12px;border-bottom:1px solid var(--border);font-size:0.72rem;text-transform:uppercase;color:var(--text-sub);">Bono</th>
+                                    <th style="padding:9px 12px;border-bottom:1px solid var(--border);font-size:0.72rem;text-transform:uppercase;color:var(--text-sub);">✅</th>
+                                    <th style="padding:9px 12px;border-bottom:1px solid var(--border);font-size:0.72rem;text-transform:uppercase;color:var(--text-sub);">❌</th>
+                                    <th style="padding:9px 12px;border-bottom:1px solid var(--border);font-size:0.72rem;text-transform:uppercase;color:var(--text-sub);">% Cumple</th>
+                                    <th style="padding:9px 12px;border-bottom:1px solid var(--border);font-size:0.72rem;text-transform:uppercase;color:var(--text-sub);">Score Prom.</th>
+                                    <th style="padding:9px 12px;border-bottom:1px solid var(--border);font-size:0.72rem;text-transform:uppercase;color:var(--text-sub);">Gap</th>
+                                    <th style="padding:9px 12px;border-bottom:1px solid var(--border);font-size:0.72rem;text-transform:uppercase;color:var(--text-sub);">Diagnóstico</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${pisoRows.map(({ p, cumplePiso, noPiso, pctPiso, mediaPiso, gapPiso, bonoPiso, diag }) => `
+                                    <tr style="border-bottom:1px solid var(--border);">
+                                        <td style="padding:9px 12px;"><span style="background:var(--primary);color:white;padding:2px 10px;border-radius:10px;font-size:0.78rem;font-weight:700;">${masAltaMejor ? '≥' : '≤'} ${p.umbral}</span></td>
+                                        <td style="padding:9px 12px;text-align:center;color:var(--text-sub);">${p.pct !== null ? p.pct + '%' : '—'}</td>
+                                        <td style="padding:9px 12px;text-align:center;color:var(--purple);font-weight:700;">${bonoPiso > 0 ? fmtMoney(bonoPiso) : '—'}</td>
+                                        <td style="padding:9px 12px;text-align:center;font-weight:700;color:var(--success);">${cumplePiso.length}</td>
+                                        <td style="padding:9px 12px;text-align:center;font-weight:700;color:var(--danger);">${noPiso.length}</td>
+                                        <td style="padding:9px 12px;text-align:center;">
+                                            <div style="display:flex;align-items:center;gap:6px;justify-content:center;">
+                                                <div style="background:var(--bg-muted);border-radius:3px;height:6px;width:55px;overflow:hidden;">
+                                                    <div style="width:${(pctPiso * 100).toFixed(0)}%;background:${pctPiso >= 0.6 ? 'var(--success)' : pctPiso >= 0.35 ? 'var(--warning)' : 'var(--danger)'};height:100%;"></div>
+                                                </div>
+                                                <strong>${(pctPiso * 100).toFixed(0)}%</strong>
+                                            </div>
+                                        </td>
+                                        <td style="padding:9px 12px;text-align:center;font-weight:700;">${mediaPiso.toFixed(2)}</td>
+                                        <td style="padding:9px 12px;text-align:center;font-weight:700;color:${gapPiso >= 0 ? 'var(--success)' : 'var(--danger)'};">${gapPiso >= 0 ? '+' : ''}${gapPiso.toFixed(2)} pts</td>
+                                        <td style="padding:9px 12px;">${diag}</td>
+                                    </tr>`).join('')}
+                            </tbody>
+                        </table>
+                    </div>`,
+                metricas: []
+            });
         }
 
+        // ══════════════════════════════════════════════════════
+        // BLOQUE 3 — Distribución vs Objetivo
+        // ══════════════════════════════════════════════════════
         if (objPrincipal !== null) {
-            const margen=Math.max(2,(maxReal-minReal)*0.05);
-            const bandas=masAltaMejor?[
-                {label:`Muy por encima (≥${(objPrincipal+margen).toFixed(1)})`,agentes:agentesData.filter(a=>a.scoreAgente>=objPrincipal+margen),color:'var(--success)'},
-                {label:`Sobre objetivo (${objPrincipal}–${(objPrincipal+margen-0.01).toFixed(1)})`,agentes:agentesData.filter(a=>a.scoreAgente>=objPrincipal&&a.scoreAgente<objPrincipal+margen),color:'#22c55e'},
-                {label:`Justo debajo (${(objPrincipal-margen).toFixed(1)}–${(objPrincipal-0.01).toFixed(1)})`,agentes:agentesData.filter(a=>a.scoreAgente<objPrincipal&&a.scoreAgente>=objPrincipal-margen),color:'var(--warning)'},
-                {label:`Lejos (< ${(objPrincipal-margen).toFixed(1)})`,agentes:agentesData.filter(a=>a.scoreAgente<objPrincipal-margen),color:'var(--danger)'}
-            ]:[
-                {label:`Muy por debajo (≤${(objPrincipal-margen).toFixed(1)})`,agentes:agentesData.filter(a=>a.scoreAgente<=objPrincipal-margen),color:'var(--success)'},
-                {label:`Bajo objetivo`,agentes:agentesData.filter(a=>a.scoreAgente<=objPrincipal&&a.scoreAgente>objPrincipal-margen),color:'#22c55e'},
-                {label:`Justo encima`,agentes:agentesData.filter(a=>a.scoreAgente>objPrincipal&&a.scoreAgente<=objPrincipal+margen),color:'var(--warning)'},
-                {label:`Muy alto peor (> ${(objPrincipal+margen).toFixed(1)})`,agentes:agentesData.filter(a=>a.scoreAgente>objPrincipal+margen),color:'var(--danger)'}
+            const margen   = Math.max(2, (maxReal - minReal) * 0.05);
+            const bandas   = masAltaMejor ? [
+                { label: `Muy por encima (≥${(objPrincipal + margen).toFixed(1)})`,              agentes: agentesData.filter(a => a.scoreAgente >= objPrincipal + margen),                                             color: 'var(--success)' },
+                { label: `Sobre objetivo (${objPrincipal}–${(objPrincipal + margen - 0.01).toFixed(1)})`, agentes: agentesData.filter(a => a.scoreAgente >= objPrincipal && a.scoreAgente < objPrincipal + margen),  color: '#22c55e' },
+                { label: `Justo debajo (${(objPrincipal - margen).toFixed(1)}–${(objPrincipal - 0.01).toFixed(1)})`, agentes: agentesData.filter(a => a.scoreAgente < objPrincipal && a.scoreAgente >= objPrincipal - margen), color: 'var(--warning)' },
+                { label: `Lejos (< ${(objPrincipal - margen).toFixed(1)})`,                      agentes: agentesData.filter(a => a.scoreAgente < objPrincipal - margen),                                              color: 'var(--danger)' }
+            ] : [
+                { label: `Muy por debajo (≤${(objPrincipal - margen).toFixed(1)})`,              agentes: agentesData.filter(a => a.scoreAgente <= objPrincipal - margen),                                             color: 'var(--success)' },
+                { label: `Bajo objetivo`,                                                          agentes: agentesData.filter(a => a.scoreAgente <= objPrincipal && a.scoreAgente > objPrincipal - margen),            color: '#22c55e' },
+                { label: `Justo encima`,                                                           agentes: agentesData.filter(a => a.scoreAgente > objPrincipal && a.scoreAgente <= objPrincipal + margen),            color: 'var(--warning)' },
+                { label: `Muy alto peor (> ${(objPrincipal + margen).toFixed(1)})`,              agentes: agentesData.filter(a => a.scoreAgente > objPrincipal + margen),                                              color: 'var(--danger)' }
             ];
-            recs.push({tipo:'mantener',titulo:`📊 Distribución vs Objetivo (${objPrincipal})`,cuerpo:`
-                <div style="margin-top:6px;">
-                ${bandas.map(b=>{const pct=nAgentes>0?((b.agentes.length/nAgentes)*100).toFixed(0):0;const promG=b.agentes.length>0?calcMedia(b.agentes.map(a=>a.scoreAgente)).toFixed(2):'—';return`<div style="margin-bottom:12px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;"><span style="font-size:0.83rem;color:var(--text-sub);font-weight:600;">${b.label}</span><span style="font-weight:700;color:${b.color};font-size:0.85rem;">${b.agentes.length} (${pct}%)</span></div><div style="background:var(--bg-muted);border-radius:3px;height:10px;overflow:hidden;"><div style="width:${pct}%;background:${b.color};height:100%;border-radius:3px;transition:width 0.5s;"></div></div>${b.agentes.length>0?`<div style="font-size:0.74rem;color:var(--text-muted);margin-top:3px;">Score prom.: <strong style="color:${b.color};">${promG}</strong></div>`:''}</div>`;}).join('')}
-                <div style="padding:10px 12px;background:var(--bg-subtle);border-radius:var(--radius);font-size:0.82rem;display:flex;flex-wrap:wrap;gap:12px;border:1px solid var(--border);margin-top:4px;">
-                    <span>Objetivo: <strong>${objPrincipal}</strong></span><span>Promedio: <strong>${mediaReal.toFixed(2)}</strong></span><span>Gap: <strong style="color:${gapVsObjPrincipal>=0?'var(--success)':'var(--danger)'};">${gapVsObjPrincipal>=0?'+':''}${gapVsObjPrincipal.toFixed(2)} pts</strong></span>
-                </div></div>`,metricas:[]});
+
+            recs.push({
+                tipo: 'mantener',
+                titulo: `📊 Distribución vs Objetivo (${objPrincipal})`,
+                cuerpo: `
+                    <div style="margin-top:6px;">
+                        ${bandas.map(b => {
+                            const pct     = nAgentes > 0 ? ((b.agentes.length / nAgentes) * 100).toFixed(0) : 0;
+                            const promG   = b.agentes.length > 0 ? calcMedia(b.agentes.map(a => a.scoreAgente)).toFixed(2) : '—';
+                            return `
+                                <div style="margin-bottom:12px;">
+                                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                                        <span style="font-size:0.83rem;color:var(--text-sub);font-weight:600;">${b.label}</span>
+                                        <span style="font-weight:700;color:${b.color};font-size:0.85rem;">${b.agentes.length} (${pct}%)</span>
+                                    </div>
+                                    <div style="background:var(--bg-muted);border-radius:3px;height:10px;overflow:hidden;">
+                                        <div style="width:${pct}%;background:${b.color};height:100%;border-radius:3px;transition:width 0.5s;"></div>
+                                    </div>
+                                    ${b.agentes.length > 0 ? `<div style="font-size:0.74rem;color:var(--text-muted);margin-top:3px;">Score prom.: <strong style="color:${b.color};">${promG}</strong></div>` : ''}
+                                </div>`;
+                        }).join('')}
+                        <div style="padding:10px 12px;background:var(--bg-subtle);border-radius:var(--radius);font-size:0.82rem;display:flex;flex-wrap:wrap;gap:12px;border:1px solid var(--border);margin-top:4px;">
+                            <span>Objetivo: <strong>${objPrincipal}</strong></span>
+                            <span>Promedio: <strong>${mediaReal.toFixed(2)}</strong></span>
+                            <span>Gap: <strong style="color:${gapVsObjPrincipal >= 0 ? 'var(--success)' : 'var(--danger)'};">${gapVsObjPrincipal >= 0 ? '+' : ''}${gapVsObjPrincipal.toFixed(2)} pts</strong></span>
+                        </div>
+                    </div>`,
+                metricas: []
+            });
         }
 
+        // ══════════════════════════════════════════════════════
+        // BLOQUE 4 — Escenarios estratégicos + ALERTA SUBIR KPI
+        // ══════════════════════════════════════════════════════
         if (objPrincipal !== null && nAgentes > 0) {
-            const paso=Math.max(0.5,(maxReal-minReal)*0.05);
-            const metasBase=objetivosUnicos?.length>0?objetivosUnicos:[objPrincipal];
-            const metasSet=new Set();
-            metasBase.forEach(m=>[-2,-1,0,1,2].forEach(d=>metasSet.add(+(m+d*paso).toFixed(2))));
-            const metas=[...metasSet].sort((a,b)=>a-b);
-            recs.push({tipo:gapVsObjPrincipal<-2?'revisar':gapVsObjPrincipal>=2?(masAltaMejor?'subir':'bajar'):'mantener',titulo:`🎯 Escenarios estratégicos — ¿qué pasaría si se mueve el umbral?`,cuerpo:`
-                <div style="font-size:0.83rem;color:var(--text-muted);margin-bottom:10px;"><strong>${nAgentes} agentes</strong> · Promedio: <strong>${mediaReal.toFixed(2)}</strong> · <strong>${masAltaMejor?'↑ más alto mejor':'↓ más bajo mejor'}</strong></div>
-                <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.82rem;"><thead><tr style="background:var(--bg-subtle);"><th style="padding:9px 11px;border-bottom:1px solid var(--border);font-size:0.7rem;text-transform:uppercase;color:var(--text-sub);">Si el umbral fuera</th><th style="padding:9px 11px;border-bottom:1px solid var(--border);text-align:right;font-size:0.7rem;text-transform:uppercase;color:var(--text-sub);">Puntos necesarios</th><th style="padding:9px 11px;border-bottom:1px solid var(--border);text-align:right;font-size:0.7rem;text-transform:uppercase;color:var(--text-sub);">Diferencia</th><th style="padding:9px 11px;border-bottom:1px solid var(--border);text-align:center;font-size:0.7rem;text-transform:uppercase;color:var(--text-sub);">Ya lo cumplen HOY</th><th style="padding:9px 11px;border-bottom:1px solid var(--border);text-align:center;font-size:0.7rem;text-transform:uppercase;color:var(--text-sub);">Viabilidad</th></tr></thead><tbody>
-                ${metas.map(meta=>{const esActual=(objetivosUnicos||[]).some(o=>Math.abs(o-meta)<0.01);const puntosNec=meta*nAgentes;const dif=puntosNec-totalPuntos;const cumplenHoy=agentesData?agentesData.filter(a=>a.scoreAgente!==null&&(masAltaMejor?a.scoreAgente>=meta:a.scoreAgente<=meta)).length:scores.filter(s=>masAltaMejor?s>=meta:s<=meta).length;const pctAlcanza=nAgentes>0?cumplenHoy/nAgentes:0;const viab=pctAlcanza>=0.65?'<span style="color:var(--success);font-weight:700;">✅ Alta</span>':pctAlcanza>=0.40?'<span style="color:var(--warning);font-weight:700;">⚠️ Media</span>':'<span style="color:var(--danger);font-weight:700;">🚨 Baja</span>';return`<tr style="border-bottom:1px solid var(--border);${esActual?'background:#fffbeb;':''}"><td style="padding:9px 11px;">${esActual?`<span style="background:var(--primary);color:white;padding:2px 7px;border-radius:8px;font-size:0.72rem;margin-right:5px;">actual</span>`:''}<strong>${masAltaMejor?'≥':'≤'} ${meta.toFixed(2)}</strong></td><td style="padding:9px 11px;text-align:right;color:var(--text-sub);">${puntosNec.toFixed(1)}</td><td style="padding:9px 11px;text-align:right;">${dif>0?`<span style="color:var(--danger);">+${dif.toFixed(1)} pts</span>`:`<span style="color:var(--success);">${dif.toFixed(1)} pts</span>`}</td><td style="padding:9px 11px;text-align:center;"><strong>${cumplenHoy}/${nAgentes}</strong> <span style="color:var(--text-muted);font-size:0.78rem;">(${(pctAlcanza*100).toFixed(0)}%)</span></td><td style="padding:9px 11px;text-align:center;">${viab}</td></tr>`;}).join('')}
-                </tbody></table></div>
-                <div style="margin-top:10px;padding:9px 12px;background:var(--bg-subtle);border-radius:var(--radius);font-size:0.8rem;border-left:3px solid var(--secondary);border:1px solid var(--border);border-left-width:3px;">💡 <strong>"Ya lo cumplen HOY"</strong> = agentes con ese score actualmente, sin importar el umbral formal.</div>`,metricas:[]});
+            const paso      = Math.max(0.5, (maxReal - minReal) * 0.05);
+            const metasBase = objetivosUnicos?.length > 0 ? objetivosUnicos : [objPrincipal];
+            const metasSet  = new Set();
+            metasBase.forEach(m => [-2, -1, 0, 1, 2].forEach(d => metasSet.add(+(m + d * paso).toFixed(2))));
+            const metas = [...metasSet].sort((a, b) => a - b);
+
+            // ✅ Meta recomendada: la más exigente donde aún cumple ≥70%
+            const metaRecomendada = metas
+                .filter(meta => {
+                    const cumplen = agentesData.filter(a =>
+                        a.scoreAgente !== null &&
+                        (masAltaMejor ? a.scoreAgente >= meta : a.scoreAgente <= meta)
+                    ).length;
+                    return nAgentes > 0 && (cumplen / nAgentes) >= 0.70;
+                })
+                .sort((a, b) => masAltaMejor ? b - a : a - b)[0] ?? null;
+
+            const subirPuntos = metaRecomendada !== null
+                ? Math.abs(metaRecomendada - objPrincipal).toFixed(2)
+                : null;
+
+            // ✅ BANNER ALERTA según nivel de cumplimiento
+            let alertaBanner = '';
+
+            if (pctCumpleGlobal >= 1.0 && metaRecomendada !== null && metaRecomendada !== objPrincipal) {
+                // 100% cumple → banner morado pulsante MUY llamativo
+                alertaBanner = `
+                    <style>
+                        @keyframes pulseKPI {
+                            0%   { box-shadow: 0 8px 30px rgba(124,58,237,0.4); transform: scale(1); }
+                            50%  { box-shadow: 0 12px 45px rgba(124,58,237,0.7); transform: scale(1.01); }
+                            100% { box-shadow: 0 8px 30px rgba(124,58,237,0.4); transform: scale(1); }
+                        }
+                        @keyframes shine {
+                            0%   { left: -100%; }
+                            100% { left: 200%; }
+                        }
+                    </style>
+                    <div style="
+                        position: relative;
+                        overflow: hidden;
+                        background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 50%, #0ea5e9 100%);
+                        border-radius: 16px;
+                        padding: 22px 26px;
+                        margin-bottom: 20px;
+                        animation: pulseKPI 2.5s ease-in-out infinite;
+                        display: flex;
+                        align-items: center;
+                        gap: 20px;
+                        flex-wrap: wrap;
+                    ">
+                        <!-- Efecto shine -->
+                        <div style="
+                            position: absolute;
+                            top: 0; left: -100%;
+                            width: 60%; height: 100%;
+                            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+                            animation: shine 3s ease-in-out infinite;
+                            pointer-events: none;
+                        "></div>
+
+                        <!-- Ícono -->
+                        <div style="
+                            background: rgba(255,255,255,0.18);
+                            border-radius: 50%;
+                            width: 64px; height: 64px;
+                            display: flex; align-items: center; justify-content: center;
+                            font-size: 2rem; flex-shrink: 0;
+                            border: 2px solid rgba(255,255,255,0.3);
+                        ">🎯</div>
+
+                        <!-- Texto -->
+                        <div style="flex: 1; min-width: 200px;">
+                            <div style="
+                                color: white;
+                                font-size: 1.1rem;
+                                font-weight: 900;
+                                margin-bottom: 8px;
+                                letter-spacing: -0.3px;
+                                text-shadow: 0 1px 3px rgba(0,0,0,0.2);
+                            ">
+                                🚀 ¡El 100% del equipo supera el objetivo actual!
+                            </div>
+                            <div style="color: rgba(255,255,255,0.9); font-size: 0.9rem; line-height: 1.6;">
+                                Objetivo actual:
+                                <span style="background:rgba(255,255,255,0.2);padding:2px 10px;border-radius:20px;font-weight:700;">
+                                    ${masAltaMejor ? '≥' : '≤'} ${objPrincipal}
+                                </span>
+                                &nbsp;·&nbsp; Promedio real:
+                                <span style="color:#a5f3fc;font-weight:800;">${mediaReal.toFixed(2)}</span>
+                                &nbsp;·&nbsp; Gap:
+                                <span style="color:#fde68a;font-weight:800;">+${gapVsObjPrincipal.toFixed(2)} pts</span>
+                                <br>
+                                <span style="margin-top:5px;display:inline-block;">
+                                    📊 Se recomienda
+                                    <strong style="color:white;">${masAltaMejor ? 'subir' : 'bajar'}</strong>
+                                    el objetivo a
+                                    <span style="
+                                        background: rgba(255,255,255,0.25);
+                                        border: 1px solid rgba(255,255,255,0.4);
+                                        padding: 3px 14px;
+                                        border-radius: 20px;
+                                        font-weight: 900;
+                                        font-size: 1rem;
+                                        color: white;
+                                        margin: 0 4px;
+                                    ">${masAltaMejor ? '≥' : '≤'} ${metaRecomendada}</span>
+                                    manteniendo el 70% del equipo dentro del rango.
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Card derecha: valor sugerido -->
+                        <div style="
+                            background: rgba(255,255,255,0.18);
+                            border: 2px solid rgba(255,255,255,0.35);
+                            border-radius: 14px;
+                            padding: 16px 22px;
+                            text-align: center;
+                            flex-shrink: 0;
+                            min-width: 110px;
+                            backdrop-filter: blur(4px);
+                        ">
+                            <div style="color:rgba(255,255,255,0.75);font-size:0.65rem;text-transform:uppercase;font-weight:800;letter-spacing:1px;margin-bottom:6px;">
+                                NUEVO OBJETIVO
+                            </div>
+                            <div style="color:white;font-size:2rem;font-weight:900;line-height:1;text-shadow:0 2px 8px rgba(0,0,0,0.2);">
+                                ${metaRecomendada}
+                            </div>
+                            <div style="
+                                color:#fde68a;
+                                font-size:0.82rem;
+                                font-weight:800;
+                                margin-top:6px;
+                                background:rgba(0,0,0,0.15);
+                                border-radius:10px;
+                                padding:2px 8px;
+                            ">
+                                +${subirPuntos} pts
+                            </div>
+                        </div>
+                    </div>`;
+
+            } else if (pctCumpleGlobal >= 0.85 && gapVsObjPrincipal >= 1 && metaRecomendada !== null && metaRecomendada !== objPrincipal) {
+                // ≥85% cumple → banner amarillo de advertencia
+                alertaBanner = `
+                    <div style="
+                        background: linear-gradient(135deg, #f59e0b, #d97706);
+                        border-radius: 12px;
+                        padding: 18px 22px;
+                        margin-bottom: 18px;
+                        display: flex;
+                        align-items: center;
+                        gap: 16px;
+                        box-shadow: 0 4px 20px rgba(245,158,11,0.35);
+                        flex-wrap: wrap;
+                    ">
+                        <div style="font-size:1.8rem;flex-shrink:0;">⚠️</div>
+                        <div style="flex:1;color:white;min-width:200px;">
+                            <div style="font-weight:800;font-size:0.98rem;margin-bottom:5px;">
+                                Alta tasa de cumplimiento — considera ${masAltaMejor ? 'subir' : 'bajar'} el objetivo
+                            </div>
+                            <div style="font-size:0.85rem;opacity:0.95;line-height:1.5;">
+                                <strong>${(pctCumpleGlobal * 100).toFixed(0)}%</strong> cumple el objetivo actual
+                                <strong>(${masAltaMejor ? '≥' : '≤'} ${objPrincipal})</strong>.
+                                Promedio: <strong>${mediaReal.toFixed(2)}</strong>.
+                                Meta sugerida:
+                                <span style="background:rgba(255,255,255,0.25);padding:2px 10px;border-radius:10px;font-weight:800;margin:0 4px;">
+                                    ${masAltaMejor ? '≥' : '≤'} ${metaRecomendada}
+                                </span>
+                                <span style="font-weight:800;">(+${subirPuntos} pts)</span>
+                            </div>
+                        </div>
+                        <div style="
+                            background:rgba(255,255,255,0.2);
+                            border-radius:12px;
+                            padding:12px 18px;
+                            text-align:center;
+                            flex-shrink:0;
+                        ">
+                            <div style="color:rgba(255,255,255,0.8);font-size:0.65rem;text-transform:uppercase;font-weight:700;margin-bottom:4px;">Sugerido</div>
+                            <div style="color:white;font-size:1.6rem;font-weight:900;">${metaRecomendada}</div>
+                            <div style="color:#fef3c7;font-size:0.75rem;font-weight:700;margin-top:2px;">+${subirPuntos} pts</div>
+                        </div>
+                    </div>`;
+            }
+
+            recs.push({
+                tipo: 'mantener',
+                titulo: `🎯 Escenarios estratégicos — ¿qué pasaría si se mueve el umbral?`,
+                cuerpo: `
+                    ${alertaBanner}
+                    <div style="font-size:0.83rem;color:var(--text-muted);margin-bottom:12px;display:flex;align-items:center;flex-wrap:wrap;gap:8px;">
+                        <span><strong>${nAgentes} agentes</strong></span>
+                        <span>·</span>
+                        <span>Promedio: <strong>${mediaReal.toFixed(2)}</strong></span>
+                        <span>·</span>
+                        <span><strong>${masAltaMejor ? '↑ más alto mejor' : '↓ más bajo mejor'}</strong></span>
+                        ${metaRecomendada !== null ? `
+                            <span>·</span>
+                            <span style="
+                                background:#f5f3ff;
+                                color:#6d28d9;
+                                padding:3px 12px;
+                                border-radius:20px;
+                                font-weight:700;
+                                font-size:0.78rem;
+                                border:1px solid #ddd6fe;
+                            ">⭐ Meta recomendada: ${masAltaMejor ? '≥' : '≤'} ${metaRecomendada}</span>
+                        ` : ''}
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+                            <thead>
+                                <tr style="background:var(--bg-subtle);">
+                                    <th style="padding:9px 11px;border-bottom:1px solid var(--border);font-size:0.7rem;text-transform:uppercase;color:var(--text-sub);">Si el umbral fuera</th>
+                                    <th style="padding:9px 11px;border-bottom:1px solid var(--border);text-align:right;font-size:0.7rem;text-transform:uppercase;color:var(--text-sub);">Pts necesarios</th>
+                                    <th style="padding:9px 11px;border-bottom:1px solid var(--border);text-align:right;font-size:0.7rem;text-transform:uppercase;color:var(--text-sub);">Diferencia</th>
+                                    <th style="padding:9px 11px;border-bottom:1px solid var(--border);text-align:center;font-size:0.7rem;text-transform:uppercase;color:var(--text-sub);">Cumplen HOY</th>
+                                    <th style="padding:9px 11px;border-bottom:1px solid var(--border);text-align:center;font-size:0.7rem;text-transform:uppercase;color:var(--text-sub);">Viabilidad</th>
+                                    <th style="padding:9px 11px;border-bottom:1px solid var(--border);text-align:center;font-size:0.7rem;text-transform:uppercase;color:var(--text-sub);">Recomendación</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${metas.map(meta => {
+                                    const esActual   = (objetivosUnicos || []).some(o => Math.abs(o - meta) < 0.01);
+                                    const esRecomend = metaRecomendada !== null && Math.abs(meta - metaRecomendada) < 0.01;
+                                    const puntosNec  = meta * nAgentes;
+                                    const dif        = puntosNec - totalPuntos;
+                                    const cumplenHoy = agentesData.filter(a =>
+                                        a.scoreAgente !== null &&
+                                        (masAltaMejor ? a.scoreAgente >= meta : a.scoreAgente <= meta)
+                                    ).length;
+                                    const pctAlcanza = nAgentes > 0 ? cumplenHoy / nAgentes : 0;
+
+                                    const viab = pctAlcanza >= 0.65
+                                        ? '<span style="color:var(--success);font-weight:700;">✅ Alta</span>'
+                                        : pctAlcanza >= 0.40
+                                        ? '<span style="color:var(--warning);font-weight:700;">⚠️ Media</span>'
+                                        : '<span style="color:var(--danger);font-weight:700;">🚨 Baja</span>';
+
+                                    let recFila = '';
+                                    if (esRecomend) {
+                                        recFila = `<span style="
+                                            background:linear-gradient(135deg,#7c3aed,#4f46e5);
+                                            color:white;padding:3px 12px;border-radius:20px;
+                                            font-size:0.72rem;font-weight:800;white-space:nowrap;
+                                            box-shadow:0 2px 8px rgba(124,58,237,0.4);
+                                        ">⭐ SUGERIDO</span>`;
+                                    } else if (pctAlcanza === 1.0 && !esActual) {
+                                        recFila = `<span style="color:var(--text-muted);font-size:0.75rem;">Todos cumplen</span>`;
+                                    } else if (pctAlcanza < 0.40) {
+                                        recFila = `<span style="color:var(--danger);font-size:0.75rem;">Muy exigente</span>`;
+                                    } else {
+                                        recFila = `<span style="color:var(--text-muted);font-size:0.75rem;">—</span>`;
+                                    }
+
+                                    const bgFila = esRecomend
+                                        ? 'background:linear-gradient(to right,#f5f3ff,#ede9fe);'
+                                        : esActual
+                                        ? 'background:#fffbeb;'
+                                        : '';
+
+                                    return `<tr style="border-bottom:1px solid var(--border);${bgFila}">
+                                        <td style="padding:9px 11px;">
+                                            ${esActual   ? `<span style="background:var(--primary);color:white;padding:2px 7px;border-radius:8px;font-size:0.72rem;margin-right:5px;">actual</span>` : ''}
+                                            ${esRecomend ? `<span style="background:#7c3aed;color:white;padding:2px 7px;border-radius:8px;font-size:0.72rem;margin-right:5px;">⭐</span>` : ''}
+                                            <strong>${masAltaMejor ? '≥' : '≤'} ${meta.toFixed(2)}</strong>
+                                        </td>
+                                        <td style="padding:9px 11px;text-align:right;color:var(--text-sub);">${puntosNec.toFixed(1)}</td>
+                                        <td style="padding:9px 11px;text-align:right;">
+                                            ${dif > 0
+                                                ? `<span style="color:var(--danger);">+${dif.toFixed(1)} pts</span>`
+                                                : `<span style="color:var(--success);">${dif.toFixed(1)} pts</span>`}
+                                        </td>
+                                        <td style="padding:9px 11px;text-align:center;">
+                                            <strong>${cumplenHoy}/${nAgentes}</strong>
+                                            <span style="color:var(--text-muted);font-size:0.78rem;"> (${(pctAlcanza * 100).toFixed(0)}%)</span>
+                                        </td>
+                                        <td style="padding:9px 11px;text-align:center;">${viab}</td>
+                                        <td style="padding:9px 11px;text-align:center;">${recFila}</td>
+                                    </tr>`;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div style="margin-top:10px;padding:9px 12px;background:var(--bg-subtle);border-radius:var(--radius);font-size:0.8rem;border-left:3px solid var(--secondary);border:1px solid var(--border);border-left-width:3px;">
+                        💡 <strong>"Cumplen HOY"</strong> = agentes con ese score actualmente, sin importar el umbral formal &nbsp;·&nbsp;
+                        <strong>⭐ Sugerido</strong> = meta más exigente donde aún cumple ≥70% del equipo
+                    </div>`,
+                metricas: []
+            });
         }
 
+        // ══════════════════════════════════════════════════════
+        // BLOQUE 5 — Recomendación principal (Mantener/Subir/Bajar)
+        // ══════════════════════════════════════════════════════
         if (objPrincipal !== null && gapVsObjPrincipal !== null) {
-            const pctStr=(pctCumpleGlobal*100).toFixed(0)+'%';
-            let tipoRec,tituloRec,cuerpoRec;
-            if(pctCumpleGlobal>=0.85&&gapVsObjPrincipal>=2){const p25=scores.length>0?percentil(scoresSorted,masAltaMejor?25:75):objPrincipal;const nuevaMeta=Math.round(p25*10)/10;tipoRec=masAltaMejor?'subir':'bajar';tituloRec=`${masAltaMejor?'⬆️':'⬇️'} RECOMENDACIÓN: Ajustar umbral de ${objPrincipal} a ~${nuevaMeta}`;cuerpoRec=`El <strong>${pctStr}</strong> cumple con promedio <strong>${mediaReal.toFixed(2)}</strong> (<span style="color:var(--success);">+${gapVsObjPrincipal.toFixed(2)} pts</span>). ${masAltaMejor?'Subir':'Bajar'} a <strong>${nuevaMeta}</strong> mantendría el 75% cumpliendo con mayor exigencia.`;}
-            else if(pctCumpleGlobal<0.35){const metaSug=Math.round(mediaReal*10)/10;tipoRec=masAltaMejor?'bajar':'subir';tituloRec=`${masAltaMejor?'⬇️':'⬆️'} RECOMENDACIÓN: Solo el ${pctStr} cumple — umbral difícil`;cuerpoRec=`Promedio real <strong>${mediaReal.toFixed(2)}</strong>, solo <strong>${agentesConCumple}/${nAgentes}</strong> cumplen. Considera ${masAltaMejor?'bajar':'subir'} a <strong>${metaSug}</strong>.`;}
-            else if(pctCumpleGlobal>=0.85){tipoRec='revisar';tituloRec=`🔍 REVISAR — ${pctStr} cumple pero margen ajustado`;cuerpoRec=`Mayoría cumple pero promedio supera objetivo por solo <strong>${gapVsObjPrincipal.toFixed(2)} puntos</strong>.`;}
-            else{tipoRec='mantener';tituloRec=`✅ RECOMENDACIÓN: Mantener umbral en ${objPrincipal} — nivel adecuado`;cuerpoRec=`El <strong>${pctStr}</strong> cumple con promedio <strong>${mediaReal.toFixed(2)}</strong>. ${nAgentes-agentesConCumple>0?`Foco en los <strong>${nAgentes-agentesConCumple} agentes</strong> que no cumplen.`:''}`;}
-            recs.push({tipo:tipoRec,titulo:tituloRec,cuerpo:cuerpoRec,metricas:[`Objetivo: ${masAltaMejor?'≥':'≤'} ${objPrincipal}`,`Promedio: ${mediaReal.toFixed(2)}`,`Gap: ${gapVsObjPrincipal>=0?'+':''}${gapVsObjPrincipal.toFixed(2)} pts`,`Cumplen: ${agentesConCumple}/${nAgentes} (${pctStr})`]});
+            const pctStr = (pctCumpleGlobal * 100).toFixed(0) + '%';
+            let tipoRec, tituloRec, cuerpoRec;
+
+            if (pctCumpleGlobal >= 0.85 && gapVsObjPrincipal >= 2) {
+                const p25      = scores.length > 0 ? percentil(scoresSorted, masAltaMejor ? 25 : 75) : objPrincipal;
+                const nuevaMeta = Math.round(p25 * 10) / 10;
+                tipoRec    = masAltaMejor ? 'subir' : 'bajar';
+                tituloRec  = `${masAltaMejor ? '⬆️' : '⬇️'} RECOMENDACIÓN: Ajustar umbral de ${objPrincipal} a ~${nuevaMeta}`;
+                cuerpoRec  = `El <strong>${pctStr}</strong> cumple con promedio <strong>${mediaReal.toFixed(2)}</strong> (<span style="color:var(--success);">+${gapVsObjPrincipal.toFixed(2)} pts</span>). ${masAltaMejor ? 'Subir' : 'Bajar'} a <strong>${nuevaMeta}</strong> mantendría el 75% cumpliendo con mayor exigencia.`;
+            } else if (pctCumpleGlobal < 0.35) {
+                const metaSug = Math.round(mediaReal * 10) / 10;
+                tipoRec   = masAltaMejor ? 'bajar' : 'subir';
+                tituloRec = `${masAltaMejor ? '⬇️' : '⬆️'} RECOMENDACIÓN: Solo el ${pctStr} cumple — umbral muy difícil`;
+                cuerpoRec = `Promedio real <strong>${mediaReal.toFixed(2)}</strong>, solo <strong>${agentesConCumple}/${nAgentes}</strong> cumplen. Considera ${masAltaMejor ? 'bajar' : 'subir'} a <strong>${metaSug}</strong>.`;
+            } else if (pctCumpleGlobal >= 0.85) {
+                tipoRec   = 'revisar';
+                tituloRec = `🔍 REVISAR — ${pctStr} cumple pero margen ajustado`;
+                cuerpoRec = `Mayoría cumple pero promedio supera objetivo por solo <strong>${gapVsObjPrincipal.toFixed(2)} puntos</strong>.`;
+            } else {
+                tipoRec   = 'mantener';
+                tituloRec = `✅ RECOMENDACIÓN: Mantener umbral en ${objPrincipal} — nivel adecuado`;
+                cuerpoRec = `El <strong>${pctStr}</strong> cumple con promedio <strong>${mediaReal.toFixed(2)}</strong>. ${nAgentes - agentesConCumple > 0 ? `Foco en los <strong>${nAgentes - agentesConCumple} agentes</strong> que no cumplen.` : ''}`;
+            }
+
+            recs.push({
+                tipo: tipoRec,
+                titulo: tituloRec,
+                cuerpo: cuerpoRec,
+                metricas: [
+                    `Objetivo: ${masAltaMejor ? '≥' : '≤'} ${objPrincipal}`,
+                    `Promedio: ${mediaReal.toFixed(2)}`,
+                    `Gap: ${gapVsObjPrincipal >= 0 ? '+' : ''}${gapVsObjPrincipal.toFixed(2)} pts`,
+                    `Cumplen: ${agentesConCumple}/${nAgentes} (${pctStr})`
+                ]
+            });
         }
 
+        // ══════════════════════════════════════════════════════
+        // BLOQUE 6 — Agentes en riesgo
+        // ══════════════════════════════════════════════════════
         if (pisoBajo !== null && agentesData?.length > 0) {
-            const margenRiesgo=Math.max(2,(maxReal-minReal)*0.03);
-            const enRiesgo=agentesData.filter(a=>{if(a.cumpleAlgunPiso||a.scoreAgente===null)return false;return masAltaMejor?a.scoreAgente>=pisoBajo-margenRiesgo&&a.scoreAgente<pisoBajo:a.scoreAgente<=pisoBajo+margenRiesgo&&a.scoreAgente>pisoBajo;}).sort((a,b)=>masAltaMejor?b.scoreAgente-a.scoreAgente:a.scoreAgente-b.scoreAgente);
-            if(enRiesgo.length>0){recs.push({tipo:'revisar',titulo:`⚡ ${enRiesgo.length} agente(s) cerca del ${masAltaMejor?'mínimo':'límite'}`,cuerpo:`
-                <div style="overflow-x:auto;margin-top:10px;"><table style="width:100%;border-collapse:collapse;font-size:0.82rem;"><thead><tr style="background:var(--bg-subtle);"><th style="padding:8px 10px;border-bottom:1px solid var(--border);font-size:0.68rem;text-transform:uppercase;color:var(--text-sub);">Agente</th><th style="padding:8px 10px;border-bottom:1px solid var(--border);font-size:0.68rem;text-transform:uppercase;color:var(--text-sub);">LOB</th><th style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:center;font-size:0.68rem;text-transform:uppercase;color:var(--text-sub);">Score</th><th style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:center;font-size:0.68rem;text-transform:uppercase;color:var(--text-sub);">${masAltaMejor?'Mínimo':'Límite'}</th><th style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:center;font-size:0.68rem;text-transform:uppercase;color:var(--text-sub);">Le ${masAltaMejor?'faltan':'sobran'}</th><th style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:center;font-size:0.68rem;text-transform:uppercase;color:var(--text-sub);">Mes</th></tr></thead><tbody>
-                ${enRiesgo.slice(0,15).map(a=>{const diff=masAltaMejor?pisoBajo-a.scoreAgente:a.scoreAgente-pisoBajo;return`<tr style="border-bottom:1px solid var(--border);"><td style="padding:8px 10px;font-weight:600;">${a.nombreAgente||a.bmsId||'—'}</td><td style="padding:8px 10px;color:var(--text-muted);">${a.lob||'—'}</td><td style="padding:8px 10px;text-align:center;font-weight:700;color:var(--danger);">${a.scoreAgente.toFixed(2)}</td><td style="padding:8px 10px;text-align:center;">${pisoBajo}</td><td style="padding:8px 10px;text-align:center;font-weight:700;color:var(--warning);">${diff.toFixed(2)}</td><td style="padding:8px 10px;text-align:center;color:var(--text-muted);">${a.mesCDM||'—'}</td></tr>`;}).join('')}
-                </tbody></table></div>`,metricas:[`${enRiesgo.length} agente(s) a < ${margenRiesgo.toFixed(1)} pts`]});}
+            const margenRiesgo = Math.max(2, (maxReal - minReal) * 0.03);
+            const enRiesgo     = agentesData.filter(a => {
+                if (a.cumpleAlgunPiso || a.scoreAgente === null) return false;
+                return masAltaMejor
+                    ? a.scoreAgente >= pisoBajo - margenRiesgo && a.scoreAgente < pisoBajo
+                    : a.scoreAgente <= pisoBajo + margenRiesgo && a.scoreAgente > pisoBajo;
+            }).sort((a, b) => masAltaMejor ? b.scoreAgente - a.scoreAgente : a.scoreAgente - b.scoreAgente);
+
+            if (enRiesgo.length > 0) {
+                recs.push({
+                    tipo: 'revisar',
+                    titulo: `⚡ ${enRiesgo.length} agente(s) cerca del ${masAltaMejor ? 'mínimo' : 'límite'} — en riesgo`,
+                    cuerpo: `
+                        <div style="overflow-x:auto;margin-top:10px;">
+                            <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+                                <thead>
+                                    <tr style="background:var(--bg-subtle);">
+                                        <th style="padding:8px 10px;border-bottom:1px solid var(--border);font-size:0.68rem;text-transform:uppercase;color:var(--text-sub);">Agente</th>
+                                        <th style="padding:8px 10px;border-bottom:1px solid var(--border);font-size:0.68rem;text-transform:uppercase;color:var(--text-sub);">LOB</th>
+                                        <th style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:center;font-size:0.68rem;text-transform:uppercase;color:var(--text-sub);">Score</th>
+                                        <th style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:center;font-size:0.68rem;text-transform:uppercase;color:var(--text-sub);">${masAltaMejor ? 'Mínimo' : 'Límite'}</th>
+                                        <th style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:center;font-size:0.68rem;text-transform:uppercase;color:var(--text-sub);">Le ${masAltaMejor ? 'faltan' : 'sobran'}</th>
+                                        <th style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:center;font-size:0.68rem;text-transform:uppercase;color:var(--text-sub);">Mes</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${enRiesgo.slice(0, 15).map(a => {
+                                        const diff = masAltaMejor ? pisoBajo - a.scoreAgente : a.scoreAgente - pisoBajo;
+                                        return `<tr style="border-bottom:1px solid var(--border);">
+                                            <td style="padding:8px 10px;font-weight:600;">${a.nombreAgente || a.bmsId || '—'}</td>
+                                            <td style="padding:8px 10px;color:var(--text-muted);">${a.lob || '—'}</td>
+                                            <td style="padding:8px 10px;text-align:center;font-weight:700;color:var(--danger);">${a.scoreAgente.toFixed(2)}</td>
+                                            <td style="padding:8px 10px;text-align:center;">${pisoBajo}</td>
+                                            <td style="padding:8px 10px;text-align:center;font-weight:700;color:var(--warning);">${diff.toFixed(2)}</td>
+                                            <td style="padding:8px 10px;text-align:center;color:var(--text-muted);">${a.mesCDM || '—'}</td>
+                                        </tr>`;
+                                    }).join('')}
+                                </tbody>
+                            </table>
+                        </div>`,
+                    metricas: [`${enRiesgo.length} agente(s) a < ${margenRiesgo.toFixed(1)} pts del mínimo`]
+                });
+            }
         }
     }
 
+    // ══════════════════════════════════════════════════════════
+    // BLOQUE 7 — Costo mensual
+    // ══════════════════════════════════════════════════════════
     if (total !== 0) {
-        const hayPen=totalPenalizacion&&totalPenalizacion<0;
-        recs.push({tipo:costoMens>5000000?'revisar':'mantener',titulo:costoMens>5000000?'💸 Costo mensual elevado — evaluar ROI':'💰 Costo mensual dentro de rango normal',cuerpo:`Costo neto promedio mensual: <strong>${fmtMoney(costoMens)}</strong> (${mesesU} mes${mesesU>1?'es':''}).${hayPen?`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;"><div style="background:var(--bg-subtle);border-radius:var(--radius);padding:10px 14px;text-align:center;border:1px solid var(--border);"><div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;">Bonos</div><div style="font-size:1.1rem;font-weight:700;color:var(--success);">${fmtMoney(totalPositivo||0)}</div></div><div style="background:var(--bg-subtle);border-radius:var(--radius);padding:10px 14px;text-align:center;border:1px solid var(--border);"><div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;">Penalizaciones</div><div style="font-size:1.1rem;font-weight:700;color:var(--danger);">${fmtMoney(totalPenalizacion||0)}</div></div><div style="background:var(--bg-subtle);border-radius:var(--radius);padding:10px 14px;text-align:center;border:1px solid var(--border);"><div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;">Neto total</div><div style="font-size:1.1rem;font-weight:700;color:var(--text-main);">${fmtMoney(total||0)}</div></div></div>`:''}`,metricas:[`Neto mensual: ${fmtMoney(costoMens)}`,`Total: ${fmtMoney(total)}`]});
+        const hayPen = totalPenalizacion && totalPenalizacion < 0;
+        recs.push({
+            tipo: costoMens > 5000000 ? 'revisar' : 'mantener',
+            titulo: costoMens > 5000000
+                ? '💸 Costo mensual elevado — evaluar ROI'
+                : '💰 Costo mensual dentro de rango normal',
+            cuerpo: `
+                Costo neto promedio mensual: <strong>${fmtMoney(costoMens)}</strong> (${mesesU} mes${mesesU > 1 ? 'es' : ''}).
+                ${hayPen ? `
+                    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
+                        <div style="background:var(--bg-subtle);border-radius:var(--radius);padding:10px 14px;text-align:center;border:1px solid var(--border);">
+                            <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;">Bonos</div>
+                            <div style="font-size:1.1rem;font-weight:700;color:var(--success);">${fmtMoney(totalPositivo || 0)}</div>
+                        </div>
+                        <div style="background:var(--bg-subtle);border-radius:var(--radius);padding:10px 14px;text-align:center;border:1px solid var(--border);">
+                            <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;">Penalizaciones</div>
+                            <div style="font-size:1.1rem;font-weight:700;color:var(--danger);">${fmtMoney(totalPenalizacion || 0)}</div>
+                        </div>
+                        <div style="background:var(--bg-subtle);border-radius:var(--radius);padding:10px 14px;text-align:center;border:1px solid var(--border);">
+                            <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;">Neto total</div>
+                            <div style="font-size:1.1rem;font-weight:700;color:var(--text-main);">${fmtMoney(total || 0)}</div>
+                        </div>
+                    </div>` : ''}`,
+            metricas: [`Neto mensual: ${fmtMoney(costoMens)}`, `Total: ${fmtMoney(total)}`]
+        });
     }
 
+    // ══════════════════════════════════════════════════════════
+    // RENDER FINAL
+    // ══════════════════════════════════════════════════════════
     cont.innerHTML = recs.map(r => `
         <div class="recomendacion-box ${r.tipo}">
             <div class="rec-title">${r.titulo}</div>
             <div class="rec-body">${r.cuerpo}</div>
-            ${r.metricas.length>0?`<div class="rec-metrics">${r.metricas.map(m=>`<span class="rec-metric">${m}</span>`).join('')}</div>`:''}
+            ${r.metricas.length > 0 ? `
+                <div class="rec-metrics">
+                    ${r.metricas.map(m => `<span class="rec-metric">${m}</span>`).join('')}
+                </div>` : ''}
         </div>`).join('');
 }
+
+
+
+
+
 
 // ============================================================
 // ANÁLISIS FINANCIERO HISTÓRICO — Motor principal
