@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - Dashboard KPIs</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: #f0f6ff;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .wrap {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 8px 40px rgba(24,95,165,0.13);
+      background: #fff;
+      max-width: 880px;
+      width: 100%;
+      min-height: 580px;
+    }
+
+    /* ── Brand Panel ── */
+    .brand {
+      background: #E6F1FB;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .brand-content {
+      padding: 44px 38px 20px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      z-index: 2;
+    }
+
+    .brand-label {
+      font-size: 10px; font-weight: 500;
+      letter-spacing: 0.14em; color: #185FA5;
+      text-transform: uppercase; margin-bottom: 12px;
+    }
+    .brand-title {
+      font-family: 'DM Serif Display', serif;
+      font-size: 40px; line-height: 1.1;
+      color: #042C53; font-weight: 400; margin-bottom: 10px;
+    }
+    .brand-sub {
+      font-size: 12px; color: #185FA5;
+      font-weight: 300; line-height: 1.6; margin-bottom: 24px;
+    }
+    .brand-metrics { display: flex; flex-direction: column; gap: 10px; }
+    .metric-pill { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #0C447C; }
+    .metric-dot { width: 5px; height: 5px; border-radius: 50%; background: #378ADD; flex-shrink: 0; }
+
+    /* ── Car Scene ── */
+    .car-scene {
+      width: 100%;
+      height: 150px;
+      position: relative;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .road-bg {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 58px;
+      background: #B5D4F4;
+      border-top: 2px solid #85B7EB;
+    }
+
+    .dashes {
+      position: absolute;
+      bottom: 25px;
+      left: 0;
+      width: 200%;
+      display: flex;
+      gap: 28px;
+      animation: dash-move 0.9s linear infinite;
+    }
+    .dash {
+      width: 44px; height: 5px;
+      background: #0C447C;
+      border-radius: 3px;
+      flex-shrink: 0;
+      opacity: 0.45;
+    }
+    @keyframes dash-move {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-72px); }
+    }
+
+    .car-svg {
+      position: absolute;
+      bottom: 54px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 190px;
+      animation: bob 0.45s ease-in-out infinite alternate;
+    }
+    @keyframes bob {
+      from { transform: translateX(-50%) translateY(0px); }
+      to   { transform: translateX(-50%) translateY(-3px); }
+    }
+
+    .puff1, .puff2, .puff3 {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(55,138,221,0.28);
+      animation: puff 1s ease-out infinite;
+    }
+    .puff1 { width:10px; height:10px; bottom:72px; left:calc(50% - 115px); animation-delay:0s; }
+    .puff2 { width:14px; height:14px; bottom:74px; left:calc(50% - 126px); animation-delay:0.33s; }
+    .puff3 { width:8px;  height:8px;  bottom:68px; left:calc(50% - 106px); animation-delay:0.66s; }
+    @keyframes puff {
+      0%   { transform: translate(0,0) scale(0.5); opacity:0.7; }
+      100% { transform: translate(-32px,-14px) scale(1.9); opacity:0; }
+    }
+
+    /* ── Form Side ── */
+    .form-side {
+      padding: 52px 48px;
+      display: flex; flex-direction: column; justify-content: center;
+      background: #fff;
+    }
+    .form-heading {
+      font-family: 'DM Serif Display', serif;
+      font-size: 28px; font-weight: 400; color: #111; margin-bottom: 5px;
+    }
+    .form-sub { font-size: 12px; color: #888; margin-bottom: 30px; font-weight: 300; }
+
+    .msg-error {
+      background: #fff5f5;
+      border-left: 3px solid #E24B4A;
+      color: #A32D2D;
+      padding: 10px 14px;
+      border-radius: 0 8px 8px 0;
+      font-size: 13px;
+      margin-bottom: 18px;
+    }
+
+    .field { margin-bottom: 20px; }
+    .field label {
+      display: block; font-size: 10px; font-weight: 500;
+      letter-spacing: 0.09em; color: #aaa; text-transform: uppercase; margin-bottom: 8px;
+    }
+    .field-wrap { position: relative; }
+    .field-wrap svg {
+      position: absolute; left: 12px; top: 50%;
+      transform: translateY(-50%); opacity: 0.3;
+      width: 14px; height: 14px; pointer-events: none;
+    }
+    .field input {
+      width: 100%; padding: 12px 14px 12px 38px;
+      border: 1px solid #e4e8ed; border-radius: 10px;
+      background: #f7fafd;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px; color: #111;
+      transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+    }
+    .field input:focus {
+      outline: none;
+      border-color: #378ADD;
+      box-shadow: 0 0 0 3px rgba(55,138,221,0.12);
+      background: #fff;
+    }
+    .field input::placeholder { color: #bbb; font-weight: 300; }
+
+    .btn-submit {
+      width: 100%; padding: 14px;
+      background: #185FA5;
+      color: #E6F1FB;
+      border: none;
+      border-radius: 10px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px; font-weight: 500; cursor: pointer;
+      letter-spacing: 0.04em;
+      transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+      margin-top: 6px;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .btn-submit:hover {
+      background: #0C447C;
+      transform: translateY(-1px);
+      box-shadow: 0 8px 20px rgba(12,68,124,0.18);
+    }
+    .btn-submit:active { transform: translateY(0); background: #042C53; box-shadow: none; }
+    .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .btn-arrow { transition: transform 0.2s; }
+    .btn-submit:hover .btn-arrow { transform: translateX(3px); }
+
+    .divider { height: 1px; background: #f0f0f0; margin: 22px 0 14px; }
+    .footer-note { font-size: 11px; color: #ccc; text-align: center; font-weight: 300; }
+
+    @media (max-width: 580px) {
+      .wrap { grid-template-columns: 1fr; }
+      .brand { display: none; }
+      .form-side { padding: 36px 24px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+
+    <!-- Brand + Car Animation -->
+    <div class="brand">
+      <div class="brand-content">
+        <div>
+          <p class="brand-label">Business Intelligence</p>
+          <h1 class="brand-title">Dashboard<br>KPIs</h1>
+          <p class="brand-sub">Monitoreo en tiempo real<br>de indicadores de desempeño.</p>
+        </div>
+        <div class="brand-metrics">
+          <div class="metric-pill"><span class="metric-dot"></span>Ventas &amp; conversión</div>
+          <div class="metric-pill"><span class="metric-dot"></span>Rendimiento por agente</div>
+          <div class="metric-pill"><span class="metric-dot"></span>Tendencias históricas</div>
+          <div class="metric-pill"><span class="metric-dot"></span>Reportes exportables</div>
+        </div>
+      </div>
+
+      <div class="car-scene">
+        <div class="road-bg"></div>
+        <div class="dashes">
+          <div class="dash"></div><div class="dash"></div><div class="dash"></div>
+          <div class="dash"></div><div class="dash"></div><div class="dash"></div>
+          <div class="dash"></div><div class="dash"></div><div class="dash"></div>
+          <div class="dash"></div><div class="dash"></div><div class="dash"></div>
+        </div>
+
+        <div class="puff1"></div>
+        <div class="puff2"></div>
+        <div class="puff3"></div>
+
+        <svg class="car-svg" viewBox="0 0 180 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="34" width="160" height="26" rx="7" fill="#185FA5"/>
+          <path d="M34 34 Q44 12 66 9 L120 9 Q142 9 152 34Z" fill="#378ADD"/>
+          <rect x="50" y="13" width="30" height="18" rx="3" fill="#E6F1FB" opacity="0.85"/>
+          <rect x="86" y="13" width="30" height="18" rx="3" fill="#E6F1FB" opacity="0.85"/>
+          <rect x="3"   y="44" width="20" height="10" rx="3" fill="#EF9F27"/>
+          <rect x="157" y="44" width="18" height="10" rx="3" fill="#E24B4A"/>
+          <rect x="0"   y="45" width="18" height="8"  rx="2" fill="#FAC775"/>
+          <rect x="162" y="45" width="18" height="8"  rx="2" fill="#F09595"/>
+          <circle cx="44"  cy="62" r="10" fill="#0C447C" stroke="#B5D4F4" stroke-width="2.5"/>
+          <circle cx="44"  cy="62" r="4"  fill="#85B7EB"/>
+          <circle cx="136" cy="62" r="10" fill="#0C447C" stroke="#B5D4F4" stroke-width="2.5"/>
+          <circle cx="136" cy="62" r="4"  fill="#85B7EB"/>
+          <rect x="38" y="44" width="104" height="4" rx="2" fill="#0C447C"/>
+          <rect x="14" y="37" width="152" height="2" rx="1" fill="#B5D4F4" opacity="0.4"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Form Panel -->
+    <div class="form-side">
+      <h2 class="form-heading">Bienvenido</h2>
+      <p class="form-sub">Ingresa tus credenciales para continuar</p>
+
+      <? if (typeof message !== 'undefined' && message && message !== "") { ?>
+        <div class="msg-error"><?= message ?></div>
+      <? } ?>
+
+      <form id="loginForm" method="post" action="<?= ScriptApp.getService().getUrl() ?>">
+        <div class="field">
+          <label for="id">BMS ID</label>
+          <div class="field-wrap">
+            <svg viewBox="0 0 16 16" fill="none">
+              <circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1.2"/>
+              <path d="M2 14c0-3.314 2.686-5 6-5s6 1.686 6 5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+            </svg>
+            <input type="text" id="id" name="id" placeholder="Tu identificador BMS" required autocomplete="username">
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="password">Contraseña</label>
+          <div class="field-wrap">
+            <svg viewBox="0 0 16 16" fill="none">
+              <rect x="3" y="7" width="10" height="8" rx="1.5" stroke="currentColor" stroke-width="1.2"/>
+              <path d="M5 7V5a3 3 0 016 0v2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+            </svg>
+            <input type="password" id="password" name="password" placeholder="••••••••" required autocomplete="current-password">
+          </div>
+        </div>
+
+        <button type="submit" class="btn-submit" id="btnLogin">
+          Iniciar sesión <span class="btn-arrow">&#x2192;</span>
+        </button>
+      </form>
+
+      <div class="divider"></div>
+      <p class="footer-note">¿Problemas para ingresar? Contacta a tu administrador.</p>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', function() {
+      var btn = document.getElementById('btnLogin');
+      btn.disabled = true;
+      btn.innerHTML = '&#x23F3; Verificando...';
+    });
+  </script>
+</body>
+</html>
