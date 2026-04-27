@@ -1,3 +1,4 @@
+// MODIFICACIÓN: 21/03/2026 8:52 PM - Ajuste de resta en simulación
 const ID_SS_PRINCIPAL = '1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4';
 const SPREADSHEET_ID = '1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4';
 const ID_SS_CDM = '1PtYuAb5C2kIoX8sE7dOvt1nVS-aLamZLOJQUSbTBBCw';
@@ -1350,13 +1351,13 @@ function validarKPIsPorCategoria(registro, lob, dataCDM, dataUsuario, hoja, agen
                 // ✅ DETECTAR GATE: termina en ",key" ignorando espacios/mayúsculas
                 // ================================================================
                 const scoreRawLower = scoreRaw.toLowerCase().replace(/\s/g, '');
-                const esGate = cat === 'bonusStructure' && scoreRawLower.endsWith(',key');
+                const esGate = cat === 'bonusStructure' && (scoreRawLower.endsWith(',key') || scoreRawLower.endsWith(',gate'));
 
                 let score = scoreRaw;
 
                 if (esGate) {
                     // Limpiar ",key" del score
-                    score = scoreRaw.replace(/\s*,\s*key\s*$/i, '').trim();
+                    score = scoreRaw.replace(/\s*,\s*(key|gate)\s*$/i, '').trim();
                     Logger.log(`🔒 Gate detectado: KPI="${kpi}" | scoreRaw="${scoreRaw}" | scoreLimpio="${score}"`);
                 }
 
@@ -2992,56 +2993,201 @@ function obtenerTodasLasLobs() {
   return Array.from(lobsEncontradas).sort();
 }
 
+// ========================================
+// ⭐ AUXILIAR: Detecta qué semana corresponde para LOB + Mes
+// ========================================
+function _detectarSemana(hojaAudit, lobNorm, mesNorm) {
+  if (!hojaAudit || hojaAudit.getLastRow() < 2) return { semana: 'Semana_1', numero: 1, esCerrado: false };
 
+  const data    = hojaAudit.getDataRange().getValues();
+  const headers = data[0];
+  const idxLOB  = headers.indexOf('LOB');
+  const idxMes  = headers.indexOf('Mes CDM');
+  const idxSem  = headers.indexOf('Semana');  // columna AD
 
+  const norm = s => s ? s.toString().trim().toLowerCase() : '';
 
+  let maxSemana = 0;
+  let hayTotalMes = false;
 
-function guardarAprobaciones(aprobaciones) {
+  for (let i = 1; i < data.length; i++) {
+    const lobFila = norm(data[i][idxLOB]);
+    const mesFila = norm(data[i][idxMes]);
+    if (lobFila !== lobNorm || mesFila !== mesNorm) continue;
+
+    if (idxSem !== -1) {
+      const semFila = norm(data[i][idxSem]);
+      if (semFila === 'total_mes') { hayTotalMes = true; continue; }
+      const match = semFila.match(/semana_(\d)/i);
+      if (match) {
+        const num = parseInt(match[1]);
+        if (num > maxSemana) maxSemana = num;
+      }
+    }
+  }
+
+  if (hayTotalMes || maxSemana >= 4) {
+    return { semana: null, numero: maxSemana, esCerrado: true };
+  }
+
+  const proximaSemana = maxSemana + 1;
+  return {
+    semana:    'Semana_' + proximaSemana,
+    numero:    proximaSemana,
+    esCerrado: false
+  };
+}
+
+// ============================================================
+//  ⭐ SISTEMA DE HEADERS FIJOS - OM Audit Sheets v1
+//  Verifica y restaura los encabezados si se eliminan.
+//  Se llama desde guardarAprobaciones() y como trigger onOpen.
+// ============================================================
+
+var _OM_AUDIT_SHEETS_CFG_ = [
+  {
+    nombre: 'Audit',
+    color:  '#1a6b3a',
+    headers: [
+      'BMS ID', 'Nombre Agente', 'LOB', 'Role', 'Supervisor', 'ACCM', 'OM', 'Roll',
+      'Bono Aprobado', 'Fecha Aprobación', 'Usuario Aprobador', 'Correo Aprobador',
+      'Fecha KPI', 'Mes CDM', 'Estado', 'Fue Prorrateado', 'Monto Original',
+      'Monto Final Prorrateo', 'Diferencia Prorrateo', 'Días Laborados',
+      'Horas Semanales HC', 'Horas Trabajadas', 'Ausencias', 'Tiene Disputa',
+      'Comentario Disputa', 'Additional Incentives ($)', 'Decreased KPIs ($)',
+      'ID Disputa', 'Monto Disputado ($)', 'Semana'
+    ]
+  },
+  {
+    nombre: 'Audit_Detalle',
+    color:  '#2c3e50',
+    headers: [
+      'Fecha Aprobación', 'BMS ID', 'Nombre Agente', 'LOB', 'Mes CDM', 'Fecha KPI',
+      'Categoría KPI', 'KPI', 'Score Objetivo', 'Valor Obtenido', 'Estado',
+      'Bono KPI ($)', 'Nota', 'Usuario Aprobador', 'Tipo Estructura', 'Es Gate (S/N)'
+    ]
+  },
+  {
+    nombre: 'Disputa',
+    color:  '#9b59b6',
+    headers: [
+      'ID Disputa', 'Fecha Disputa', 'BMS ID', 'Nombre Agente', 'LOB', 'Fecha KPI',
+      'Mes CDM', 'Bono Aprobado ($)', 'Monto Disputado ($)', 'Bono KPIs Selec ($)',
+      'KPIs Disputados', 'Comentario', 'Estado', 'Usuario Disputa', 'Correo Disputa'
+    ]
+  },
+  {
+    nombre: 'Disputa_Detalle',
+    color:  '#6c3483',
+    headers: [
+      'ID Disputa', 'Fecha Disputa', 'BMS ID', 'Nombre Agente', 'Mes CDM', 'Fecha KPI',
+      'Categoría KPI', 'KPI', 'Score Objetivo', 'Valor Obtenido', 'Estado KPI',
+      'Bono KPI ($)', 'Monto Disputado ($)', 'Comentario', 'Usuario Disputa'
+    ]
+  }
+];
+
+/**
+ * Verifica y restaura headers de todas las hojas de Audit.
+ * Crea la hoja si no existe, inserta la fila de headers si fue borrada.
+ * @param {SpreadsheetApp.Spreadsheet} ss
+ */
+function _asegurarHeadersSheets(ss) {
+  _OM_AUDIT_SHEETS_CFG_.forEach(function(cfg) {
+    var hoja = ss.getSheetByName(cfg.nombre);
+
+    // Crear hoja si no existe
+    if (!hoja) {
+      hoja = ss.insertSheet(cfg.nombre);
+      hoja.appendRow(cfg.headers);
+      hoja.getRange(1, 1, 1, cfg.headers.length)
+          .setBackground(cfg.color).setFontColor('#FFFFFF').setFontWeight('bold');
+      hoja.setFrozenRows(1);
+      Logger.log('✅ Hoja creada con headers: ' + cfg.nombre);
+      return;
+    }
+
+    // Verificar si la fila 1 tiene el primer header correcto
+    var primerValor = hoja.getLastRow() > 0
+      ? String(hoja.getRange(1, 1).getValue()).trim()
+      : '';
+    var esperado = cfg.headers[0];
+
+    if (primerValor.toLowerCase() !== esperado.toLowerCase()) {
+      // Insertar fila de headers al inicio
+      hoja.insertRowsBefore(1, 1);
+      hoja.getRange(1, 1, 1, cfg.headers.length).setValues([cfg.headers]);
+      hoja.getRange(1, 1, 1, cfg.headers.length)
+          .setBackground(cfg.color).setFontColor('#FFFFFF').setFontWeight('bold');
+      hoja.setFrozenRows(1);
+      Logger.log('⚠️ Headers RESTAURADOS en: ' + cfg.nombre + ' (primer valor era: "' + primerValor + '")');
+    } else {
+      // Headers existen - asegurar que estean congelados
+      if (hoja.getFrozenRows() < 1) hoja.setFrozenRows(1);
+    }
+  });
+}
+
+/**
+ * Función pública: restaura headers manualmente o como trigger onOpen.
+ * Para instalar como trigger: Apps Script > Triggers > restaurarHeadersAudit > onOpen
+ */
+function restaurarHeadersAudit() {
   try {
-    Logger.log('=== guardarAprobaciones v13 (ID Disputa + Monto Disputado en Audit) ===');
-    Logger.log('Total: ' + aprobaciones.length);
+    var ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+    _asegurarHeadersSheets(ss);
+    Logger.log('✅ Headers verificados y restaurados correctamente.');
+  } catch(e) {
+    Logger.log('❌ Error en restaurarHeadersAudit: ' + e.message);
+  }
+}
+
+
+function guardarAprobaciones(aprobaciones, esModoSemana) {
+  try {
+    Logger.log('=== guardarAprobaciones v14 (Semanas) ===');
+    Logger.log('Total: ' + aprobaciones.length + ' | esModoSemana: ' + esModoSemana);
 
     const ss     = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
     const hojaHC = ss.getSheetByName('H_C');
 
-    // ══════════════════════════════════════════════════════════
-    // HEADERS AUDIT (29 columnas) ⭐ ACTUALIZADO
-    // ══════════════════════════════════════════════════════════
+    // ⭐ HEADERS FIJOS: verificar y restaurar antes de escribir
+    _asegurarHeadersSheets(ss);
+    Logger.log('✅ Headers verificados.');
+
     const HEADERS_AUDIT = [
-      'BMS ID',                    // 1
-      'Nombre Agente',             // 2
-      'LOB',                       // 3
-      'Role',                      // 4
-      'Supervisor',                // 5
-      'ACCM',                      // 6
-      'OM',                        // 7
-      'Roll',                      // 8
-      'Bono Aprobado',             // 9
-      'Fecha Aprobación',          // 10
-      'Usuario Aprobador',         // 11
-      'Correo Aprobador',          // 12
-      'Fecha KPI',                 // 13
-      'Mes CDM',                   // 14
-      'Estado',                    // 15
-      'Fue Prorrateado',           // 16
-      'Monto Original',            // 17
-      'Monto Final Prorrateo',     // 18
-      'Diferencia Prorrateo',      // 19
-      'Días Laborados',            // 20
-      'Horas Semanales HC',        // 21
-      'Horas Trabajadas',          // 22
-      'Ausencias',                 // 23
-      'Tiene Disputa',             // 24
-      'Comentario Disputa',        // 25
-      'Additional Incentives ($)', // 26
-      'Decreased KPIs ($)',        // 27
-      'ID Disputa',                // 28 ⭐ NUEVO
-      'Monto Disputado ($)'        // 29 ⭐ NUEVO
+      'BMS ID',                    // 1  A
+      'Nombre Agente',             // 2  B
+      'LOB',                       // 3  C
+      'Role',                      // 4  D
+      'Supervisor',                // 5  E
+      'ACCM',                      // 6  F
+      'OM',                        // 7  G
+      'Roll',                      // 8  H
+      'Bono Aprobado',             // 9  I
+      'Fecha Aprobación',          // 10 J
+      'Usuario Aprobador',         // 11 K
+      'Correo Aprobador',          // 12 L
+      'Fecha KPI',                 // 13 M
+      'Mes CDM',                   // 14 N
+      'Estado',                    // 15 O
+      'Fue Prorrateado',           // 16 P
+      'Monto Original',            // 17 Q
+      'Monto Final Prorrateo',     // 18 R
+      'Diferencia Prorrateo',      // 19 S
+      'Días Laborados',            // 20 T
+      'Horas Semanales HC',        // 21 U
+      'Horas Trabajadas',          // 22 V
+      'Ausencias',                 // 23 W
+      'Tiene Disputa',             // 24 X
+      'Comentario Disputa',        // 25 Y
+      'Additional Incentives ($)', // 26 Z
+      'Decreased KPIs ($)',        // 27 AA
+      'ID Disputa',                // 28 AB
+      'Monto Disputado ($)',       // 29 AC
+      'Semana'                     // 30 AD ⭐
     ];
 
-    // ══════════════════════════════════════════════════════════
-    // HEADERS AUDIT_DETALLE (16 columnas A-P — sin cambios)
-    // ══════════════════════════════════════════════════════════
     const HEADERS_DETALLE = [
       'Fecha Aprobación',  // A
       'BMS ID',            // B
@@ -3061,11 +3207,8 @@ function guardarAprobaciones(aprobaciones) {
       'Es Gate (S/N)'      // P
     ];
 
-    // ══════════════════════════════════════════════════════════
-    // HEADERS DISPUTA (15 columnas) ⭐ ID en col A
-    // ══════════════════════════════════════════════════════════
     const HEADERS_DISPUTA = [
-      'ID Disputa',          // A ⭐ CLAVE DE VÍNCULO
+      'ID Disputa',          // A
       'Fecha Disputa',       // B
       'BMS ID',              // C
       'Nombre Agente',       // D
@@ -3082,11 +3225,8 @@ function guardarAprobaciones(aprobaciones) {
       'Correo Disputa'       // O
     ];
 
-    // ══════════════════════════════════════════════════════════
-    // HEADERS DISPUTA_DETALLE (15 columnas) ⭐ ID en col A
-    // ══════════════════════════════════════════════════════════
     const HEADERS_DISPUTA_DET = [
-      'ID Disputa',          // A ⭐ CLAVE DE VÍNCULO
+      'ID Disputa',          // A
       'Fecha Disputa',       // B
       'BMS ID',              // C
       'Nombre Agente',       // D
@@ -3103,9 +3243,7 @@ function guardarAprobaciones(aprobaciones) {
       'Usuario Disputa'      // O
     ];
 
-    // ══════════════════════════════════════════════════════════
-    // FUNCIÓN AUXILIAR: preparar hoja
-    // ══════════════════════════════════════════════════════════
+    // ── Auxiliar: preparar hoja ──────────────────────────────
     function prepararHoja(nombre, headers, color) {
       var hoja = ss.getSheetByName(nombre);
       if (!hoja) {
@@ -3117,7 +3255,6 @@ function guardarAprobaciones(aprobaciones) {
         Logger.log('✅ Creada: ' + nombre);
         return hoja;
       }
-      // Agregar columnas faltantes si la hoja ya existe
       var colsActuales = hoja.getLastColumn();
       headers.forEach(function(h, idx) {
         var col = idx + 1;
@@ -3135,9 +3272,31 @@ function guardarAprobaciones(aprobaciones) {
     var hojaDisputa = prepararHoja('Disputa',          HEADERS_DISPUTA,     '#9b59b6');
     var hojaDispDet = prepararHoja('Disputa_Detalle',  HEADERS_DISPUTA_DET, '#6c3483');
 
-    // ══════════════════════════════════════════════════════════
-    // H_C map para lookup de datos de agente
-    // ══════════════════════════════════════════════════════════
+    // ── Detectar semana ANTES del loop ──────────────────────
+    var semanaLabel = '';
+    var semanaInfo  = null;
+
+    if (esModoSemana && aprobaciones.length > 0) {
+      var lobRef = aprobaciones[0].lob || '';
+      var mesRef = aprobaciones[0].mes || '';
+      var normFn = function(s) { return s ? s.toString().trim().toLowerCase() : ''; };
+
+      semanaInfo = _detectarSemana(hojaAudit, normFn(lobRef), normFn(mesRef));
+      semanaLabel = semanaInfo.semana || '';
+
+      Logger.log('📅 Semana detectada: "' + semanaLabel + '" para LOB=' + lobRef + ' Mes=' + mesRef);
+
+      if (semanaInfo.esCerrado) {
+        Logger.log('🔒 MES CERRADO — bloquear escritura');
+        return {
+          success:      false,
+          esMesCerrado: true,
+          error:        'El mes ya tiene 4 semanas registradas (MES CERRADO). No se puede agregar más aprobaciones.'
+        };
+      }
+    }
+
+    // ── H_C map ──────────────────────────────────────────────
     var dataHC = hojaHC.getDataRange().getValues();
     var hcMap  = {};
     for (var i = 1; i < dataHC.length; i++) {
@@ -3155,9 +3314,7 @@ function guardarAprobaciones(aprobaciones) {
     var filasDisputa = [];
     var filasDispDet = [];
 
-    // ══════════════════════════════════════════════════════════
-    // LOOP PRINCIPAL
-    // ══════════════════════════════════════════════════════════
+    // ── Loop principal ────────────────────────────────────────
     aprobaciones.forEach(function(ap) {
       Logger.log('\n── BMS: ' + ap.bmsId);
 
@@ -3172,179 +3329,223 @@ function guardarAprobaciones(aprobaciones) {
       var roll         = info ? (info[7] || role) : role;
       var horasHC      = info ? (parseFloat(info[9]) || 42) : 42;
 
-      var fueProrateado  = ap.fueProrateado ? 'Sí' : 'No';
-      var montoOriginal  = parseFloat(ap.montoOriginal) || parseFloat(ap.total) || 0;
-      var montoFinal     = parseFloat(ap.total) || 0;
-      var diferencia     = ap.fueProrateado ? (montoOriginal - montoFinal) : 0;
-      var diasLaborados  = parseFloat(ap.diasLaborados)   || 22;
-      var horasTrab      = parseFloat(ap.horasTrabajadas) || 0;
-      var ausencias      = parseFloat(ap.ausencias)       || 0;
-      var tieneDisputa   = ap.tieneDisputa ? 'Sí' : 'No';
-      var comentDisp     = ap.comentarioDisputa || '';
+      var fueProrateado = ap.fueProrateado ? 'Sí' : 'No';
+      var montoOriginal = parseFloat(ap.montoOriginal) || parseFloat(ap.total) || 0;
+      var montoFinal    = parseFloat(ap.total) || 0;
+      var diferencia    = ap.fueProrateado ? (montoOriginal - montoFinal) : 0;
+      var diasLaborados = parseFloat(ap.diasLaborados)   || 22;
+      var horasTrab     = parseFloat(ap.horasTrabajadas) || 0;
+      var ausencias     = parseFloat(ap.ausencias)       || 0;
+      var tieneDisputa  = ap.tieneDisputa ? 'Sí' : 'No';
+      var comentDisp    = ap.comentarioDisputa || '';
 
-      // Datos extendidos de disputa
       var kpisDisputados = Array.isArray(ap.kpisDisputados) ? ap.kpisDisputados : [];
       var montoDisputa   = parseFloat(ap.montoDisputa)  || 0;
       var bonoKPIsSelec  = parseFloat(ap.bonoKPIsSelec) || 0;
 
-      Logger.log('   Horas trabajadas: ' + horasTrab);
-      Logger.log('   Ausencias: '        + ausencias);
-      Logger.log('   Monto disputado: $' + montoDisputa + ' | KPIs: ' + kpisDisputados.length);
+      Logger.log('   Horas: ' + horasTrab + ' | Ausencias: ' + ausencias + ' | MontoDisp: $' + montoDisputa);
 
       if (ap.fueProrateado) countProrr++;
 
-      // Calcular Additional e Incentives desde desgloseKPIs
       var totalAdditional = 0;
       var totalDecreased  = 0;
       var desglose = ap.desgloseKPIs || [];
+
+      // ⭐ DIAGNÓSTICO: loguear si desgloseKPIs llegó vacío
+      Logger.log('   🔍 desgloseKPIs BMS ' + ap.bmsId + ': ' + desglose.length + ' items');
+      if (desglose.length === 0) {
+        Logger.log('   ⚠️ desgloseKPIs vacío para BMS ' + ap.bmsId +
+          ' | lob=' + ap.lob + ' | fecha=' + ap.fecha + ' | mes=' + ap.mes);
+
+        // ⭐ FALLBACK: Re-obtener KPIs desde el servidor si el frontend envió vacío
+        try {
+          var mesNumFallback = null;
+          var mesesNomFallback = {
+            'enero':1,'febrero':2,'marzo':3,'abril':4,'mayo':5,'junio':6,
+            'julio':7,'agosto':8,'septiembre':9,'octubre':10,'noviembre':11,'diciembre':12
+          };
+          if (ap.mes) {
+            var mesNormFallback = String(ap.mes).toLowerCase().trim();
+            mesNumFallback = mesesNomFallback[mesNormFallback] || null;
+          }
+
+          if (ap.lob && ap.fecha && mesNumFallback) {
+            Logger.log('   🔄 Intentando fallback: obtener KPIs desde servidor...');
+            var dataCDMFallback = obtenerDatosCDMPorMes(mesNumFallback);
+            var ssFallback = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+            var dataUsuarioFallback = ssFallback.getSheetByName('Usuario').getDataRange().getValues();
+            var agentesFallback = obtenerAgentesPermitidos(null);
+            var registrosFallback = obtenerRegistrosPorLobYFecha(ap.lob, ap.fecha, null, null);
+
+            if (registrosFallback && registrosFallback.length > 0) {
+              var resultFallback = { keys:[], bonusStructure:[], additionalIncentives:[], decreasedKPIs:[] };
+              registrosFallback.forEach(function(rd) {
+                var val = validarKPIsPorCategoria(
+                  rd.registro, ap.lob, dataCDMFallback,
+                  dataUsuarioFallback, rd.hoja, agentesFallback, mesNumFallback, ap.fecha
+                );
+                ['keys','bonusStructure','additionalIncentives','decreasedKPIs'].forEach(function(cat) {
+                  if (val[cat] && val[cat].length) resultFallback[cat] = resultFallback[cat].concat(val[cat]);
+                });
+              });
+
+              // Construir desgloseKPIs solo para este agente
+              var catLabels = {
+                keys:'Key', bonusStructure:'Bonus Structure',
+                additionalIncentives:'Additional Incentives', decreasedKPIs:'Decreased KPI'
+              };
+              ['keys','bonusStructure','additionalIncentives','decreasedKPIs'].forEach(function(cat) {
+                var kpisF = resultFallback[cat] || [];
+                kpisF.forEach(function(kpiObj) {
+                  var valid = kpiObj.validacion || {};
+                  var empC  = (valid.empleadosCumplen   || []).find(function(e){ return String(e.bmsId).trim() === String(ap.bmsId).trim(); });
+                  var empN  = (valid.empleadosNoCumplen || []).find(function(e){ return String(e.bmsId).trim() === String(ap.bmsId).trim(); });
+                  if (!empC && !empN) return;
+                  var emp    = empC || empN;
+                  var cumple = !!empC;
+                  var bonoK  = parseFloat(emp.bono) || 0;
+                  var valorF = (emp.valorF !== undefined) ? emp.valorF : '-';
+                  var esGate = kpiObj.esGate === true;
+                  desglose.push({
+                    categoria:      catLabels[cat],
+                    kpi:            kpiObj.kpi,
+                    scoreObjetivo:  kpiObj.score || '-',
+                    valorObtenido:  valorF,
+                    estado:         cumple ? 'Cumple' : 'No Cumple',
+                    bono:           bonoK,
+                    nota:           esGate ? ( cumple ? '🔒 Gate cumplido' : '🔒 Gate NO cumplido' ) : '',
+                    tipoEstructura: esGate ? 'Gate' : (kpiObj.esMultiTier ? 'Multi-Escala' : 'Fija')
+                  });
+                  if (cumple) {
+                    if (cat === 'additionalIncentives') totalAdditional += bonoK;
+                    if (cat === 'decreasedKPIs')        totalDecreased  += bonoK;
+                  }
+                });
+              });
+              Logger.log('   ✅ Fallback exitoso: ' + desglose.length + ' KPIs recuperados para BMS ' + ap.bmsId);
+            } else {
+              Logger.log('   ❌ Fallback: no se encontraron registros para ' + ap.lob + ' / ' + ap.fecha);
+            }
+          } else {
+            Logger.log('   ❌ Fallback no posible: faltan lob/fecha/mes (mes num=' + mesNumFallback + ')');
+          }
+        } catch(eFallback) {
+          Logger.log('   ❌ Error en fallback desglose: ' + eFallback.message);
+        }
+      }
+
       desglose.forEach(function(k) {
         var bono = parseFloat(k.bono) || 0;
         if (k.categoria === 'Additional Incentives') totalAdditional += bono;
         else if (k.categoria === 'Decreased KPI')    totalDecreased  += bono;
       });
-      Logger.log('   Additional: $' + totalAdditional + ' | Decreased: $' + totalDecreased);
 
-      // ⭐⭐⭐ GENERAR ID DISPUTA ÚNICO ⭐⭐⭐
-      // Formato: DISP-YYYYMMDD-HHmmss-{últimos 4 dígitos BMS}
-      // Solo se genera si hay disputa real
       var idDisputa = '';
       if (ap.tieneDisputa === true && comentDisp.trim() !== '') {
         var fechaStr   = Utilities.formatDate(fechaApr, Session.getScriptTimeZone(), 'yyyyMMdd-HHmmss');
         var bmsUltimos = String(ap.bmsId).slice(-4);
         idDisputa = 'DISP-' + fechaStr + '-' + bmsUltimos;
-        Logger.log('   🆔 ID Disputa generado: ' + idDisputa);
+        Logger.log('   🆔 ID Disputa: ' + idDisputa);
       }
 
-      // ──────────────────────────────────────────────────────
-      // AUDIT (29 columnas) ⭐ +ID Disputa +Monto Disputado
-      // ──────────────────────────────────────────────────────
+      // ── AUDIT (30 columnas) ──────────────────────────────
       hojaAudit.appendRow([
-        ap.bmsId,         // 1  BMS ID
-        nombreAgente,     // 2  Nombre Agente
-        lobAgente,        // 3  LOB
-        role,             // 4  Role
-        supervisor,       // 5  Supervisor
-        accm,             // 6  ACCM
-        om,               // 7  OM
-        roll,             // 8  Roll
-        montoFinal,       // 9  Bono Aprobado         ← $
-        fechaApr,         // 10 Fecha Aprobación      ← fecha
-        usuario,          // 11 Usuario Aprobador
-        correo,           // 12 Correo Aprobador
-        ap.fecha,         // 13 Fecha KPI
-        ap.mes,           // 14 Mes CDM
-        'APROBADO',       // 15 Estado
-        fueProrateado,    // 16 Fue Prorrateado
-        montoOriginal,    // 17 Monto Original        ← $
-        montoFinal,       // 18 Monto Final Prorrateo ← $
-        diferencia,       // 19 Diferencia Prorrateo  ← $
-        diasLaborados,    // 20 Días Laborados
-        horasHC,          // 21 Horas Semanales HC
-        horasTrab,        // 22 Horas Trabajadas
-        ausencias,        // 23 Ausencias
-        tieneDisputa,     // 24 Tiene Disputa
-        comentDisp,       // 25 Comentario Disputa
-        totalAdditional,  // 26 Additional Incentives ($) ← $ verde
-        totalDecreased,   // 27 Decreased KPIs ($)        ← $ rosa
-        idDisputa,        // 28 ID Disputa ⭐              ← lila
-        montoDisputa      // 29 Monto Disputado ($) ⭐     ← $ rosa fuerte
+        ap.bmsId,         // 1  A  BMS ID
+        nombreAgente,     // 2  B  Nombre Agente
+        lobAgente,        // 3  C  LOB
+        role,             // 4  D  Role
+        supervisor,       // 5  E  Supervisor
+        accm,             // 6  F  ACCM
+        om,               // 7  G  OM
+        roll,             // 8  H  Roll
+        montoFinal,       // 9  I  Bono Aprobado
+        fechaApr,         // 10 J  Fecha Aprobación
+        usuario,          // 11 K  Usuario Aprobador
+        correo,           // 12 L  Correo Aprobador
+        ap.fecha,         // 13 M  Fecha KPI
+        ap.mes,           // 14 N  Mes CDM
+        'APROBADO',       // 15 O  Estado
+        fueProrateado,    // 16 P  Fue Prorrateado
+        montoOriginal,    // 17 Q  Monto Original
+        montoFinal,       // 18 R  Monto Final Prorrateo
+        diferencia,       // 19 S  Diferencia Prorrateo
+        diasLaborados,    // 20 T  Días Laborados
+        horasHC,          // 21 U  Horas Semanales HC
+        horasTrab,        // 22 V  Horas Trabajadas
+        ausencias,        // 23 W  Ausencias
+        tieneDisputa,     // 24 X  Tiene Disputa
+        comentDisp,       // 25 Y  Comentario Disputa
+        totalAdditional,  // 26 Z  Additional Incentives ($)
+        totalDecreased,   // 27 AA Decreased KPIs ($)
+        idDisputa,        // 28 AB ID Disputa
+        montoDisputa,     // 29 AC Monto Disputado ($)
+        semanaLabel       // 30 AD Semana ⭐
       ]);
-      Logger.log('   ✅ Audit OK (29 cols) | ID="' + idDisputa + '" | MontoDisp=$' + montoDisputa);
+      Logger.log('   ✅ Audit OK (30 cols) | Semana="' + semanaLabel + '"');
 
-      // ──────────────────────────────────────────────────────
-      // AUDIT_DETALLE (16 columnas A-P — sin cambios)
-      // ──────────────────────────────────────────────────────
-      Logger.log('   KPIs recibidos: ' + desglose.length);
-
+      // ── AUDIT_DETALLE ────────────────────────────────────
       desglose.forEach(function(k) {
         var esGateValor = (k.tipoEstructura === 'Gate') ? 'S' : 'N';
-
         filasDetalle.push([
-          fechaApr,                    // A Fecha Aprobación
-          ap.bmsId,                    // B BMS ID
-          nombreAgente,                // C Nombre Agente
-          lobAgente,                   // D LOB
-          ap.mes,                      // E Mes CDM
-          ap.fecha,                    // F Fecha KPI
-          k.categoria      || '-',     // G Categoría KPI
-          k.kpi            || '-',     // H KPI
-          k.scoreObjetivo  || '-',     // I Score Objetivo
-          k.valorObtenido  || '-',     // J Valor Obtenido
-          k.estado         || '-',     // K Estado
-          parseFloat(k.bono) || 0,     // L Bono KPI ($)
-          k.nota           || '',      // M Nota
-          usuario,                     // N Usuario Aprobador
-          k.tipoEstructura || 'Fija',  // O Tipo Estructura
-          esGateValor                  // P Es Gate (S/N)
+          fechaApr,
+          ap.bmsId,
+          nombreAgente,
+          lobAgente,
+          ap.mes,
+          ap.fecha,
+          k.categoria      || '-',
+          k.kpi            || '-',
+          k.scoreObjetivo  || '-',
+          k.valorObtenido  || '-',
+          k.estado         || '-',
+          parseFloat(k.bono) || 0,
+          k.nota           || '',
+          usuario,
+          k.tipoEstructura || 'Fija',
+          esGateValor
         ]);
         countDetalle++;
       });
 
-      // ──────────────────────────────────────────────────────
-      // DISPUTA + DISPUTA_DETALLE ⭐ CON ID DISPUTA
-      // ──────────────────────────────────────────────────────
+      // ── DISPUTA ──────────────────────────────────────────
       if (ap.tieneDisputa === true && comentDisp.trim() !== '') {
         var nombresKPIs = kpisDisputados.map(function(k) { return k.kpi; }).join(', ');
 
-        // DISPUTA (15 columnas) ⭐ ID en col A
         filasDisputa.push([
-          idDisputa,         // A ID Disputa ⭐ CLAVE DE VÍNCULO
-          fechaApr,          // B Fecha Disputa
-          ap.bmsId,          // C BMS ID
-          nombreAgente,      // D Nombre Agente
-          lobAgente,         // E LOB
-          ap.fecha,          // F Fecha KPI
-          ap.mes,            // G Mes CDM
-          montoFinal,        // H Bono Aprobado ($)
-          montoDisputa,      // I Monto Disputado ($)  ⭐ rosa
-          bonoKPIsSelec,     // J Bono KPIs Selec ($)  ⭐ lila
-          nombresKPIs,       // K KPIs Disputados
-          comentDisp,        // L Comentario
-          'Pendiente',       // M Estado
-          usuario,           // N Usuario Disputa
-          correo             // O Correo Disputa
+          idDisputa, fechaApr, ap.bmsId, nombreAgente, lobAgente,
+          ap.fecha, ap.mes, montoFinal, montoDisputa, bonoKPIsSelec,
+          nombresKPIs, comentDisp, 'Pendiente', usuario, correo
         ]);
 
-        // DISPUTA_DETALLE (15 columnas) ⭐ ID en col A — una fila por KPI
         kpisDisputados.forEach(function(k) {
           filasDispDet.push([
-            idDisputa,                                               // A ID Disputa ⭐ CLAVE DE VÍNCULO
-            fechaApr,                                               // B Fecha Disputa
-            ap.bmsId,                                               // C BMS ID
-            nombreAgente,                                           // D Nombre Agente
-            ap.mes,                                                 // E Mes CDM
-            ap.fecha,                                               // F Fecha KPI
-            k.categoria     || '-',                                 // G Categoría KPI
-            k.kpi           || '-',                                 // H KPI
-            k.score         !== undefined ? k.score         : '-',  // I Score Objetivo
-            k.valorObtenido !== undefined ? k.valorObtenido : '-',  // J Valor Obtenido
-            k.cumple ? 'Cumple' : 'No Cumple',                      // K Estado KPI
-            parseFloat(k.bono) || 0,                                // L Bono KPI ($)
-            montoDisputa,                                           // M Monto Disputado ($)
-            comentDisp,                                             // N Comentario
-            usuario                                                 // O Usuario Disputa
+            idDisputa, fechaApr, ap.bmsId, nombreAgente,
+            ap.mes, ap.fecha,
+            k.categoria     || '-',
+            k.kpi           || '-',
+            k.score         !== undefined ? k.score         : '-',
+            k.valorObtenido !== undefined ? k.valorObtenido : '-',
+            k.cumple ? 'Cumple' : 'No Cumple',
+            parseFloat(k.bono) || 0,
+            montoDisputa, comentDisp, usuario
           ]);
         });
 
         countDisp++;
-        Logger.log('   🚨 Disputa: ID=' + idDisputa + ' | $' + montoDisputa + ' | ' + kpisDisputados.length + ' KPIs detallados');
+        Logger.log('   🚨 Disputa: ' + idDisputa + ' | $' + montoDisputa);
       }
-    }); // fin forEach aprobaciones
+    }); // fin forEach
 
-    // ══════════════════════════════════════════════════════════
-    // BATCH WRITE: AUDIT_DETALLE
-    // ══════════════════════════════════════════════════════════
+    // ── BATCH WRITE: AUDIT_DETALLE ───────────────────────────
     if (filasDetalle.length > 0) {
       var startDet = hojaDetalle.getLastRow() + 1;
       hojaDetalle.getRange(startDet, 1, filasDetalle.length, HEADERS_DETALLE.length)
         .setValues(filasDetalle);
-
       hojaDetalle.getRange(startDet, 12, filasDetalle.length, 1).setNumberFormat('$#,##0.00');
       hojaDetalle.getRange(startDet, 1,  filasDetalle.length, 1).setNumberFormat('dd/mm/yyyy hh:mm:ss');
-
       for (var j = 0; j < filasDetalle.length; j++) {
-        var estado = filasDetalle[j][10];
-        var bg     = estado === 'Cumple' ? '#d4edda' : estado === 'No Cumple' ? '#f8d7da' : '#ffffff';
+        var est = filasDetalle[j][10];
+        var bg  = est === 'Cumple' ? '#d4edda' : est === 'No Cumple' ? '#f8d7da' : '#ffffff';
         hojaDetalle.getRange(startDet + j, 1, 1, HEADERS_DETALLE.length).setBackground(bg);
       }
       for (var m = 0; m < filasDetalle.length; m++) {
@@ -3354,103 +3555,136 @@ function guardarAprobaciones(aprobaciones) {
         }
       }
       for (var g = 0; g < filasDetalle.length; g++) {
-        var celdaGate = hojaDetalle.getRange(startDet + g, 16);
+        var cGate = hojaDetalle.getRange(startDet + g, 16);
         if (filasDetalle[g][15] === 'S') {
-          celdaGate.setBackground('#fee2e2').setFontColor('#b91c1c').setFontWeight('bold');
+          cGate.setBackground('#fee2e2').setFontColor('#b91c1c').setFontWeight('bold');
         } else {
-          celdaGate.setBackground('#f0fdf4').setFontColor('#166534').setFontWeight('normal');
+          cGate.setBackground('#f0fdf4').setFontColor('#166534').setFontWeight('normal');
         }
       }
       Logger.log('✅ Audit_Detalle: ' + filasDetalle.length + ' filas');
     }
 
-    // ══════════════════════════════════════════════════════════
-    // BATCH WRITE: DISPUTA ⭐ FORMATO ACTUALIZADO (ID en col A)
-    // ══════════════════════════════════════════════════════════
+    // ── BATCH WRITE: DISPUTA ─────────────────────────────────
     if (filasDisputa.length > 0) {
       var startDisp = hojaDisputa.getLastRow() + 1;
       hojaDisputa.getRange(startDisp, 1, filasDisputa.length, HEADERS_DISPUTA.length)
         .setValues(filasDisputa);
-
-      // Col A = ID Disputa → lila
       hojaDisputa.getRange(startDisp, 1, filasDisputa.length, 1)
         .setBackground('#ede7f6').setFontColor('#4a148c').setFontWeight('bold');
-      // Col B = Fecha → formato fecha
-      hojaDisputa.getRange(startDisp, 2, filasDisputa.length, 1)
-        .setNumberFormat('dd/mm/yyyy hh:mm:ss');
-      // Col H = Bono Aprobado → moneda
-      hojaDisputa.getRange(startDisp, 8, filasDisputa.length, 1)
-        .setNumberFormat('$#,##0.00');
-      // Col I = Monto Disputado → moneda + rosa
+      hojaDisputa.getRange(startDisp, 2, filasDisputa.length, 1).setNumberFormat('dd/mm/yyyy hh:mm:ss');
+      hojaDisputa.getRange(startDisp, 8, filasDisputa.length, 1).setNumberFormat('$#,##0.00');
       hojaDisputa.getRange(startDisp, 9, filasDisputa.length, 1)
         .setNumberFormat('$#,##0.00').setBackground('#fce4ec');
-      // Col J = Bono KPIs Selec → moneda + lila claro
       hojaDisputa.getRange(startDisp, 10, filasDisputa.length, 1)
         .setNumberFormat('$#,##0.00').setBackground('#f3e5f5');
-
-      Logger.log('✅ Disputa: ' + filasDisputa.length + ' filas (15 cols con ID)');
+      Logger.log('✅ Disputa: ' + filasDisputa.length + ' filas');
     }
 
-    // ══════════════════════════════════════════════════════════
-    // BATCH WRITE: DISPUTA_DETALLE ⭐ FORMATO ACTUALIZADO (ID en col A)
-    // ══════════════════════════════════════════════════════════
+    // ── BATCH WRITE: DISPUTA_DETALLE ─────────────────────────
     if (filasDispDet.length > 0) {
       var startDispDet = hojaDispDet.getLastRow() + 1;
       hojaDispDet.getRange(startDispDet, 1, filasDispDet.length, HEADERS_DISPUTA_DET.length)
         .setValues(filasDispDet);
-
-      // Col A = ID Disputa → lila
       hojaDispDet.getRange(startDispDet, 1, filasDispDet.length, 1)
         .setBackground('#ede7f6').setFontColor('#4a148c').setFontWeight('bold');
-      // Col B = Fecha → formato fecha
-      hojaDispDet.getRange(startDispDet, 2, filasDispDet.length, 1)
-        .setNumberFormat('dd/mm/yyyy hh:mm:ss');
-      // Col L = Bono KPI → moneda
-      hojaDispDet.getRange(startDispDet, 12, filasDispDet.length, 1)
-        .setNumberFormat('$#,##0.00');
-      // Col M = Monto Disputado → moneda + rosa
+      hojaDispDet.getRange(startDispDet, 2, filasDispDet.length, 1).setNumberFormat('dd/mm/yyyy hh:mm:ss');
+      hojaDispDet.getRange(startDispDet, 12, filasDispDet.length, 1).setNumberFormat('$#,##0.00');
       hojaDispDet.getRange(startDispDet, 13, filasDispDet.length, 1)
         .setNumberFormat('$#,##0.00').setBackground('#fce4ec');
-
-      // Color por estado KPI (col K = índice 10 en array)
       for (var d = 0; d < filasDispDet.length; d++) {
         var bgD = filasDispDet[d][10] === 'Cumple' ? '#f0fdf4' : '#fef2f2';
         hojaDispDet.getRange(startDispDet + d, 1, 1, HEADERS_DISPUTA_DET.length).setBackground(bgD);
       }
-      // Re-aplicar lila en col A (el loop de color la pisa)
       hojaDispDet.getRange(startDispDet, 1, filasDispDet.length, 1)
         .setBackground('#ede7f6').setFontColor('#4a148c').setFontWeight('bold');
-
-      Logger.log('✅ Disputa_Detalle: ' + filasDispDet.length + ' filas (con ID)');
+      Logger.log('✅ Disputa_Detalle: ' + filasDispDet.length + ' filas');
     }
 
-    // ══════════════════════════════════════════════════════════
-    // FORMATOS AUDIT ⭐ ACTUALIZADO a 29 columnas
-    // ══════════════════════════════════════════════════════════
+    // ── FORMATOS AUDIT (30 columnas) ─────────────────────────
     var lastR  = hojaAudit.getLastRow();
     var startR = Math.max(2, lastR - aprobaciones.length + 1);
 
-    // Columnas con formato moneda
     [9, 17, 18, 19, 26, 27, 29].forEach(function(c) {
       try { hojaAudit.getRange(startR, c, aprobaciones.length, 1).setNumberFormat('$#,##0.00'); } catch(e){}
     });
-    // Fecha aprobación
     try { hojaAudit.getRange(startR, 10, aprobaciones.length, 1).setNumberFormat('dd/mm/yyyy hh:mm:ss'); } catch(e){}
-    // Colores columnas especiales
     try {
-      hojaAudit.getRange(startR, 26, aprobaciones.length, 1).setBackground('#e8f5e9');             // Additional → verde
-      hojaAudit.getRange(startR, 27, aprobaciones.length, 1).setBackground('#fce4ec');             // Decreased  → rosa
-      hojaAudit.getRange(startR, 28, aprobaciones.length, 1)                                       // ID Disputa → lila
+      hojaAudit.getRange(startR, 26, aprobaciones.length, 1).setBackground('#e8f5e9');
+      hojaAudit.getRange(startR, 27, aprobaciones.length, 1).setBackground('#fce4ec');
+      hojaAudit.getRange(startR, 28, aprobaciones.length, 1)
         .setBackground('#ede7f6').setFontColor('#4a148c').setFontWeight('bold');
-      hojaAudit.getRange(startR, 29, aprobaciones.length, 1)                                       // Monto Disputado → rosa fuerte
+      hojaAudit.getRange(startR, 29, aprobaciones.length, 1)
         .setBackground('#fce4ec').setNumberFormat('$#,##0.00');
+      // ⭐ Columna AD (30) — Semana: azul si tiene valor, gris si vacío
+      if (semanaLabel) {
+        hojaAudit.getRange(startR, 30, aprobaciones.length, 1)
+          .setBackground('#dbeafe').setFontColor('#1e40af').setFontWeight('bold');
+      }
     } catch(e){}
 
-    Logger.log('=== FIN: aprob='    + aprobaciones.length
-      + ' | detalle='  + countDetalle
-      + ' | prorr='    + countProrr
-      + ' | disp='     + countDisp
-      + ' | dispDet='  + filasDispDet.length);
+    // ── TOTAL_MES si es Semana_4 ──────────────────────────────
+    var esTotalMes = false;
+
+    if (esModoSemana && semanaLabel === 'Semana_4') {
+      esTotalMes = true;
+      Logger.log('🎯 Semana_4 completada — generando fila TOTAL_MES...');
+
+      var lobRef2  = aprobaciones[0].lob || '';
+      var mesRef2  = aprobaciones[0].mes || '';
+      var normFn2  = function(s) { return s ? s.toString().trim().toLowerCase() : ''; };
+
+      var dataAuditFinal = hojaAudit.getDataRange().getValues();
+      var hdrs           = dataAuditFinal[0];
+      var idxLOB2        = hdrs.indexOf('LOB');
+      var idxMes2        = hdrs.indexOf('Mes CDM');
+      var idxBono2       = hdrs.indexOf('Bono Aprobado');
+      var idxSem2        = hdrs.indexOf('Semana');
+      var idxFechaApr2   = hdrs.indexOf('Fecha Aprobación');
+      var idxUsua2       = hdrs.indexOf('Usuario Aprobador');
+      var idxCorrApr2    = hdrs.indexOf('Correo Aprobador');
+
+      var totalAcum   = 0;
+      var agentesAcum = 0;
+
+      for (var t = 1; t < dataAuditFinal.length; t++) {
+        if (normFn2(dataAuditFinal[t][idxLOB2]) !== normFn2(lobRef2)) continue;
+        if (normFn2(dataAuditFinal[t][idxMes2]) !== normFn2(mesRef2)) continue;
+        var semVal = normFn2(dataAuditFinal[t][idxSem2] || '');
+        if (semVal === 'total_mes') continue;
+        totalAcum += parseFloat(dataAuditFinal[t][idxBono2]) || 0;
+        agentesAcum++;
+      }
+
+      // Construir fila TOTAL_MES con 30 columnas
+      var filaTotal = new Array(30).fill('');
+      filaTotal[idxLOB2]  = lobRef2;
+      filaTotal[idxMes2]  = mesRef2;
+      filaTotal[idxBono2] = totalAcum;
+      filaTotal[idxSem2]  = 'TOTAL_MES';
+      if (idxFechaApr2 !== -1) filaTotal[idxFechaApr2] = new Date();
+      if (idxUsua2     !== -1) filaTotal[idxUsua2]     = usuario;
+      if (idxCorrApr2  !== -1) filaTotal[idxCorrApr2]  = correo;
+
+      hojaAudit.appendRow(filaTotal);
+
+      var filaTotalRow = hojaAudit.getLastRow();
+      hojaAudit.getRange(filaTotalRow, 1, 1, 30)
+        .setBackground('#fef9c3').setFontWeight('bold');
+      hojaAudit.getRange(filaTotalRow, idxBono2 + 1)
+        .setNumberFormat('$#,##0.00').setBackground('#fef08a');
+      hojaAudit.getRange(filaTotalRow, idxSem2 + 1)
+        .setBackground('#fbbf24').setFontColor('#78350f').setFontWeight('bold');
+
+      Logger.log('✅ TOTAL_MES: $' + totalAcum + ' (' + agentesAcum + ' agentes en 4 semanas)');
+    }
+
+    Logger.log('=== FIN: aprob=' + aprobaciones.length
+      + ' | detalle=' + countDetalle
+      + ' | prorr='   + countProrr
+      + ' | disp='    + countDisp
+      + ' | semana="' + semanaLabel + '"'
+      + ' | totalMes=' + esTotalMes);
 
     return {
       success:           true,
@@ -3458,7 +3692,9 @@ function guardarAprobaciones(aprobaciones) {
       prorrateos:        countProrr,
       disputasGuardadas: countDisp,
       kpisDetalle:       countDetalle,
-      mensaje: aprobaciones.length + ' aprobación(es) — ' + countDetalle + ' KPIs en Audit_Detalle'
+      semana:            semanaLabel || null,
+      esTotalMes:        esTotalMes,
+      mensaje:           aprobaciones.length + ' aprobación(es) — ' + countDetalle + ' KPIs en Audit_Detalle'
     };
 
   } catch(err) {
@@ -3466,7 +3702,6 @@ function guardarAprobaciones(aprobaciones) {
     return { success: false, error: err.message };
   }
 }
-
 
 
 function generarIdDisputa(fechaApr, bmsId) {
@@ -3628,133 +3863,251 @@ function validarAprobacionPrevia(lob, fecha, mes) {
 /**
  * Verifica si una LOB + Fecha + Mes ya fue aprobada
  */
+
 function verificarAprobacionExistente(lob, fecha, mes) {
-    try {
-        console.log('═══════════════════════════════════════');
-        console.log('🔍 VERIFICANDO APROBACIÓN EXISTENTE');
-        console.log('═══════════════════════════════════════');
-        console.log('   LOB:', lob);
-        console.log('   Fecha:', fecha);
-        console.log('   Mes (recibido):', mes, '(tipo:', typeof mes, ')');
-        
-        const ss = SpreadsheetApp.openById(ID_SS_PRINCIPAL);
-        const hojaAudit = ss.getSheetByName('Audit');
-        
-        if (!hojaAudit || hojaAudit.getLastRow() < 2) {
-            console.log('✅ Hoja Audit vacía - No hay aprobaciones previas');
-            return { yaAprobado: false };
-        }
-        
-        const data = hojaAudit.getDataRange().getValues();
-        const headers = data[0];
-        
-        // ⭐ ÍNDICES DE COLUMNAS
-        const idxLOB = headers.indexOf('LOB');                 // Col C
-        const idxBono = headers.indexOf('Bono Aprobado');      // Col I
-        const idxFechaAprobacion = headers.indexOf('Fecha Aprobación'); // Col J
-        const idxUsuario = headers.indexOf('Usuario Aprobador'); // Col K
-        const idxFechaKPI = headers.indexOf('Fecha KPI');      // Col M
-        const idxMesCDM = headers.indexOf('Mes CDM');          // Col N
-        
-        console.log('\n📋 Índices de columnas:');
-        console.log('   LOB:', idxLOB);
-        console.log('   Mes CDM:', idxMesCDM);
-        console.log('   Fecha KPI:', idxFechaKPI);
-        
-        // ⭐ NORMALIZACIÓN
-        const norm = s => s ? s.toString().trim().toLowerCase() : '';
-        const dateNorm = d => normalizarFechaComparacion(d);
-        
-        const lobB = norm(lob);
-        const fechaB = dateNorm(fecha);
-        
-        // ⭐ CONVERTIR MES NÚMERO A NOMBRE
-        const mesesNombres = {
-            1: 'enero', 2: 'febrero', 3: 'marzo', 4: 'abril',
-            5: 'mayo', 6: 'junio', 7: 'julio', 8: 'agosto',
-            9: 'septiembre', 10: 'octubre', 11: 'noviembre', 12: 'diciembre'
-        };
-        
-        let mesB = '';
-        
-        if (typeof mes === 'number') {
-            // Si es número (1-12), convertir a nombre
-            mesB = mesesNombres[mes] || '';
-            console.log(`   📅 Mes convertido: ${mes} → "${mesB}"`);
-        } else if (typeof mes === 'string') {
-            // Si ya es texto, normalizar
-            mesB = norm(mes);
-            console.log(`   📅 Mes normalizado: "${mes}" → "${mesB}"`);
-        }
-        
-        console.log('\n🔍 Buscando coincidencias:');
-        console.log('   LOB búsqueda:', lobB);
-        console.log('   Fecha búsqueda:', fechaB);
-        console.log('   Mes búsqueda:', mesB);
-        
-        // ⭐ BUSCAR EN AUDIT
-        for (let i = 1; i < data.length; i++) {
-            const row = data[i];
-            const lobFila = norm(row[idxLOB]);
-            const fechaFila = dateNorm(row[idxFechaKPI]);
-            const mesFila = norm(row[idxMesCDM]);
-            
-            // ⭐ CONDICIONES DE COINCIDENCIA
-            const coincideLOB = lobFila === lobB;
-            const coincideMes = mesB ? mesFila === mesB : true;
-            const coincideFecha = fechaB ? (fechaFila === fechaB) : true;
-            
-            // ⭐ DEBUG POR CADA FILA (solo primeras 3)
-            if (i <= 3) {
-                console.log(`\n   Fila ${i + 1}:`);
-                console.log(`      LOB: "${lobFila}" ${coincideLOB ? '✅' : '❌'}`);
-                console.log(`      Mes: "${mesFila}" ${coincideMes ? '✅' : '❌'}`);
-                console.log(`      Fecha: "${fechaFila}" ${coincideFecha ? '✅' : '❌'}`);
-            }
-            
-            // ⭐ SI COINCIDEN TODOS
-            if (coincideLOB && coincideFecha && coincideMes) {
-                console.log('\n🚨 DUPLICADO ENCONTRADO:');
-                console.log('   Fila:', i + 1);
-                console.log('   LOB:', row[idxLOB]);
-                console.log('   Mes:', row[idxMesCDM]);
-                console.log('   Fecha KPI:', row[idxFechaKPI]);
-                console.log('   Fecha Aprobación:', row[idxFechaAprobacion]);
-                console.log('   Usuario:', row[idxUsuario]);
-                
-                const fechaAprobacionFormateada = row[idxFechaAprobacion] instanceof Date
-                    ? Utilities.formatDate(row[idxFechaAprobacion], Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm:ss')
-                    : String(row[idxFechaAprobacion]);
-                
-                return {
-                    yaAprobado: true,
-                    mensaje: `⚠️ Ya existe una aprobación previa para la LOB "${lob}" con mes ${row[idxMesCDM]}.`,
-                    detalles: {
-                        fila: i + 1,
-                        lob: row[idxLOB],
-                        fecha: row[idxFechaKPI],
-                        mes: row[idxMesCDM],
-                        total: row[idxBono] ? '$' + parseFloat(row[idxBono]).toLocaleString('es-CO', {minimumFractionDigits: 2}) : 'N/A',
-                        fechaAprobacion: fechaAprobacionFormateada,
-                        usuario: row[idxUsuario]
-                    }
-                };
-            }
-        }
-        
-        console.log('\n✅ NO SE ENCONTRARON DUPLICADOS');
-        console.log('═══════════════════════════════════════\n');
-        
-        return { yaAprobado: false };
-        
-    } catch (e) {
-        console.log('❌ ERROR en verificarAprobacionExistente:', e.toString());
-        return { yaAprobado: false, error: e.toString() };
+  try {
+    Logger.log('═══════════════════════════════════════');
+    Logger.log('🔍 VERIFICANDO APROBACIÓN EXISTENTE');
+    Logger.log('═══════════════════════════════════════');
+    Logger.log('   LOB: ' + lob);
+    Logger.log('   Fecha: ' + fecha);
+    Logger.log('   Mes (recibido): ' + mes + ' (tipo: ' + typeof mes + ')');
+
+    const ss        = SpreadsheetApp.openById(ID_SS_PRINCIPAL);
+    const hojaAudit = ss.getSheetByName('Audit');
+
+    if (!hojaAudit || hojaAudit.getLastRow() < 2) {
+      Logger.log('✅ Hoja Audit vacía - primera aprobación');
+      return { yaAprobado: false };
     }
+
+    const data    = hojaAudit.getDataRange().getValues();
+    const headers = data[0];
+
+    // ── Índices de columnas ──────────────────────────────────
+    const idxLOB      = headers.indexOf('LOB');
+    const idxBono     = headers.indexOf('Bono Aprobado');
+    const idxFechaApr = headers.indexOf('Fecha Aprobación');
+    const idxUsuario  = headers.indexOf('Usuario Aprobador');
+    const idxFechaKPI = headers.indexOf('Fecha KPI');
+    const idxMesCDM   = headers.indexOf('Mes CDM');
+    const idxSemana   = headers.indexOf('Semana');  // col AD ⭐
+
+    Logger.log('📋 Índices — LOB:' + idxLOB
+      + ' MesCDM:' + idxMesCDM
+      + ' FechaKPI:' + idxFechaKPI
+      + ' Semana:' + idxSemana);
+
+    // ── Normalización ────────────────────────────────────────
+    const norm     = function(s) {
+      return s ? s.toString().trim().toLowerCase() : '';
+    };
+    const dateNorm = function(d) {
+      return normalizarFechaComparacion(d);
+    };
+
+    const lobB   = norm(lob);
+    const fechaB = dateNorm(fecha);
+
+    const mesesNombres = {
+      1:'enero', 2:'febrero', 3:'marzo',     4:'abril',
+      5:'mayo',  6:'junio',   7:'julio',     8:'agosto',
+      9:'septiembre', 10:'octubre', 11:'noviembre', 12:'diciembre'
+    };
+
+    let mesB = '';
+    if (typeof mes === 'number') {
+      mesB = mesesNombres[mes] || '';
+      Logger.log('   📅 Mes convertido: ' + mes + ' → "' + mesB + '"');
+    } else if (typeof mes === 'string') {
+      mesB = norm(mes);
+      Logger.log('   📅 Mes normalizado: "' + mes + '" → "' + mesB + '"');
+    }
+
+    Logger.log('🔍 Búsqueda — LOB:"' + lobB
+      + '" Fecha:"' + fechaB
+      + '" Mes:"'   + mesB + '"');
+
+    // ════════════════════════════════════════════════════════
+    // ⭐ RECORRER TODAS LAS FILAS Y RECOPILAR ESTADO COMPLETO
+    // No retornar al primer match — necesitamos ver TODO
+    // ════════════════════════════════════════════════════════
+    let primeraFila    = null;
+    let primeraFilaNum = -1;
+    let totalAcum      = 0;
+    let agentesAcum    = 0;
+    let maxSemana      = 0;      // mayor número de semana encontrado (1-4)
+    let hayTotalMes    = false;  // si existe fila TOTAL_MES
+    let tieneSemanas   = false;  // si alguna fila tiene valor Semana_X
+    let tieneRegistrosSinSemana = false; // registros legacy sin columna semana
+
+    for (let i = 1; i < data.length; i++) {
+      const row       = data[i];
+      const lobFila   = norm(row[idxLOB]);
+      const mesFila   = norm(row[idxMesCDM]);
+      const fechaFila = dateNorm(row[idxFechaKPI]);
+
+      // ── Filtrar por LOB (siempre requerido) ───────────────
+      if (lobFila !== lobB) continue;
+
+      // ── Filtrar por Mes (si viene) ────────────────────────
+      if (mesB && mesFila !== mesB) continue;
+
+      // ── Filtrar por Fecha (si viene) ──────────────────────
+      if (fechaB && fechaFila !== fechaB) continue;
+
+      // ── Esta fila pertenece a la LOB+Mes buscada ─────────
+      if (!primeraFila) {
+        primeraFila    = row;
+        primeraFilaNum = i + 1;
+      }
+
+      // ── Leer columna Semana (AD) ──────────────────────────
+      const semRaw = idxSemana !== -1 ? norm(row[idxSemana] || '') : '';
+
+      if (semRaw === 'total_mes') {
+        hayTotalMes = true;
+        Logger.log('   Fila ' + (i+1) + ': TOTAL_MES encontrado');
+        continue; // no sumar al total acumulado
+      }
+
+      const matchSem = semRaw.match(/semana_(\d)/i);
+      if (matchSem) {
+        tieneSemanas = true;
+        const numSem = parseInt(matchSem[1]);
+        if (numSem > maxSemana) maxSemana = numSem;
+        Logger.log('   Fila ' + (i+1) + ': Semana_' + numSem + ' encontrada');
+      } else if (semRaw === '') {
+        // Registro sin valor en columna Semana → legacy
+        tieneRegistrosSinSemana = true;
+        Logger.log('   Fila ' + (i+1) + ': Sin semana (legacy)');
+      }
+
+      totalAcum += parseFloat(row[idxBono]) || 0;
+      agentesAcum++;
+    }
+
+    // ── Sin ningún registro → primera aprobación ─────────────
+    if (!primeraFila) {
+      Logger.log('✅ Sin registros previos — primera aprobación del mes');
+      Logger.log('═══════════════════════════════════════\n');
+      return { yaAprobado: false };
+    }
+
+    // ── Formatear fecha de aprobación ────────────────────────
+    const fechaAprobStr = primeraFila[idxFechaApr] instanceof Date
+      ? Utilities.formatDate(
+          primeraFila[idxFechaApr],
+          Session.getScriptTimeZone(),
+          'dd/MM/yyyy HH:mm:ss'
+        )
+      : String(primeraFila[idxFechaApr]);
+
+    const totalStr = '$' + totalAcum.toLocaleString('es-CO', { minimumFractionDigits: 2 });
+
+    Logger.log('📊 Resumen encontrado:'
+      + ' maxSemana=' + maxSemana
+      + ' tieneSemanas=' + tieneSemanas
+      + ' hayTotalMes=' + hayTotalMes
+      + ' legacy=' + tieneRegistrosSinSemana
+      + ' total=' + totalStr
+      + ' agentes=' + agentesAcum);
+
+    // ════════════════════════════════════════════════════════
+    // CASO 1: MES CERRADO
+    // Hay TOTAL_MES o ya se registraron las 4 semanas
+    // ════════════════════════════════════════════════════════
+    if (hayTotalMes || maxSemana >= 4) {
+      Logger.log('🔒 CASO 1: MES CERRADO');
+      Logger.log('═══════════════════════════════════════\n');
+      return {
+        yaAprobado:   true,
+        esMesCerrado: true,
+        mensaje:      'El mes está CERRADO ('
+          + (hayTotalMes
+              ? 'TOTAL_MES registrado'
+              : '4 semanas registradas')
+          + ').',
+        detalles: {
+          fila:            primeraFilaNum,
+          lob:             primeraFila[idxLOB],
+          fecha:           primeraFila[idxFechaKPI],
+          mes:             primeraFila[idxMesCDM],
+          total:           totalStr,
+          agentes:         agentesAcum,
+          fechaAprobacion: fechaAprobStr,
+          usuario:         primeraFila[idxUsuario],
+          semanasInfo:     maxSemana + '/4 semanas'
+            + (hayTotalMes ? ' + TOTAL_MES' : '')
+        }
+      };
+    }
+
+    // ════════════════════════════════════════════════════════
+    // CASO 2: HAY SEMANAS PREVIAS PERO EL MES NO ESTÁ CERRADO
+    // Permitir continuar → el usuario debe marcar checkbox Semana
+    // ════════════════════════════════════════════════════════
+    if (tieneSemanas && maxSemana < 4) {
+      const proximaSemana = maxSemana + 1;
+      Logger.log('📅 CASO 2: Semanas previas=' + maxSemana
+        + ' → próxima: Semana_' + proximaSemana);
+      Logger.log('═══════════════════════════════════════\n');
+      return {
+        yaAprobado:    false,          // ← NO bloquear
+        esModoSemana:  true,
+        semanaActual:  maxSemana,
+        proximaSemana: 'Semana_' + proximaSemana,
+        mensaje:       maxSemana + ' semana(s) registrada(s).'
+          + ' Se guardará como Semana_' + proximaSemana + '.',
+        detalles: {
+          lob:            lob,
+          mes:            primeraFila[idxMesCDM],
+          totalAcumulado: totalStr,
+          agentes:        agentesAcum,
+          semanasInfo:    maxSemana + '/4 semanas'
+        }
+      };
+    }
+
+    // ════════════════════════════════════════════════════════
+    // CASO 3: REGISTROS LEGACY (sin columna Semana)
+    // Registros anteriores a la implementación de semanas.
+    // ⭐ NO bloquear — permitir continuar con advertencia
+    // ════════════════════════════════════════════════════════
+    if (tieneRegistrosSinSemana && !tieneSemanas) {
+      Logger.log('⚠️ CASO 3: Registros legacy (sin semana) → advertir pero NO bloquear');
+      Logger.log('═══════════════════════════════════════\n');
+      return {
+        yaAprobado:   false,           // ← NO bloquear
+        esLegacy:     true,
+        esModoSemana: false,
+        mensaje:      'Existen registros previos sin semana asignada (registros anteriores).'
+          + ' Si este mes se aprueba por semanas, marca "📅 Semana".',
+        detalles: {
+          lob:            lob,
+          mes:            primeraFila[idxMesCDM],
+          totalAcumulado: totalStr,
+          agentes:        agentesAcum,
+          fechaAprobacion: fechaAprobStr,
+          usuario:         primeraFila[idxUsuario],
+          semanasInfo:    'Sin semanas (legacy)'
+        }
+      };
+    }
+
+    // ════════════════════════════════════════════════════════
+    // CASO 4: No debería llegar aquí, pero si lo hace
+    // → primera aprobación del mes
+    // ════════════════════════════════════════════════════════
+    Logger.log('✅ CASO 4: Sin semanas detectadas — primera aprobación');
+    Logger.log('═══════════════════════════════════════\n');
+    return { yaAprobado: false };
+
+  } catch (e) {
+    Logger.log('❌ ERROR en verificarAprobacionExistente: ' + e.toString());
+    return { yaAprobado: false, error: e.toString() };
+  }
 }
-
-
-
 /**
  * Helper para comparar fechas de forma segura (Formato yyyy-MM-dd)
  */
@@ -4141,6 +4494,1899 @@ function leerHorasDirectamente(lob, numeroMes) {
 
 
 
+///////////////////////////////////////////////////////////
 
 
- 
+
+
+
+
+// ============================================================
+//  SIMULAR.GS  —  Motor de simulación de bonos
+//  Replica EXACTAMENTE la lógica de validarKPI1, validarKPIsPorCategoria,
+//  consolidarPisos y aplicarLogicaGate del sistema principal.
+//  Punto de entrada único: simularBonos(lob, fechaSeleccionada, mesComparativo)
+// ============================================================
+
+// ── IDs de hojas (iguales al sistema principal) ──────────────
+const SIM_ID_PRINCIPAL = '1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4';
+const SIM_ID_CDM       = '1PtYuAb5C2kIoX8sE7dOvt1nVS-aLamZLOJQUSbTBBCw';
+
+// ============================================================
+//  PUNTO DE ENTRADA PRINCIPAL
+//  Devuelve el mismo objeto que obtenerDatosParaFrontend pero
+//  sin tocar ninguna hoja de escritura.
+// ============================================================
+function simularBonos(lobSeleccionada, fechaSeleccionada, mesComparativo) {
+  try {
+    Logger.log('🟢 ========== INICIO simularBonos ==========');
+    Logger.log('LOB: ' + lobSeleccionada);
+    Logger.log('Fecha: ' + fechaSeleccionada);
+    Logger.log('Mes: ' + mesComparativo);
+
+    const agentesPermitidos = sim_obtenerAgentesPermitidos();
+    if (!Object.keys(agentesPermitidos).length) {
+      return { error: 'No se pudieron cargar agentes desde H_C' };
+    }
+
+    const norm = s => String(s || '').normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    const lobNorm = norm(lobSeleccionada);
+
+    // ⭐ CORRECCIÓN: NO filtrar por LOB exacta aquí.
+    // Usar TODOS los agentes y dejar que sim_validarKPI1 filtre por LOB
+    // internamente al cruzar con CDM. Esto es lo mismo que hace el dashboard real.
+    const agentesPermitidosFiltrados = agentesPermitidos;
+
+    Logger.log('👥 Agentes totales en H_C: ' + Object.keys(agentesPermitidos).length);
+
+    // ⭐ NUEVO: Para las métricas y resumen final, identificar qué agentes
+    // pertenecen a esta LOB (incluyendo Cross Training que comparten LOB en el registro)
+    // Se hace DESPUÉS del cálculo de KPIs, no antes.
+
+    const numeroMes = mesComparativo
+      ? parseInt(mesComparativo)
+      : (fechaSeleccionada ? sim_obtenerNumeroMesDeFecha(fechaSeleccionada) : null);
+
+    const dataCDM = numeroMes ? sim_obtenerDatosCDMPorMes(numeroMes) : [];
+
+    const ss = SpreadsheetApp.openById(SIM_ID_PRINCIPAL);
+    const dataUsuario = ss.getSheetByName('Usuario').getDataRange().getValues();
+
+    let horasPorAgente = {};
+    if (numeroMes) {
+      const h = sim_obtenerHorasPorAgente(lobSeleccionada, numeroMes);
+      if (h && !h._noHoja) horasPorAgente = h;
+    }
+
+    const registrosFiltrados = sim_obtenerRegistrosPorLobYFecha(
+      lobSeleccionada, fechaSeleccionada
+    );
+
+    if (!registrosFiltrados.length) {
+      return { error: 'No hay registros para esta LOB y fecha' };
+    }
+
+    const resultadosCombinados = {
+      keys: [], bonusStructure: [], additionalIncentives: [], decreasedKPIs: []
+    };
+
+    registrosFiltrados.forEach(regData => {
+      const val = sim_validarKPIsPorCategoria(
+        regData.registro,
+        lobSeleccionada,
+        dataCDM,
+        dataUsuario,
+        regData.hoja,
+        agentesPermitidosFiltrados, // pasa TODOS, el cruce con CDM ya filtra
+        numeroMes,
+        fechaSeleccionada
+      );
+      ['keys', 'bonusStructure', 'additionalIncentives', 'decreasedKPIs'].forEach(cat => {
+        if (val[cat] && val[cat].length) resultadosCombinados[cat].push(...val[cat]);
+      });
+    });
+
+    // ⭐ Para el resumen final, pasamos todos los agentes pero con lobSeleccionada
+    // para que sim_construirResumenAgentes sepa qué LOB mostrar.
+    // La corrección real está en sim_construirResumenAgentes más abajo.
+    const resumenAgentes = sim_construirResumenAgentes(
+      resultadosCombinados,
+      agentesPermitidosFiltrados,
+      horasPorAgente,
+      lobSeleccionada
+    );
+
+    let totalGeneral   = 0;
+    let totalAgentes   = 0;
+    let agentesConBono = 0;
+
+    Object.values(resumenAgentes).forEach(ag => {
+      totalGeneral += ag.bonoFinal;
+      totalAgentes++;
+      if (ag.bonoFinal > 0) agentesConBono++;
+    });
+
+    Logger.log('💰 TOTAL SIMULADO: $' + totalGeneral.toFixed(2));
+    Logger.log('👥 Agentes: ' + totalAgentes + ' | Con bono: ' + agentesConBono);
+    Logger.log('🟢 ========== FIN simularBonos ==========');
+
+    return {
+      lob:               lobSeleccionada,
+      fecha:             fechaSeleccionada,
+      mes:               numeroMes,
+      metricasPorLob:    { [lobSeleccionada]: resultadosCombinados },
+      agentesPermitidos: agentesPermitidosFiltrados,
+      horasPorAgente:    horasPorAgente,
+      resumenAgentes:    resumenAgentes,
+      totales: {
+        totalGeneral,
+        totalAgentes,
+        agentesConBono,
+        promedioBono: totalAgentes > 0 ? totalGeneral / totalAgentes : 0
+      }
+    };
+
+  } catch (e) {
+    Logger.log('❌ ERROR CRÍTICO simularBonos: ' + e.message);
+    Logger.log(e.stack);
+    return { error: e.message };
+  }
+}
+
+// ============================================================
+//  NÚCLEO: sim_validarKPI1
+//  Replica byte a byte la lógica de validarKPI1() original.
+//  Calcula bonos individuales con prorrateo por horas H_C.
+// ============================================================
+function sim_validarKPI1(llave, condicionScore, porcentajePunto,
+                         dataCDM, dataUsuario, agentesPermitidos,
+                         lobActual, numeroMes, fechaSeleccionada,
+                         esDecrease) {
+
+  const resultado = {
+    llave, condicionScore,
+    totalCoincidencias: 0, totalCumplenCondicion: 0,
+    empleadosCumplen: [], empleadosNoCumplen: [], empleadosSinDatos: []
+  };
+
+  if (!condicionScore || condicionScore === 'N/A' || condicionScore.trim() === '') {
+    return resultado;
+  }
+
+  const normalizar = s => String(s || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/\s+/g, ' ');
+
+  const llaveNorm    = normalizar(llave);
+  const lobActualNorm= normalizar(lobActual);
+
+  // ── Detectar bono fijo vs condición ──────────────────────
+  const esBonoFijo = !condicionScore.match(/(<=|>=|<|>|=)/);
+  let valorBonoFijo = 0, operador = null, valorCondicion = 0;
+
+  if (esBonoFijo) {
+    valorBonoFijo = parseFloat(condicionScore.replace(/[^\d.]/g, '')) || 0;
+  } else {
+    const match = condicionScore.match(/(<=|>=|<|>|=)\s*(\d+(?:\.\d+)?)/);
+    if (!match) return resultado;
+    operador      = match[1];
+    valorCondicion= parseFloat(match[2]);
+  }
+
+  const todosLosAgentes = sim_obtenerTodosLosAgentesDeLOB(lobActual, agentesPermitidos);
+
+  // ── Leer configuración salarios ───────────────────────────
+  let salarioBaseLOB = 0, porcentajeBonoGlobal = 0;
+  try {
+    const ssConfig  = SpreadsheetApp.openById(SIM_ID_PRINCIPAL);
+    const hojaConfig= ssConfig.getSheetByName('Configuracion');
+    if (!hojaConfig) { Logger.log('❌ Hoja Configuracion no encontrada'); return resultado; }
+
+    const dataConfig = hojaConfig.getDataRange().getValues();
+    const lobNormCfg = normalizar(lobActual);
+    let encontrado = false;
+
+    for (let c = 1; c < dataConfig.length; c++) {
+      if (normalizar(String(dataConfig[c][2] || '')) === lobNormCfg) {
+        salarioBaseLOB     = parseFloat(String(dataConfig[c][3] || '0').replace(/[^\d.,]/g, '').replace(',', '.'));
+        porcentajeBonoGlobal= parseFloat(String(dataConfig[c][4] || '0').replace(/[^\d.,]/g, '').replace(',', '.'));
+        if (salarioBaseLOB > 0 && porcentajeBonoGlobal > 0) { encontrado = true; break; }
+      }
+    }
+    if (!encontrado) { Logger.log('❌ Configuración no encontrada para LOB: ' + lobActual); return resultado; }
+  } catch (e) { Logger.log('❌ Error Configuracion: ' + e.message); return resultado; }
+
+  // ── Horas máximas en H_C (base prorrateo) ────────────────
+  const horasMaxima = Math.max(
+    ...Object.values(agentesPermitidos).map(a => a.horasSemanales || 0), 1
+  );
+
+  // ── Helper: calcular bono final con prorrateo ─────────────
+  const calcularBono = (bmsId, cumple) => {
+    let salario = salarioBaseLOB;
+    for (let u = 1; u < dataUsuario.length; u++) {
+      if (String(dataUsuario[u][0]).trim() === bmsId) {
+        const sRaw = parseFloat(String(dataUsuario[u][7] || '0').replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
+        if (sRaw > 0) salario = sRaw;
+        break;
+      }
+    }
+    if (salario === 0) salario = salarioBaseLOB;
+
+    const bonoBase   = salario * (porcentajeBonoGlobal / 100);
+    let   bonoFinal  = bonoBase * porcentajePunto;
+
+    // Prorrateo por horas H_C
+    const hAg        = agentesPermitidos[bmsId]?.horasSemanales || horasMaxima;
+    const factorH    = horasMaxima > 0 ? hAg / horasMaxima : 1;
+    bonoFinal        = bonoFinal * factorH;
+
+    if (esDecrease && cumple) bonoFinal = -Math.abs(bonoFinal);
+    return { bonoFinal, factorH, hAg, salario };
+  };
+
+  // ── BONO FIJO: asignar a todos los agentes de la LOB ─────
+  if (esBonoFijo) {
+    todosLosAgentes.forEach(ag => {
+      const { bonoFinal, factorH, hAg, salario } = calcularBono(ag.bmsId, true);
+      resultado.totalCoincidencias++;
+      resultado.totalCumplenCondicion++;
+      resultado.empleadosCumplen.push({
+        bmsId: ag.bmsId, nombre: ag.nombre,
+        valorF: valorBonoFijo, bono: bonoFinal,
+        horasContrato: hAg, horasMaxima, factorHoras: factorH,
+        salarioPersonalizado: salario !== salarioBaseLOB
+      });
+    });
+    return resultado;
+  }
+
+  // ── KPI CON CONDICIÓN: recorrer CDM ──────────────────────
+  const headers = dataCDM[0] || [];
+
+  let idxBms    = headers.indexOf('BMS ID');
+  if (idxBms    === -1) idxBms    = headers.indexOf('CCMSID'); if (idxBms === -1) idxBms = 1;
+  let idxValH   = headers.indexOf('Columna H');
+  if (idxValH   === -1) idxValH   = headers.indexOf('KPI_Value'); if (idxValH === -1) idxValH = 7;
+  let idxValF   = headers.indexOf('Columna F');
+  if (idxValF   === -1) idxValF   = 5;
+  let idxLlave  = headers.indexOf('Llave');
+  if (idxLlave  === -1) idxLlave  = headers.indexOf('KPI'); if (idxLlave === -1) idxLlave = 8;
+  let idxSubLOB = headers.indexOf('SubLOB');
+  if (idxSubLOB === -1) idxSubLOB = 2;
+
+  const agentesConDatos = new Set();
+
+  for (let row = 1; row < dataCDM.length; row++) {
+    const llaveCDM = normalizar(String(dataCDM[row][idxLlave] || '').trim());
+
+    // Extraer KPI quitando el prefijo de LOB
+    let kpiExtraido = '';
+    const posLOB = llaveCDM.indexOf(lobActualNorm);
+    kpiExtraido   = posLOB !== -1 ? llaveCDM.substring(posLOB + lobActualNorm.length).trim() : llaveCDM;
+    if (kpiExtraido !== llaveNorm) continue;
+
+    const bmsId = String(dataCDM[row][idxBms]).trim();
+    if (!agentesPermitidos[bmsId]) continue;
+    if (normalizar(agentesPermitidos[bmsId].lob) !== lobActualNorm) continue;
+
+    const subLobCDM = normalizar(String(dataCDM[row][idxSubLOB] || ''));
+    if (subLobCDM && subLobCDM !== lobActualNorm) continue;
+
+    agentesConDatos.add(bmsId);
+    resultado.totalCoincidencias++;
+
+    const valorNumerico = parseFloat(String(dataCDM[row][idxValH]).replace('%', '').trim());
+    if (isNaN(valorNumerico) || valorNumerico === 0) {
+      resultado.empleadosSinDatos.push({
+        bmsId, nombre: agentesPermitidos[bmsId].nombre,
+        valorF: 0, bono: 0, sinDatos: true, salarioPersonalizado: false
+      });
+      continue;
+    }
+
+    let cumple = false;
+    switch (operador) {
+      case '>':  cumple = valorNumerico >  valorCondicion; break;
+      case '>=': cumple = valorNumerico >= valorCondicion; break;
+      case '<':  cumple = valorNumerico <  valorCondicion; break;
+      case '<=': cumple = valorNumerico <= valorCondicion; break;
+      case '=':  cumple = valorNumerico === valorCondicion; break;
+    }
+
+    const { bonoFinal, factorH, hAg, salario } = calcularBono(bmsId, cumple);
+
+    const item = {
+      bmsId,
+      nombre:            agentesPermitidos[bmsId].nombre,
+      rol:               agentesPermitidos[bmsId].rol || 'Sin rol',
+      valorF:            idxValF !== -1 ? dataCDM[row][idxValF] : '-',
+      bono:              cumple ? bonoFinal : 0,
+      horasContrato:     hAg,
+      horasMaxima,
+      factorHoras:       factorH,
+      salarioPersonalizado: salario !== salarioBaseLOB
+    };
+
+    if (cumple) { resultado.totalCumplenCondicion++; resultado.empleadosCumplen.push(item); }
+    else        { resultado.empleadosNoCumplen.push(item); }
+  }
+
+  // Agentes sin ningún dato en CDM
+  todosLosAgentes.forEach(ag => {
+    if (!agentesConDatos.has(ag.bmsId)) {
+      resultado.empleadosSinDatos.push({
+        bmsId: ag.bmsId, nombre: ag.nombre,
+        valorF: '-', bono: 0, sinDatos: true, salarioPersonalizado: false
+      });
+    }
+  });
+
+  return resultado;
+}
+
+
+// ============================================================
+//  sim_validarKPIsPorCategoria
+//  Replica validarKPIsPorCategoria() del sistema original.
+// ============================================================
+function sim_validarKPIsPorCategoria(registro, lob, dataCDM, dataUsuario,
+                                      hoja, agentesPermitidos, numeroMes,
+                                      fechaSeleccionada) {
+  const resultadosBrutos = {
+    keys: [], bonusStructure: [], additionalIncentives: [], decreasedKPIs: []
+  };
+
+  const procesar = (cat, start, end, inc, conParticipacion) => {
+    for (let c = start; c <= end; c += inc) {
+      if (!registro[c]) continue;
+      const kpi     = String(registro[c]).trim();
+      const scoreRaw= String(registro[c + 1]).trim();
+
+      // Detectar GATE
+      const scoreRawLower = scoreRaw.toLowerCase().replace(/\s/g, '');
+      const esGate  = cat === 'bonusStructure' && (scoreRawLower.endsWith(',key') || scoreRawLower.endsWith(',gate'));
+      let   score   = esGate ? scoreRaw.replace(/\s*,\s*(key|gate)\s*$/i, '').trim() : scoreRaw;
+      score         = score.replace(/(\d),(\d)/g, '$1.$2');
+
+      let peso = parseFloat(String(registro[c + 2] || '0').replace('%', '')) || 0;
+      if (peso > 1) peso /= 100;
+
+      let participation = 1;
+      if (conParticipacion) {
+        const pRaw = String(registro[c + 3] || '100');
+        const pNum = parseFloat(pRaw.replace('%', '').trim()) || 100;
+        participation = pNum > 1 ? pNum / 100 : pNum;
+      }
+
+      const esDecrease = cat === 'decreasedKPIs';
+      const validacion = sim_validarKPI1(
+        kpi, score, peso * participation,
+        dataCDM, dataUsuario, agentesPermitidos, lob,
+        numeroMes, fechaSeleccionada, esDecrease
+      );
+
+      resultadosBrutos[cat].push({
+        kpi, score, scoreOriginal: scoreRaw,
+        porcentaje: peso, participacion: participation,
+        esGate, validacion, esDecrease
+      });
+    }
+  };
+
+  if (hoja === 'Registro') {
+    procesar('keys',                5,  9,  2, false);
+    procesar('bonusStructure',      10, 21, 3, false);
+    procesar('additionalIncentives',23, 31, 3, false);
+    procesar('decreasedKPIs',       33, 38, 3, false);
+    resultadosBrutos.bonusStructure = sim_aplicarLogicaGate(resultadosBrutos.bonusStructure);
+    return resultadosBrutos;
+  } else {
+    // Registro_pisos: usa consolidación multi-tier
+    procesar('keys',                5,  10,  2, false);
+    procesar('bonusStructure',      12, 79,  4, true);
+    procesar('additionalIncentives',81, 100, 4, true);
+    procesar('decreasedKPIs',       102,121, 4, true);
+    const consolidado = sim_consolidarPisos(resultadosBrutos);
+    consolidado.bonusStructure = sim_aplicarLogicaGate(consolidado.bonusStructure);
+    return consolidado;
+  }
+}
+
+
+// ============================================================
+//  sim_consolidarPisos
+//  Replica consolidarPisos() — agrupa tiers multi-escala y
+//  selecciona el mejor bono por agente.
+// ============================================================
+function sim_consolidarPisos(resultadosBrutos) {
+  const resultadosConsolidados = {};
+
+  for (let cat in resultadosBrutos) {
+    if (cat === 'keys') { resultadosConsolidados[cat] = resultadosBrutos[cat]; continue; }
+
+    const grupos = {};
+    resultadosBrutos[cat].forEach(item => {
+      if (!grupos[item.kpi]) grupos[item.kpi] = [];
+      grupos[item.kpi].push(item);
+    });
+
+    resultadosConsolidados[cat] = Object.keys(grupos).map(nombreKpi => {
+      const tiers = grupos[nombreKpi];
+      if (tiers.length === 1) return tiers[0];
+
+      const maxPart = Math.max(...tiers.map(t => t.participacion || 1));
+
+      const consolidado = {
+        kpi: nombreKpi, score: 'Multi-Escala',
+        porcentaje:   tiers[0].porcentaje,
+        participacion: maxPart,
+        esMultiTier:  true,
+        esGate:       tiers[0].esGate === true,
+        scoresPorTier: tiers.map(t => ({
+          score: t.score, condicion: t.score, participacion: t.participacion
+        })),
+        validacion: {
+          totalCoincidencias:   tiers[0].validacion.totalCoincidencias,
+          totalCumplenCondicion: 0,
+          empleadosCumplen:    [],
+          empleadosNoCumplen:  [],
+          empleadosSinDatos:   tiers[0].validacion.empleadosSinDatos || []
+        }
+      };
+
+      const mejorResultadoAgente = {};
+      tiers.forEach(tier => {
+        (tier.validacion.empleadosCumplen || []).forEach(e => {
+          if (!mejorResultadoAgente[e.bmsId] || e.bono > mejorResultadoAgente[e.bmsId].bono) {
+            mejorResultadoAgente[e.bmsId] = {
+              ...e, scoreCumplido: tier.score, participacionUsada: tier.participacion
+            };
+          }
+        });
+        (tier.validacion.empleadosNoCumplen || []).forEach(e => {
+          if (!mejorResultadoAgente[e.bmsId]) {
+            mejorResultadoAgente[e.bmsId] = {
+              ...e, bono: 0, scoreCumplido: tier.score, participacionUsada: tier.participacion
+            };
+          }
+        });
+      });
+
+      for (let id in mejorResultadoAgente) {
+        const r = mejorResultadoAgente[id];
+        // ⭐ FIX: r.bono > 0 excluía penalidades (bono < 0). Usar !== 0 para incluir ambos.
+        if (r.bono !== 0) {
+          consolidado.validacion.empleadosCumplen.push(r);
+          consolidado.validacion.totalCumplenCondicion++;
+        } else {
+          consolidado.validacion.empleadosNoCumplen.push(r);
+        }
+      }
+
+      return consolidado;
+    });
+  }
+  return resultadosConsolidados;
+}
+
+
+// ============================================================
+//  sim_aplicarLogicaGate
+//  Replica aplicarLogicaGate() — sin modificar los KPIs
+//  (la lógica de bloqueo se aplica en el frontend al renderizar).
+// ============================================================
+function sim_aplicarLogicaGate(bonusStructureKPIs) {
+  if (!bonusStructureKPIs || bonusStructureKPIs.length === 0) return bonusStructureKPIs;
+  const gates = bonusStructureKPIs.filter(k => k.esGate === true);
+  if (gates.length === 0) return bonusStructureKPIs;
+
+  Logger.log('🔒 Gates en BonusStructure: ' + gates.length);
+  gates.forEach(g => {
+    Logger.log('   Gate: "' + g.kpi + '" score="' + g.score + '"');
+  });
+
+  // Retorna sin modificar (misma conducta que el original)
+  return bonusStructureKPIs;
+}
+
+
+// ============================================================
+//  sim_construirResumenAgentes
+//  Aplica la lógica de KEYS (bloqueo total si no cumplen todos)
+//  y suma todas las categorías para obtener el bono final por agente.
+//  Devuelve un mapa  { bmsId → { nombre, bonoFinal, detalle } }
+// ============================================================
+
+function sim_construirResumenAgentes(resultadosCombinados, agentesPermitidos, horasPorAgente, lobSeleccionada) {
+  const norm = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  const lobNorm = norm(lobSeleccionada);
+
+  const agentData = {};
+
+  const cats = ['keys', 'bonusStructure', 'additionalIncentives', 'decreasedKPIs'];
+  cats.forEach(function(cat, catIdx) {
+    (resultadosCombinados[cat] || []).forEach(function(kpiObj, kpiIdx) {
+      const val = kpiObj.validacion || {};
+      const resKey = cat + '_' + kpiIdx;   // clave única
+
+      const processEmp = function(emp, cumple, sinDatos) {
+        if (!agentData[emp.bmsId]) {
+          agentData[emp.bmsId] = { 
+            bmsId: emp.bmsId, 
+            nombre: emp.nombre, 
+            resultados: {} 
+          };
+        }
+        agentData[emp.bmsId].resultados[resKey] = {
+          cumple: cumple,
+          sinDatos: sinDatos,
+          bono: parseFloat(emp.bono) || 0,
+          cat: cat,
+          kpiName: kpiObj.kpi,
+          esGate: kpiObj.esGate === true
+        };
+      };
+
+      (val.empleadosCumplen || []).forEach(e => processEmp(e, true, false));
+      (val.empleadosNoCumplen || []).forEach(e => processEmp(e, false, false));
+      (val.empleadosSinDatos || []).forEach(e => processEmp(e, false, true));
+    });
+  });
+
+  // Asegurar todos los agentes de la LOB
+  Object.entries(agentesPermitidos)
+    .filter(([, v]) => norm(v.lob) === lobNorm)
+    .forEach(([bmsId, v]) => {
+      if (!agentData[bmsId]) {
+        agentData[bmsId] = { bmsId, nombre: v.nombre, resultados: {} };
+      }
+    });
+
+  const resumen = {};
+  Object.values(agentData).forEach(agObj => {
+    const bmsId = agObj.bmsId;
+    const agInfo = agentesPermitidos[bmsId] || {};
+    const hData = horasPorAgente && horasPorAgente[bmsId] ? horasPorAgente[bmsId] : null;
+
+    let totalKeys = 0;
+    let todosKeysOK = true;
+    let tieneAlgunKey = false;
+    let totalBonusStructure = 0;
+    let totalAdditional = 0;
+    let totalDecreases = 0;   // ← Puede ser negativo
+
+    Object.values(agObj.resultados).forEach(res => {
+      const bon = parseFloat(res.bono) || 0;
+
+      if (res.cat === 'keys') {
+        if (!res.sinDatos) {
+          tieneAlgunKey = true;
+          if (res.cumple) totalKeys += bon;
+          else todosKeysOK = false;
+        }
+      } else if (res.cat === 'decreasedKPIs') {
+        if (res.cumple && !res.sinDatos) totalDecreases += bon;   // bon ya viene negativo
+      } else if (res.cumple && !res.sinDatos) {
+        if (res.cat === 'bonusStructure') totalBonusStructure += bon;
+        else if (res.cat === 'additionalIncentives') totalAdditional += bon;
+      }
+    });
+
+    // ── Detección de GATE fallido ──────────────────────────────
+    const tieneGateFallido = Object.values(agObj.resultados).some(
+      res => res.esGate === true 
+             && (res.cat === 'bonusStructure' || res.cat === 'additionalIncentives') 
+             && !res.cumple && !res.sinDatos
+    );
+
+    // Cálculo final CORRECTO (con Gate)
+    let bonoFinal = 0;
+    let bloqueadoPorKey  = false;
+    let bloqueadoPorGate = false;
+    let comentarioBono   = '';
+
+    if (tieneAlgunKey) {
+      if (todosKeysOK) {
+        if (tieneGateFallido) {
+          bonoFinal        = totalDecreases;   // solo penalizaciones
+          bloqueadoPorGate = true;
+          comentarioBono   = 'No cumple por Gate';
+        } else {
+          bonoFinal = totalKeys + totalBonusStructure + totalAdditional + totalDecreases;
+        }
+      } else {
+        bonoFinal       = totalDecreases;   // Solo penalizaciones
+        bloqueadoPorKey = true;
+        comentarioBono  = 'Bloqueado por Key';
+      }
+    } else {
+      if (tieneGateFallido) {
+        bonoFinal        = totalDecreases;
+        bloqueadoPorGate = true;
+        comentarioBono   = 'No cumple por Gate';
+      } else {
+        bonoFinal = totalBonusStructure + totalAdditional + totalDecreases;
+      }
+    }
+
+    bonoFinal = Math.max(0, bonoFinal);   // Nunca negativo final
+
+    resumen[bmsId] = {
+      bmsId,
+      nombre: agObj.nombre || agInfo.nombre || 'Agente ' + bmsId,
+      rol: agInfo.rol || 'Sin rol',
+      horasSemanales: agInfo.horasSemanales || 42,
+      horasReales: hData ? (parseFloat(hData.horas) || 0) : 0,
+      ausencias: hData ? (parseFloat(hData.ausencias) || 0) : 0,
+      diasLaborados: hData ? (parseFloat(hData.diasLaborados) || 0) : 0,
+      bonoFinal,
+      bloqueadoPorKey,
+      bloqueadoPorGate,
+      comentarioBono,
+      tieneAlgunKey,
+      todosKeysCumplen: todosKeysOK,
+      totalKeys,
+      totalBonusStructure,
+      totalAdditional,
+      totalDecreased: Math.abs(totalDecreases),
+      detalle: Object.values(agObj.resultados)
+    };
+  });
+
+  return resumen;
+}
+
+// ============================================================
+//  FUNCIÓN DE DIAGNÓSTICO Y REPORTE RÁPIDO
+//  Imprime en Logger el desglose completo, igual a lo que
+//  muestra la tabla del dashboard.
+// ============================================================
+function simularYReportar(lob, fecha, mes) {
+  const resultado = simularBonos(lob, fecha, mes);
+
+  if (resultado.error) {
+    Logger.log('❌ Error en simulación: ' + resultado.error);
+    return resultado;
+  }
+
+  Logger.log('\n════════════════════════════════════════════');
+  Logger.log('📊 REPORTE DE SIMULACIÓN');
+  Logger.log('  LOB  : ' + resultado.lob);
+  Logger.log('  Fecha: ' + resultado.fecha);
+  Logger.log('  Mes  : ' + resultado.mes);
+  Logger.log('════════════════════════════════════════════');
+  Logger.log('  Total Bonos : $' + resultado.totales.totalGeneral.toFixed(2));
+  Logger.log('  Agentes     : ' + resultado.totales.totalAgentes);
+  Logger.log('  Con bono    : ' + resultado.totales.agentesConBono);
+  Logger.log('  Promedio    : $' + resultado.totales.promedioBono.toFixed(2));
+  Logger.log('════════════════════════════════════════════');
+
+  // Top 10 performers
+  const ranking = Object.values(resultado.resumenAgentes)
+    .sort((a, b) => b.bonoFinal - a.bonoFinal)
+    .slice(0, 10);
+
+  Logger.log('\n🏆 TOP 10 PERFORMERS:');
+  ranking.forEach((ag, i) => {
+    Logger.log('  ' + (i + 1) + '. ' + ag.nombre + ' (BMS ' + ag.bmsId + ') — $' + ag.bonoFinal.toFixed(2));
+  });
+
+  // Agentes sin bono
+  const sinBono = Object.values(resultado.resumenAgentes).filter(a => a.bonoFinal === 0);
+  Logger.log('\n❌ AGENTES SIN BONO: ' + sinBono.length);
+  sinBono.forEach(ag => {
+    const razon = ag.bloqueadoPorKey ? 'Key no cumplida' : 'Sin datos o no cumple';
+    Logger.log('  — ' + ag.nombre + ' (' + razon + ')');
+  });
+
+  Logger.log('\n════════════════════════════════════════════\n');
+  return resultado;
+}
+
+
+// ============================================================
+//  HELPERS INTERNOS (replican las funciones de utilidad
+//  del sistema principal sin efectos secundarios)
+// ============================================================
+
+function sim_obtenerAgentesPermitidos() {
+  const ss     = SpreadsheetApp.openById(SIM_ID_PRINCIPAL);
+  const hojaHC = ss.getSheetByName('H_C');
+  if (!hojaHC) return {};
+
+  const dataHC  = hojaHC.getDataRange().getValues();
+  const headers = dataHC[0];
+  const agentes = {};
+
+  const normalizar = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/\s+/g, ' ');
+
+  let idxBMS = -1, idxLOB = -1, idxNombre = -1, idxRol = -1, idxHoras = -1;
+  headers.forEach((h, i) => {
+    const hh = String(h).toLowerCase().trim();
+    if (hh.includes('bms') || hh.includes('ccms') || hh.includes('id')) idxBMS    = i;
+    if (hh.includes('lob'))                                               idxLOB    = i;
+    if (hh.includes('nombre') || hh.includes('name'))                    idxNombre = i;
+    if (hh.includes('rol') || hh.includes('role'))                       idxRol    = i;
+    if (hh.includes('horas') || hh.includes('hours') || hh === 'h')     idxHoras  = i;
+  });
+  if (idxBMS    === -1) idxBMS    = 0;
+  if (idxLOB    === -1) idxLOB    = 1;
+  if (idxNombre === -1) idxNombre = 2;
+  if (idxRol    === -1) idxRol    = 3;
+  if (idxHoras  === -1) idxHoras  = 9;
+
+  const parsearHoras = v => {
+    if (typeof v === 'number' && !isNaN(v) && v > 0) return v;
+    if (!v) return 42;
+    const n = parseFloat(String(v).replace(/[^0-9.,]/g, '').replace(',', '.'));
+    return (!isNaN(n) && n > 0) ? n : 42;
+  };
+
+  for (let i = 1; i < dataHC.length; i++) {
+    const bms = String(dataHC[i][idxBMS]).trim();
+    if (!bms) continue;
+    const lob    = dataHC[i][idxLOB];
+    const nombre = String(dataHC[i][idxNombre] || '').trim();
+    const rol    = String(dataHC[i][idxRol]    || '').trim() || 'Sin rol';
+    const horas  = parsearHoras(dataHC[i][idxHoras]);
+
+    agentes[bms] = {
+      nombre:         nombre || 'Agente ' + bms,
+      rol, role:      rol,
+      lob:            normalizar(lob),
+      lobOriginal:    String(lob || '').trim(),
+      horasSemanales: horas,
+      horas,
+      hCont:          horas
+    };
+  }
+  Logger.log('✅ sim_obtenerAgentesPermitidos: ' + Object.keys(agentes).length + ' agentes');
+  return agentes;
+}
+
+function sim_obtenerNumeroMesDeFecha(fecha) {
+  if (!fecha) return null;
+  const re = /[-/]/;
+  if (re.test(fecha)) {
+    const d = new Date(fecha);
+    if (!isNaN(d.getTime())) return d.getMonth() + 1;
+    const p = fecha.split(/[-/]/);
+    if (p.length === 3) {
+      if (p[0].length === 4) return parseInt(p[1], 10);
+      if (p[2].length === 4) return parseInt(p[1], 10);
+    }
+  }
+  const mesesMap = {
+    'enero':1,'febrero':2,'marzo':3,'abril':4,'mayo':5,'junio':6,
+    'julio':7,'agosto':8,'septiembre':9,'octubre':10,'noviembre':11,'diciembre':12
+  };
+  return mesesMap[String(fecha).toLowerCase().trim()] || null;
+}
+
+function sim_obtenerDatosCDMPorMes(numeroMes) {
+  const ss     = SpreadsheetApp.openById(SIM_ID_CDM);
+  const nombre = 'CDM_' + numeroMes;
+  const hoja   = ss.getSheetByName(nombre) || ss.getSheetByName('CDM');
+  return hoja ? hoja.getDataRange().getValues() : [];
+}
+
+function sim_obtenerHorasPorAgente(lob, numeroMes) {
+  if (!numeroMes) return {};
+  const ss       = SpreadsheetApp.openById(SIM_ID_CDM);
+  const variantes = [
+    'HORAS_' + numeroMes, 'Horas_' + numeroMes,
+    'HORAS ' + numeroMes, 'Horas ' + numeroMes,
+    'HORAS_' + String(numeroMes).padStart(2, '0'),
+    'Horas_' + String(numeroMes).padStart(2, '0')
+  ];
+  let hojaHoras = null;
+  for (const v of variantes) {
+    hojaHoras = ss.getSheetByName(v);
+    if (hojaHoras) break;
+  }
+  if (!hojaHoras) return { _noHoja: true };
+
+  const data    = hojaHoras.getDataRange().getValues();
+  if (!data || data.length < 2) return { _noHoja: true };
+
+  const headers = data[0];
+  let colCCMS = -1, colHoras = -1, colAus = -1, colLOB = -1;
+  const colDias = 6; // Columna G fija
+
+  headers.forEach((h, i) => {
+    const hh = String(h).trim();
+    if (hh === 'CCMSID' || hh === 'BMS ID' || hh === 'ID') colCCMS = i;
+    if (hh === 'horas'  || hh === 'Horas')                 colHoras = i;
+    if (hh === 'Ausencias' || hh === 'ausencias')          colAus   = i;
+    if (hh === 'SubLOB' || hh === 'LOB')                   colLOB   = i;
+  });
+
+  if (colCCMS === -1 || colHoras === -1) return { _noHoja: true };
+
+  const horasMap = {};
+  const lobNorm  = lob ? String(lob).trim() : null;
+
+  for (let i = 1; i < data.length; i++) {
+    const ccms  = String(data[i][colCCMS] || '').trim();
+    const bmsId = ccms.match(/(\d{7})/)?.[1];
+    if (!bmsId) continue;
+
+    if (lobNorm && colLOB !== -1) {
+      const lobFila = String(data[i][colLOB] || '').trim();
+      if (lobFila !== lobNorm) continue;
+    }
+
+    const toNum = v => typeof v === 'number' ? v : (parseFloat(String(v).replace(',', '.')) || 0);
+    const hTot  = toNum(data[i][colHoras]);
+    const hAus  = colAus !== -1 ? toNum(data[i][colAus]) : 0;
+    const dias  = toNum(data[i][colDias]);
+
+    horasMap[bmsId] = {
+      horas: hTot, horasTotales: hTot,
+      ausencias: hAus, efectivas: Math.max(0, hTot - hAus),
+      diasLaborados: dias
+    };
+  }
+  return horasMap;
+}
+
+function sim_obtenerRegistrosPorLobYFecha(lob, fecha) {
+  const ss      = SpreadsheetApp.openById(SIM_ID_PRINCIPAL);
+  const hojas   = ['Registro', 'Registro_pisos'];
+  const registros = [];
+  const normalizar = s => s ? s.toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim() : '';
+  const lobNorm   = normalizar(lob);
+  const fechaNorm = normalizar(fecha);
+
+  hojas.forEach(nombreHoja => {
+    const hoja = ss.getSheetByName(nombreHoja);
+    if (!hoja) return;
+    const data = hoja.getDataRange().getValues();
+
+    for (let i = 1; i < data.length; i++) {
+      const fila      = data[i];
+      const fechaFila = fila[0];
+      const lobFila   = fila[1];
+
+      // Registro_pisos: solo si tiene OM (columna D)
+      if (nombreHoja === 'Registro_pisos') {
+        const om = fila[3];
+        if (!om || String(om).trim() === '' || String(om).trim() === '-') continue;
+      }
+
+      if (!fechaFila || !lobFila) continue;
+      if (normalizar(String(lobFila)) !== lobNorm) continue;
+
+      let fechaTxt = fechaFila instanceof Date
+        ? Utilities.formatDate(fechaFila, Session.getScriptTimeZone(), 'yyyy-MM-dd')
+        : fechaFila.toString().trim();
+
+      if (normalizar(fechaTxt) !== fechaNorm) continue;
+      registros.push({ registro: fila, hoja: nombreHoja });
+    }
+  });
+
+  Logger.log('📋 sim_obtenerRegistrosPorLobYFecha: ' + registros.length + ' registros');
+  return registros;
+}
+
+function sim_obtenerTodosLosAgentesDeLOB(lob, agentesPermitidos) {
+  const norm    = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  const lobNorm = norm(lob);
+  return Object.entries(agentesPermitidos)
+    .filter(([, v]) => norm(v.lob) === lobNorm)
+    .map(([id, v]) => ({ bmsId: id, nombre: v.nombre }));
+}
+
+
+
+
+
+/**
+ * DIAGNÓSTICO COMPLETO PARA VER SI LA RESTA DE DECREASED ESTÁ FALLANDO
+ * Imprime en Logger (consola del Apps Script) y también retorna para frontend
+ */
+function sim_diagnosticarDecreases(lob, fecha, mes) {
+  const resultado = simularBonos(lob, fecha, mes);
+  
+  if (resultado.error) {
+    Logger.log('❌ ERROR EN SIMULACIÓN: ' + resultado.error);
+    return resultado;
+  }
+
+  Logger.log('\n🔍 ==================== DIAGNÓSTICO DE DECREASED KPIs ====================');
+  Logger.log(`LOB: ${lob} | Fecha: ${fecha} | Mes: ${mes}`);
+  Logger.log(`Total General según backend: $${resultado.totales.totalGeneral.toFixed(2)}\n`);
+
+  let sumaManual = 0;
+  let agentesConDecrease = 0;
+
+  const resumen = resultado.resumenAgentes || {};
+
+  Object.values(resumen).forEach(ag => {
+    const decrease = ag.totalDecreased || 0;           // valor positivo (abs)
+    const bonoFinal = ag.bonoFinal || 0;
+    const nombre = ag.nombre || 'Sin nombre';
+
+    // Mostrar solo agentes que tienen decrease o bono bajo
+    if (decrease > 0 || bonoFinal < 50) {
+      Logger.log(`👤 ${nombre} (${ag.bmsId})`);
+      Logger.log(`   → Decrease: -$${decrease.toFixed(2)}`);
+      Logger.log(`   → Bono Final: $${bonoFinal.toFixed(2)}`);
+      Logger.log(`   → Bloqueado por Key: ${ag.bloqueadoPorKey ? 'SÍ' : 'NO'}`);
+      Logger.log('   ──────────────────────────────');
+    }
+
+    sumaManual += bonoFinal;
+    if (decrease > 0) agentesConDecrease++;
+  });
+
+  Logger.log('\n📊 RESUMEN FINAL:');
+  Logger.log(`Total según backend     : $${resultado.totales.totalGeneral.toFixed(2)}`);
+  Logger.log(`Suma manual calculada   : $${sumaManual.toFixed(2)}`);
+  Logger.log(`Diferencia              : $${(resultado.totales.totalGeneral - sumaManual).toFixed(2)}`);
+  Logger.log(`Agentes con Decrease    : ${agentesConDecrease}`);
+  Logger.log(`Total agentes procesados: ${Object.keys(resumen).length}`);
+  
+  if (Math.abs(resultado.totales.totalGeneral - sumaManual) > 1) {
+    Logger.log('⚠️ ALERTA: Hay discrepancia entre backend y suma manual → posible error en cálculo de decreases');
+  } else {
+    Logger.log('✅ Cálculo consistente');
+  }
+
+  Logger.log('====================================================================\n');
+
+  // También retornamos el diagnóstico para que lo veas en frontend si quieres
+  resultado.diagnostico = {
+    totalBackend: resultado.totales.totalGeneral,
+    sumaManual: sumaManual,
+    diferencia: resultado.totales.totalGeneral - sumaManual,
+    agentesConDecrease: agentesConDecrease
+  };
+
+  return resultado;
+}
+
+
+
+// ============================================================
+//  FICHA_KPI.GS
+//  Funciones NUEVAS e independientes para calcular y devolver
+//  el desglose de KPIs por agente, sin tocar Audit ni Disputa.
+//
+//  Punto de entrada principal:
+//    fichaKPIPorLob(lob, fechaSeleccionada, numeroMes)
+//
+//  Llama a:
+//    fk_obtenerRegistros()
+//    fk_obtenerAgentes()
+//    fk_obtenerHoras()
+//    fk_obtenerCDM()
+//    fk_obtenerConfigLOB()
+//    fk_validarKPI()
+//    fk_validarCategorias()
+//    fk_consolidarMultiTier()
+//    fk_aplicarGate()
+//    fk_construirFichaAgentes()
+// ============================================================
+
+const FK_ID_PRINCIPAL = '1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4';
+const FK_ID_CDM       = '1PtYuAb5C2kIoX8sE7dOvt1nVS-aLamZLOJQUSbTBBCw';
+
+// ============================================================
+//  PUNTO DE ENTRADA
+// ============================================================
+function fichaKPIPorLob(lob, fechaSeleccionada, numeroMes) {
+  try {
+    Logger.log('\n🟦 ========== INICIO fichaKPIPorLob ==========');
+    Logger.log('LOB: ' + lob);
+    Logger.log('Fecha: ' + fechaSeleccionada);
+    Logger.log('Mes: ' + numeroMes);
+
+    if (!lob || !fechaSeleccionada) {
+      return { error: 'Se requiere LOB y Fecha.' };
+    }
+
+    // ── 1. Agentes de H_C ──────────────────────────────────
+    const agentes = fk_obtenerAgentes();
+    if (!Object.keys(agentes).length) {
+      return { error: 'No se encontraron agentes en H_C.' };
+    }
+    Logger.log('✅ Agentes H_C: ' + Object.keys(agentes).length);
+
+    // ── 2. Mes numérico ────────────────────────────────────
+    const mes = numeroMes
+      ? parseInt(numeroMes, 10)
+      : fk_mesDeFecha(fechaSeleccionada);
+
+    // ── 3. CDM ─────────────────────────────────────────────
+    const dataCDM = mes ? fk_obtenerCDM(mes) : [];
+    Logger.log('📋 Filas CDM: ' + dataCDM.length);
+
+    // ── 4. Usuarios (salarios personalizados) ──────────────
+    const ss = SpreadsheetApp.openById(FK_ID_PRINCIPAL);
+    const dataUsuario = ss.getSheetByName('Usuario').getDataRange().getValues();
+
+    // ── 5. Horas reales ────────────────────────────────────
+    const horasMap = mes ? fk_obtenerHoras(lob, mes) : {};
+    Logger.log('⏱ Agentes con horas: ' + Object.keys(horasMap).length);
+
+    // ── 6. Configuración salario LOB ───────────────────────
+    const config = fk_obtenerConfigLOB(lob);
+    if (!config) {
+      return { error: 'No se encontró configuración de salario para LOB: ' + lob };
+    }
+    Logger.log('💰 Config LOB: salario=' + config.salarioBase + ' bono=' + config.porcentajeBono + '%');
+
+    // ── 7. Registros (Registro / Registro_pisos) ──────────
+    const registros = fk_obtenerRegistros(lob, fechaSeleccionada);
+    if (!registros.length) {
+      return { error: 'No hay registros para LOB: ' + lob + ' / Fecha: ' + fechaSeleccionada };
+    }
+    Logger.log('📂 Registros encontrados: ' + registros.length);
+
+    // ── 8. Horas máximas en H_C (base prorrateo) ──────────
+    const horasMaxima = Math.max.apply(null,
+      Object.values(agentes).map(function(a) { return a.horasSemanales || 0; }).concat([1])
+    );
+
+    // ── 9. Calcular KPIs por categoría para cada registro ──
+    const resultadosBrutos = {
+      keys: [], bonusStructure: [], additionalIncentives: [], decreasedKPIs: []
+    };
+
+    registros.forEach(function(regData) {
+      const val = fk_validarCategorias(
+        regData.registro,
+        lob,
+        dataCDM,
+        dataUsuario,
+        regData.hoja,
+        agentes,
+        config,
+        horasMaxima,
+        mes,
+        fechaSeleccionada
+      );
+      ['keys', 'bonusStructure', 'additionalIncentives', 'decreasedKPIs'].forEach(function(cat) {
+        if (val[cat] && val[cat].length) {
+          resultadosBrutos[cat] = resultadosBrutos[cat].concat(val[cat]);
+        }
+      });
+    });
+
+    // ── 10. Construir ficha por agente ────────────────────
+    const fichaAgentes = fk_construirFichaAgentes(
+      resultadosBrutos, agentes, horasMap, lob
+    );
+
+    // ── 11. Totales ────────────────────────────────────────
+    const totalGeneral = Object.values(fichaAgentes)
+      .reduce(function(s, a) { return s + (a.bonoFinal || 0); }, 0);
+    const conBono = Object.values(fichaAgentes)
+      .filter(function(a) { return (a.bonoFinal || 0) > 0; }).length;
+
+    Logger.log('💰 Total general: $' + totalGeneral.toFixed(2));
+    Logger.log('👥 Agentes totales: ' + Object.keys(fichaAgentes).length);
+    Logger.log('✅ Con bono: ' + conBono);
+    Logger.log('🟦 ========== FIN fichaKPIPorLob ==========\n');
+
+    return {
+      lob:            lob,
+      fecha:          fechaSeleccionada,
+      mes:            mes,
+      fichaAgentes:   fichaAgentes,
+      kpisPorCategoria: resultadosBrutos,
+      totales: {
+        totalGeneral:  totalGeneral,
+        totalAgentes:  Object.keys(fichaAgentes).length,
+        agentesConBono: conBono,
+        promedio: Object.keys(fichaAgentes).length > 0
+          ? totalGeneral / Object.keys(fichaAgentes).length
+          : 0
+      }
+    };
+
+  } catch (e) {
+    Logger.log('❌ ERROR fichaKPIPorLob: ' + e.message + '\n' + e.stack);
+    return { error: e.message };
+  }
+}
+
+
+// ============================================================
+//  fk_obtenerAgentes()
+//  Lee H_C y devuelve mapa { bmsId → { nombre, lob, rol, horasSemanales, ... } }
+// ============================================================
+function fk_obtenerAgentes() {
+  const ss     = SpreadsheetApp.openById(FK_ID_PRINCIPAL);
+  const hoja   = ss.getSheetByName('H_C');
+  if (!hoja) return {};
+
+  const data    = hoja.getDataRange().getValues();
+  const headers = data[0];
+  const norm    = fk_norm;
+
+  // Detección dinámica de columnas
+  let idxBMS = -1, idxLOB = -1, idxNombre = -1, idxRol = -1, idxHoras = -1;
+  headers.forEach(function(h, i) {
+    const hh = String(h).toLowerCase().trim();
+    if (hh.includes('bms') || hh.includes('ccms') || hh.includes('id')) idxBMS    = i;
+    if (hh.includes('lob'))                                               idxLOB    = i;
+    if (hh.includes('nombre') || hh.includes('name'))                    idxNombre = i;
+    if (hh.includes('rol') || hh.includes('role'))                       idxRol    = i;
+    if (hh.includes('horas') || hh.includes('hours') || hh === 'h')     idxHoras  = i;
+  });
+  if (idxBMS    === -1) idxBMS    = 0;
+  if (idxLOB    === -1) idxLOB    = 1;
+  if (idxNombre === -1) idxNombre = 2;
+  if (idxRol    === -1) idxRol    = 3;
+  if (idxHoras  === -1) idxHoras  = 9;
+
+  const parsearH = function(v) {
+    if (typeof v === 'number' && !isNaN(v) && v > 0) return v;
+    const n = parseFloat(String(v || '').replace(/[^0-9.,]/g, '').replace(',', '.'));
+    return (!isNaN(n) && n > 0) ? n : 42;
+  };
+
+  const agentes = {};
+  for (let i = 1; i < data.length; i++) {
+    const bms = String(data[i][idxBMS] || '').trim();
+    if (!bms) continue;
+    const lob   = data[i][idxLOB];
+    const horas = parsearH(data[i][idxHoras]);
+    const rol   = String(data[i][idxRol]    || '').trim() || 'Sin rol';
+
+    agentes[bms] = {
+      nombre:         String(data[i][idxNombre] || '').trim() || ('Agente ' + bms),
+      rol:            rol,
+      lob:            norm(lob),
+      lobOriginal:    String(lob || '').trim(),
+      horasSemanales: horas,
+      // columnas extra de H_C
+      supervisor:     String(data[i][4] || '').trim(),
+      accm:           String(data[i][5] || '').trim(),
+      om:             String(data[i][6] || '').trim()
+    };
+  }
+  return agentes;
+}
+
+
+// ============================================================
+//  fk_obtenerHoras(lob, mes)
+//  Lee HORAS_N del CDM y devuelve mapa { bmsId → { horas, ausencias, diasLaborados } }
+// ============================================================
+function fk_obtenerHoras(lob, mes) {
+  if (!mes) return {};
+  const ss = SpreadsheetApp.openById(FK_ID_CDM);
+
+  const variantes = [
+    'HORAS_' + mes, 'Horas_' + mes,
+    'HORAS ' + mes, 'Horas ' + mes,
+    'HORAS_' + String(mes).padStart(2, '0'),
+    'Horas_' + String(mes).padStart(2, '0')
+  ];
+
+  let hoja = null;
+  for (const v of variantes) {
+    hoja = ss.getSheetByName(v);
+    if (hoja) break;
+  }
+  if (!hoja) return {};
+
+  const data    = hoja.getDataRange().getValues();
+  if (!data || data.length < 2) return {};
+
+  const headers = data[0];
+  let colCCMS = -1, colHoras = -1, colAus = -1, colLOB = -1;
+  const colDias = 6; // Columna G fija
+
+  headers.forEach(function(h, i) {
+    const hh = String(h).trim();
+    if (hh === 'CCMSID' || hh === 'BMS ID' || hh === 'ID') colCCMS  = i;
+    if (hh === 'horas'  || hh === 'Horas')                 colHoras = i;
+    if (hh === 'Ausencias' || hh === 'ausencias')          colAus   = i;
+    if (hh === 'SubLOB' || hh === 'LOB')                   colLOB   = i;
+  });
+
+  if (colCCMS === -1 || colHoras === -1) return {};
+
+  const toN   = function(v) {
+    return typeof v === 'number' ? v : (parseFloat(String(v).replace(',', '.')) || 0);
+  };
+  const lobN  = lob ? String(lob).trim() : null;
+  const mapa  = {};
+
+  for (let i = 1; i < data.length; i++) {
+    const ccms  = String(data[i][colCCMS] || '').trim();
+    const bmsId = (ccms.match(/(\d{7})/) || [])[1];
+    if (!bmsId) continue;
+
+    if (lobN && colLOB !== -1) {
+      if (String(data[i][colLOB] || '').trim() !== lobN) continue;
+    }
+
+    const hTot = toN(data[i][colHoras]);
+    const hAus = colAus !== -1 ? toN(data[i][colAus]) : 0;
+    const dias = toN(data[i][colDias]);
+
+    mapa[bmsId] = {
+      horas:         hTot,
+      horasTotales:  hTot,
+      ausencias:     hAus,
+      efectivas:     Math.max(0, hTot - hAus),
+      diasLaborados: dias
+    };
+  }
+  return mapa;
+}
+
+
+// ============================================================
+//  fk_obtenerCDM(mes)
+//  Lee hoja CDM_N (o CDM general)
+// ============================================================
+function fk_obtenerCDM(mes) {
+  const ss    = SpreadsheetApp.openById(FK_ID_CDM);
+  const nombre = 'CDM_' + mes;
+  const hoja  = ss.getSheetByName(nombre) || ss.getSheetByName('CDM');
+  return hoja ? hoja.getDataRange().getValues() : [];
+}
+
+
+// ============================================================
+//  fk_obtenerConfigLOB(lob)
+//  Lee hoja Configuracion y devuelve { salarioBase, porcentajeBono }
+// ============================================================
+function fk_obtenerConfigLOB(lob) {
+  const ss    = SpreadsheetApp.openById(FK_ID_PRINCIPAL);
+  const hoja  = ss.getSheetByName('Configuracion');
+  if (!hoja) return null;
+
+  const data  = hoja.getDataRange().getValues();
+  const norm  = fk_norm;
+  const lobN  = norm(lob);
+
+  for (let i = 1; i < data.length; i++) {
+    if (norm(String(data[i][2] || '')) === lobN) {
+      const sal = parseFloat(String(data[i][3] || '0').replace(/[^\d.,]/g, '').replace(',', '.'));
+      const pct = parseFloat(String(data[i][4] || '0').replace(/[^\d.,]/g, '').replace(',', '.'));
+      if (sal > 0 && pct > 0) {
+        return { salarioBase: sal, porcentajeBono: pct };
+      }
+    }
+  }
+  return null;
+}
+
+
+// ============================================================
+//  fk_obtenerRegistros(lob, fecha)
+//  Busca filas en Registro y Registro_pisos
+// ============================================================
+function fk_obtenerRegistros(lob, fecha) {
+  const ss     = SpreadsheetApp.openById(FK_ID_PRINCIPAL);
+  const hojas  = ['Registro', 'Registro_pisos'];
+  const result = [];
+  const norm   = fk_norm;
+  const lobN   = norm(lob);
+  const fechaN = norm(fecha);
+
+  hojas.forEach(function(nombreHoja) {
+    const hoja = ss.getSheetByName(nombreHoja);
+    if (!hoja) return;
+    const data = hoja.getDataRange().getValues();
+
+    for (let i = 1; i < data.length; i++) {
+      const fila  = data[i];
+      const fFecha = fila[0];
+      const fLob   = fila[1];
+
+      // Registro_pisos: requiere OM (col D)
+      if (nombreHoja === 'Registro_pisos') {
+        const om = String(fila[3] || '').trim();
+        if (!om || om === '-') continue;
+      }
+
+      if (!fFecha || !fLob) continue;
+      if (norm(String(fLob)) !== lobN) continue;
+
+      const fechaTxt = fFecha instanceof Date
+        ? Utilities.formatDate(fFecha, Session.getScriptTimeZone(), 'yyyy-MM-dd')
+        : String(fFecha).trim();
+
+      if (norm(fechaTxt) !== fechaN) continue;
+      result.push({ registro: fila, hoja: nombreHoja });
+    }
+  });
+  return result;
+}
+
+
+// ============================================================
+//  fk_validarCategorias(registro, lob, dataCDM, dataUsuario,
+//                        hoja, agentes, config, horasMaxima, mes, fecha)
+//  Replica la lógica de validarKPIsPorCategoria() con
+//  funciones FK independientes.
+// ============================================================
+function fk_validarCategorias(registro, lob, dataCDM, dataUsuario,
+                               hoja, agentes, config, horasMaxima, mes, fecha) {
+  const brutos = {
+    keys: [], bonusStructure: [], additionalIncentives: [], decreasedKPIs: []
+  };
+
+  // Función interna de procesamiento
+  const procesar = function(cat, start, end, inc, conParticipacion) {
+    for (let c = start; c <= end; c += inc) {
+      if (!registro[c]) continue;
+      const kpi      = String(registro[c]).trim();
+      const scoreRaw = String(registro[c + 1]).trim();
+      if (!kpi || !scoreRaw) continue;
+
+      // Detectar GATE (termina en ",key" case-insensitive)
+      const scoreRawLower = scoreRaw.toLowerCase().replace(/\s/g, '');
+      const esGate = cat === 'bonusStructure' && (scoreRawLower.endsWith(',key') || scoreRawLower.endsWith(',gate'));
+      let score    = esGate ? scoreRaw.replace(/\s*,\s*(key|gate)\s*$/i, '').trim() : scoreRaw;
+      // Normalizar coma decimal
+      score = score.replace(/(\d),(\d)/g, '$1.$2');
+
+      let peso = parseFloat(String(registro[c + 2] || '0').replace('%', '')) || 0;
+      if (peso > 1) peso /= 100;
+
+      let participation = 1;
+      if (conParticipacion) {
+        const pRaw = String(registro[c + 3] || '100');
+        const pNum = parseFloat(pRaw.replace('%', '').trim()) || 100;
+        participation = pNum > 1 ? pNum / 100 : pNum;
+      }
+
+      const esDecrease = cat === 'decreasedKPIs';
+
+      // Validar este KPI
+      const validacion = fk_validarKPI(
+        kpi, score, peso * participation,
+        dataCDM, dataUsuario,
+        agentes, lob,
+        config, horasMaxima,
+        mes, fecha, esDecrease
+      );
+
+      brutos[cat].push({
+        kpi, score, scoreOriginal: scoreRaw,
+        porcentaje: peso, participacion: participation,
+        esGate, validacion, esDecrease
+      });
+    }
+  };
+
+  if (hoja === 'Registro') {
+    procesar('keys',                5,  9,  2, false);
+    procesar('bonusStructure',      10, 21, 3, false);
+    procesar('additionalIncentives',23, 31, 3, false);
+    procesar('decreasedKPIs',       33, 38, 3, false);
+    brutos.bonusStructure = fk_aplicarGate(brutos.bonusStructure);
+    return brutos;
+  } else {
+    // Registro_pisos: multi-tier con participación
+    procesar('keys',                5,  10,  2, false);
+    procesar('bonusStructure',      12, 79,  4, true);
+    procesar('additionalIncentives',81, 100, 4, true);
+    procesar('decreasedKPIs',       102,121, 4, true);
+    const consolidado = fk_consolidarMultiTier(brutos);
+    consolidado.bonusStructure = fk_aplicarGate(consolidado.bonusStructure);
+    return consolidado;
+  }
+}
+
+
+// ============================================================
+//  fk_validarKPI(llave, condicionScore, porcentajePunto,
+//                dataCDM, dataUsuario, agentes, lobActual,
+//                config, horasMaxima, mes, fecha, esDecrease)
+//
+//  Calcula, para UN KPI, qué agentes cumplen y cuánto bono reciben.
+//  Devuelve { empleadosCumplen, empleadosNoCumplen, empleadosSinDatos,
+//             totalCoincidencias, totalCumplenCondicion }
+// ============================================================
+function fk_validarKPI(llave, condicionScore, porcentajePunto,
+                        dataCDM, dataUsuario, agentes, lobActual,
+                        config, horasMaxima, mes, fecha, esDecrease) {
+
+  const resultado = {
+    llave, condicionScore,
+    totalCoincidencias:    0,
+    totalCumplenCondicion: 0,
+    empleadosCumplen:   [],
+    empleadosNoCumplen: [],
+    empleadosSinDatos:  []
+  };
+
+  if (!condicionScore || condicionScore === 'N/A' || !condicionScore.trim()) {
+    return resultado;
+  }
+
+  const norm       = fk_norm;
+  const llaveN     = norm(llave);
+  const lobN       = norm(lobActual);
+
+  // ── Tipo de condición ──────────────────────────────────────
+  const esBonoFijo = !condicionScore.match(/(<=|>=|<|>|=)/);
+  let valorBonoFijo = 0, operador = null, valorCondicion = 0;
+
+  if (esBonoFijo) {
+    valorBonoFijo = parseFloat(condicionScore.replace(/[^\d.]/g, '')) || 0;
+  } else {
+    const match = condicionScore.match(/(<=|>=|<|>|=)\s*(\d+(?:\.\d+)?)/);
+    if (!match) return resultado;
+    operador       = match[1];
+    valorCondicion = parseFloat(match[2]);
+  }
+
+  // ── Agentes de esta LOB ───────────────────────────────────
+  const agentesLOB = Object.entries(agentes)
+    .filter(function(kv) { return norm(kv[1].lob) === lobN; })
+    .map(function(kv) { return { bmsId: kv[0], nombre: kv[1].nombre }; });
+
+  // ── Salario helper ─────────────────────────────────────────
+  const getSalario = function(bmsId) {
+    for (let u = 1; u < dataUsuario.length; u++) {
+      if (String(dataUsuario[u][0]).trim() === bmsId) {
+        const s = parseFloat(String(dataUsuario[u][7] || '0').replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
+        if (s > 0) return { salario: s, personalizado: s !== config.salarioBase };
+      }
+    }
+    return { salario: config.salarioBase, personalizado: false };
+  };
+
+  // ── Calcular bono con prorrateo por horas H_C ─────────────
+  const calcBono = function(bmsId, cumple) {
+    const { salario, personalizado } = getSalario(bmsId);
+    const bonoBase = salario * (config.porcentajeBono / 100);
+    const hAg      = (agentes[bmsId] && agentes[bmsId].horasSemanales) || horasMaxima;
+    const factor   = horasMaxima > 0 ? hAg / horasMaxima : 1;
+    let bonoFinal  = bonoBase * porcentajePunto * factor;
+    if (esDecrease && cumple) bonoFinal = -Math.abs(bonoFinal);
+    return { bonoFinal, factor, hAg, salario, personalizado };
+  };
+
+  // ── BONO FIJO: todos los agentes de la LOB ─────────────────
+  if (esBonoFijo) {
+    agentesLOB.forEach(function(ag) {
+      const { bonoFinal, factor, hAg, personalizado } = calcBono(ag.bmsId, true);
+      resultado.totalCoincidencias++;
+      resultado.totalCumplenCondicion++;
+      resultado.empleadosCumplen.push({
+        bmsId:             ag.bmsId,
+        nombre:            ag.nombre,
+        valorF:            valorBonoFijo,
+        bono:              bonoFinal,
+        horasContrato:     hAg,
+        horasMaxima:       horasMaxima,
+        factorHoras:       factor,
+        salarioPersonalizado: personalizado
+      });
+    });
+    return resultado;
+  }
+
+  // ── KPI CON CONDICIÓN: recorrer CDM ───────────────────────
+  if (!dataCDM || dataCDM.length < 2) return resultado;
+
+  const headers = dataCDM[0] || [];
+
+  // Índices de columnas CDM
+  let idxBms    = headers.indexOf('BMS ID');
+  if (idxBms    === -1) idxBms    = headers.indexOf('CCMSID'); if (idxBms === -1) idxBms = 1;
+  let idxValH   = headers.indexOf('Columna H');
+  if (idxValH   === -1) idxValH   = headers.indexOf('KPI_Value'); if (idxValH === -1) idxValH = 7;
+  let idxValF   = headers.indexOf('Columna F');
+  if (idxValF   === -1) idxValF   = 5;
+  let idxLlave  = headers.indexOf('Llave');
+  if (idxLlave  === -1) idxLlave  = headers.indexOf('KPI'); if (idxLlave === -1) idxLlave = 8;
+  let idxSubLOB = headers.indexOf('SubLOB');
+  if (idxSubLOB === -1) idxSubLOB = 2;
+
+  const agentesConDatos = new Set();
+
+  for (let row = 1; row < dataCDM.length; row++) {
+    const llaveCDM = norm(String(dataCDM[row][idxLlave] || '').trim());
+
+    // Extraer KPI removiendo el prefijo de LOB
+    const posLOB     = llaveCDM.indexOf(lobN);
+    const kpiExtraido = posLOB !== -1
+      ? llaveCDM.substring(posLOB + lobN.length).trim()
+      : llaveCDM;
+
+    if (kpiExtraido !== llaveN) continue;
+
+    const bmsId = String(dataCDM[row][idxBms]).trim();
+    if (!agentes[bmsId]) continue;
+    if (norm(agentes[bmsId].lob) !== lobN) continue;
+
+    // Filtro SubLOB
+    const subLobCDM = norm(String(dataCDM[row][idxSubLOB] || ''));
+    if (subLobCDM && subLobCDM !== lobN) continue;
+
+    agentesConDatos.add(bmsId);
+    resultado.totalCoincidencias++;
+
+    const valorNumerico = parseFloat(String(dataCDM[row][idxValH]).replace('%', '').trim());
+
+    if (isNaN(valorNumerico) || valorNumerico === 0) {
+      resultado.empleadosSinDatos.push({
+        bmsId, nombre: agentes[bmsId].nombre,
+        valorF: 0, bono: 0, sinDatos: true, salarioPersonalizado: false
+      });
+      continue;
+    }
+
+    // Evaluar condición
+    let cumple = false;
+    switch (operador) {
+      case '>':  cumple = valorNumerico >  valorCondicion; break;
+      case '>=': cumple = valorNumerico >= valorCondicion; break;
+      case '<':  cumple = valorNumerico <  valorCondicion; break;
+      case '<=': cumple = valorNumerico <= valorCondicion; break;
+      case '=':  cumple = valorNumerico === valorCondicion; break;
+    }
+
+    const { bonoFinal, factor, hAg, personalizado } = calcBono(bmsId, cumple);
+
+    const item = {
+      bmsId,
+      nombre:            agentes[bmsId].nombre,
+      rol:               agentes[bmsId].rol || 'Sin rol',
+      supervisor:        agentes[bmsId].supervisor || '',
+      accm:              agentes[bmsId].accm || '',
+      om:                agentes[bmsId].om   || '',
+      valorF:            idxValF !== -1 ? dataCDM[row][idxValF] : '-',
+      valorH:            valorNumerico,
+      bono:              cumple ? bonoFinal : 0,
+      horasContrato:     hAg,
+      horasMaxima:       horasMaxima,
+      factorHoras:       factor,
+      salarioPersonalizado: personalizado
+    };
+
+    if (cumple) {
+      resultado.totalCumplenCondicion++;
+      resultado.empleadosCumplen.push(item);
+    } else {
+      resultado.empleadosNoCumplen.push(item);
+    }
+  }
+
+  // Agentes sin ningún dato en CDM para este KPI
+  agentesLOB.forEach(function(ag) {
+    if (!agentesConDatos.has(ag.bmsId)) {
+      resultado.empleadosSinDatos.push({
+        bmsId:   ag.bmsId,
+        nombre:  ag.nombre,
+        valorF:  '-',
+        bono:    0,
+        sinDatos: true,
+        salarioPersonalizado: false
+      });
+    }
+  });
+
+  return resultado;
+}
+
+
+// ============================================================
+//  fk_consolidarMultiTier(brutos)
+//  Agrupa tiers (piso1, piso2...) del mismo KPI y elige el
+//  mejor bono por agente (misma lógica que consolidarPisos)
+// ============================================================
+function fk_consolidarMultiTier(brutos) {
+  const cons = {};
+
+  for (const cat in brutos) {
+    if (cat === 'keys') { cons[cat] = brutos[cat]; continue; }
+
+    const grupos = {};
+    brutos[cat].forEach(function(item) {
+      if (!grupos[item.kpi]) grupos[item.kpi] = [];
+      grupos[item.kpi].push(item);
+    });
+
+    cons[cat] = Object.keys(grupos).map(function(nombreKpi) {
+      const tiers = grupos[nombreKpi];
+      if (tiers.length === 1) return tiers[0];
+
+      const maxPart = Math.max.apply(null, tiers.map(function(t) { return t.participacion || 1; }));
+
+      const consolidado = {
+        kpi:          nombreKpi,
+        score:        'Multi-Escala',
+        porcentaje:   tiers[0].porcentaje,
+        participacion: maxPart,
+        esMultiTier:  true,
+        esGate:       tiers[0].esGate === true,
+        scoresPorTier: tiers.map(function(t) {
+          return { score: t.score, condicion: t.score, participacion: t.participacion };
+        }),
+        validacion: {
+          totalCoincidencias:    tiers[0].validacion.totalCoincidencias,
+          totalCumplenCondicion: 0,
+          empleadosCumplen:      [],
+          empleadosNoCumplen:    [],
+          empleadosSinDatos:     tiers[0].validacion.empleadosSinDatos || []
+        }
+      };
+      return consolidado;
+    });
+  }
+
+  return cons;
+}
+
+
+// ============================================================
+//  fk_aplicarGate(bonusStructureKPIs)
+//  Retorna el array sin modificar (el bloqueo se aplica
+//  en fk_construirFichaAgentes al calcular el bono final).
+//  Idéntico al comportamiento de aplicarLogicaGate().
+// ============================================================
+function fk_aplicarGate(bonusStructureKPIs) {
+  if (!bonusStructureKPIs || !bonusStructureKPIs.length) return bonusStructureKPIs;
+  const gates = bonusStructureKPIs.filter(function(k) { return k.esGate === true; });
+  if (!gates.length) return bonusStructureKPIs;
+
+  Logger.log('🔒 Gates detectados en BonusStructure: ' + gates.length);
+  gates.forEach(function(g) {
+    Logger.log('   Gate: "' + g.kpi + '" score="' + g.score + '"');
+  });
+
+  return bonusStructureKPIs; // se retorna sin modificar
+}
+
+
+// ============================================================
+//  fk_construirFichaAgentes(resultados, agentes, horasMap, lob)
+//  Recorre todos los KPIs y construye la ficha individual
+//  de cada agente: bono por categoría + bono final.
+//
+//  Devuelve { bmsId → fichaAgente }
+// ============================================================
+function fk_construirFichaAgentes(resultados, agentes, horasMap, lob) {
+  const norm   = fk_norm;
+  const lobN   = norm(lob);
+  const data   = {}; // { bmsId → { bmsId, nombre, resultadosPorKPI } }
+
+  const cats = ['keys', 'bonusStructure', 'additionalIncentives', 'decreasedKPIs'];
+
+  // ── Recopilar resultados por agente ───────────────────────
+  cats.forEach(function(cat, catIdx) {
+    (resultados[cat] || []).forEach(function(kpiObj, kpiIdx) {
+      const val  = kpiObj.validacion || {};
+      const rKey = cat + '_' + kpiIdx;
+
+      const add = function(emp, cumple, sinDatos) {
+        if (!data[emp.bmsId]) {
+          data[emp.bmsId] = { bmsId: emp.bmsId, nombre: emp.nombre, resultadosPorKPI: {} };
+        }
+        data[emp.bmsId].resultadosPorKPI[rKey] = {
+          cat:         cat,
+          kpiNombre:   kpiObj.kpi,
+          score:       kpiObj.score,
+          esGate:      kpiObj.esGate === true,
+          esMultiTier: kpiObj.esMultiTier === true,
+          scoreCumplido:     emp.scoreCumplido     || kpiObj.score,
+          participacionUsada: emp.participacionUsada || kpiObj.participacion || 1,
+          valorF:      emp.valorF,
+          valorH:      emp.valorH,
+          bono:        parseFloat(emp.bono) || 0,
+          cumple:      cumple,
+          sinDatos:    sinDatos,
+          factorHoras: emp.factorHoras,
+          horasContrato: emp.horasContrato
+        };
+      };
+
+      (val.empleadosCumplen   || []).forEach(function(e) { add(e, true,  false); });
+      (val.empleadosNoCumplen || []).forEach(function(e) { add(e, false, false); });
+      (val.empleadosSinDatos  || []).forEach(function(e) { add(e, false, true);  });
+    });
+  });
+
+  // Asegurar que todos los agentes de la LOB aparezcan
+  Object.entries(agentes)
+    .filter(function(kv) { return norm(kv[1].lob) === lobN; })
+    .forEach(function(kv) {
+      if (!data[kv[0]]) {
+        data[kv[0]] = { bmsId: kv[0], nombre: kv[1].nombre, resultadosPorKPI: {} };
+      }
+    });
+
+  // ── Calcular bono final por agente ────────────────────────
+  const ficha = {};
+
+  Object.values(data).forEach(function(agObj) {
+    const bmsId   = agObj.bmsId;
+    const agInfo  = agentes[bmsId] || {};
+    const hData   = horasMap[bmsId] || null;
+
+    let totalKeys        = 0;
+    let todosKeysOK      = true;
+    let tieneAlgunKey    = false;
+    let totalBonus       = 0;
+    let totalAdditional  = 0;
+    let totalDecreased   = 0; // puede ser negativo
+
+    // Desglose por KPI para la vista
+    const kpisDesglose = [];
+
+    Object.values(agObj.resultadosPorKPI).forEach(function(res) {
+      const bono = parseFloat(res.bono) || 0;
+
+      kpisDesglose.push({
+        cat:          res.cat,
+        kpiNombre:    res.kpiNombre,
+        score:        res.score,
+        scoreCumplido: res.scoreCumplido,
+        esGate:       res.esGate,
+        esMultiTier:  res.esMultiTier,
+        valorF:       res.valorF,
+        valorH:       res.valorH,
+        bono:         bono,
+        cumple:       res.cumple,
+        sinDatos:     res.sinDatos,
+        factorHoras:  res.factorHoras,
+        horasContrato: res.horasContrato
+      });
+
+      if (res.cat === 'keys') {
+        if (!res.sinDatos) {
+          tieneAlgunKey = true;
+          if (res.cumple) totalKeys += bono;
+          else            todosKeysOK = false;
+        }
+      } else if (res.cat === 'decreasedKPIs') {
+        if (res.cumple && !res.sinDatos) totalDecreased += bono; // bono ya es negativo
+      } else {
+        if (res.cumple && !res.sinDatos) {
+          if (res.cat === 'bonusStructure')       totalBonus      += bono;
+          else if (res.cat === 'additionalIncentives') totalAdditional += bono;
+        }
+      }
+    });
+
+    // Aplicar lógica de Keys y Gates
+    let bonoFinal       = 0;
+    let bloqueadoPorKey = false;
+    let bloqueadoPorGate = false;
+    let tieneGateFallido = kpisDesglose.some(function(k) { return k.esGate && !k.cumple && !k.sinDatos; });
+    let comentarioBono   = "";
+
+    if (tieneAlgunKey) {
+      if (todosKeysOK) {
+        if (tieneGateFallido) {
+          bonoFinal = totalDecreased; // solo penalizaciones
+          bloqueadoPorGate = true;
+          comentarioBono = "No cumple por Gate";
+        } else {
+          bonoFinal = Math.max(0, totalKeys)
+                    + Math.max(0, totalBonus)
+                    + Math.max(0, totalAdditional)
+                    + totalDecreased;
+        }
+      } else {
+        bonoFinal       = totalDecreased; // solo penalizaciones
+        bloqueadoPorKey = true;
+        comentarioBono  = "Bloqueado por Key";
+      }
+    } else {
+      if (tieneGateFallido) {
+        bonoFinal = totalDecreased;
+        bloqueadoPorGate = true;
+        comentarioBono = "No cumple por Gate";
+      } else {
+        bonoFinal = Math.max(0, totalBonus)
+                  + Math.max(0, totalAdditional)
+                  + totalDecreased;
+      }
+    }
+
+    bonoFinal = Math.max(0, bonoFinal); // nunca negativo final
+
+    ficha[bmsId] = {
+      // Identificación
+      bmsId:            bmsId,
+      nombre:           agObj.nombre || agInfo.nombre || ('Agente ' + bmsId),
+      rol:              agInfo.rol   || 'Sin rol',
+      supervisor:       agInfo.supervisor || '',
+      accm:             agInfo.accm       || '',
+      om:               agInfo.om         || '',
+      horasSemanales:   agInfo.horasSemanales || 42,
+      lobOriginal:      agInfo.lobOriginal    || lob,
+
+      // Horas reales
+      horasReales:      hData ? (parseFloat(hData.horas)         || 0) : 0,
+      ausencias:        hData ? (parseFloat(hData.ausencias)      || 0) : 0,
+      diasLaborados:    hData ? (parseFloat(hData.diasLaborados)  || 0) : 0,
+      tieneHoras:       !!hData,
+
+      // Bonos por categoría
+      totalKeys:        Math.max(0, totalKeys),
+      totalBonusStructure: Math.max(0, totalBonus),
+      totalAdditional:  Math.max(0, totalAdditional),
+      totalDecreased:   Math.abs(totalDecreased), // positivo para mostrar
+      bonoFinal:        bonoFinal,
+
+      // Estado
+      bloqueadoPorKey:  bloqueadoPorKey,
+      bloqueadoPorGate: bloqueadoPorGate,
+      comentarioBono:   comentarioBono,
+      tieneAlgunKey:    tieneAlgunKey,
+      todosKeysCumplen: todosKeysOK,
+
+      // Desglose KPI a KPI
+      kpisDesglose:     kpisDesglose
+    };
+  });
+
+  return ficha;
+}
+
+
+// ============================================================
+//  fk_mesDeFecha(fecha)
+//  Extrae el número de mes de una fecha "yyyy-MM-dd" o nombre
+// ============================================================
+function fk_mesDeFecha(fecha) {
+  if (!fecha) return null;
+  const re = /[-/]/;
+  if (re.test(fecha)) {
+    const d = new Date(fecha);
+    if (!isNaN(d.getTime())) return d.getMonth() + 1;
+    const p = fecha.split(/[-/]/);
+    if (p.length === 3) {
+      if (p[0].length === 4) return parseInt(p[1], 10);
+      if (p[2].length === 4) return parseInt(p[1], 10);
+    }
+  }
+  const mesesMap = {
+    'enero':1,'febrero':2,'marzo':3,'abril':4,'mayo':5,'junio':6,
+    'julio':7,'agosto':8,'septiembre':9,'octubre':10,'noviembre':11,'diciembre':12
+  };
+  return mesesMap[String(fecha).toLowerCase().trim()] || null;
+}
+
+
+// ============================================================
+//  fk_norm(s)
+//  Normalización: quita tildes, minúsculas, trim, espacios simples
+// ============================================================
+function fk_norm(s) {
+  return String(s || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+
+// ============================================================
+//  TEST RÁPIDO (ejecutar en el editor de Apps Script)
+// ============================================================
+function testFichaKPI() {
+  const resultado = fichaKPIPorLob('TU_LOB_AQUI', '2026-02-15', 2);
+  Logger.log('\n📊 RESULTADO:');
+  Logger.log('  Total: $' + (resultado.totales ? resultado.totales.totalGeneral.toFixed(2) : 'ERROR'));
+  Logger.log('  Agentes: ' + (resultado.totales ? resultado.totales.totalAgentes : '—'));
+
+  if (resultado.fichaAgentes) {
+    const ranking = Object.values(resultado.fichaAgentes)
+      .sort(function(a, b) { return b.bonoFinal - a.bonoFinal; })
+      .slice(0, 5);
+    Logger.log('\n🏆 TOP 5:');
+    ranking.forEach(function(ag, i) {
+      Logger.log('  ' + (i+1) + '. ' + ag.nombre + ' (BMS ' + ag.bmsId + ') — $' + ag.bonoFinal.toFixed(2));
+    });
+  }
+}

@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- MODIFICACIÓN: 21/03/2026 8:50 PM - Ajuste de resta en simulación -->
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -813,7 +814,265 @@ code {
     border: 1px solid var(--border);
 }
 
-    </style>
+
+#modal-simular * { box-sizing: border-box; }
+.sim-shell { background:#0d1117; border:1px solid #21262d; border-radius:16px; width:100%; max-width:1100px; box-shadow:0 32px 80px rgba(0,0,0,.7); overflow:hidden; font-family:'Segoe UI',system-ui,sans-serif; }
+.sim-header { display:flex; align-items:center; justify-content:space-between; padding:20px 26px; background:linear-gradient(135deg,#0f4c81,#0a2a4a); border-bottom:1px solid #21262d; }
+.sim-header-left { display:flex; align-items:center; gap:16px; }
+.sim-icon-wrap { width:48px; height:48px; background:rgba(255,255,255,.15); border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:1.6rem; }
+.sim-title { font-size:1.3rem; font-weight:700; color:#fff; }
+.sim-subtitle { font-size:.78rem; color:rgba(255,255,255,.65); margin-top:2px; }
+.sim-close-btn { background:rgba(255,255,255,.12); border:none; color:#fff; width:36px; height:36px; border-radius:8px; font-size:1.1rem; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+.sim-close-btn:hover { background:rgba(255,255,255,.25); }
+.sim-filtros { display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:14px; padding:20px 26px; background:#161b22; border-bottom:1px solid #21262d; }
+.sim-label { display:block; font-size:.75rem; font-weight:600; color:#8b949e; margin-bottom:6px; letter-spacing:.4px; }
+.sim-select { width:100%; padding:10px 12px; background:#0d1117; color:#c9d1d9; border:1px solid #30363d; border-radius:8px; font-size:.9rem; cursor:pointer; }
+.sim-select:disabled { opacity:.45; cursor:not-allowed; }
+.sim-field-btn { display:flex; align-items:flex-end; }
+.sim-run-btn { width:100%; padding:11px 20px; background:linear-gradient(135deg,#15803d,#16a34a); color:#fff; border:none; border-radius:8px; font-size:.92rem; font-weight:700; cursor:pointer; white-space:nowrap; }
+.sim-run-btn:disabled { opacity:.5; cursor:not-allowed; }
+.sim-loading-wrap { display:flex; align-items:center; justify-content:center; gap:14px; padding:50px 26px; color:#8b949e; font-size:.95rem; }
+.sim-spinner { width:32px; height:32px; border:3px solid #21262d; border-top-color:#1a6bb5; border-radius:50%; animation:simSpin .75s linear infinite; }
+@keyframes simSpin { to { transform:rotate(360deg); } }
+.sim-alert-error { margin:0 26px 20px; padding:14px 18px; border-radius:8px; font-size:.88rem; font-weight:600; background:#2d0f0f; color:#fca5a5; border:1px solid #7f1d1d; }
+#sim-resultado { padding:24px 26px; color:#c9d1d9; }
+.sim-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px; margin-bottom:24px; }
+.sim-card { background:#161b22; border:1px solid #21262d; border-radius:12px; padding:18px 20px; }
+.sim-card-icon { font-size:1.6rem; margin-bottom:8px; }
+.sim-card-label { font-size:.7rem; font-weight:700; color:#8b949e; letter-spacing:.6px; text-transform:uppercase; margin-bottom:6px; }
+.sim-card-value { font-size:1.6rem; font-weight:800; color:#e6edf3; line-height:1.1; }
+.sim-card-sub { font-size:.75rem; color:#6e7681; margin-top:4px; }
+.sim-card--green .sim-card-value { color:#4ade80; }
+.sim-card--blue .sim-card-value { color:#60a5fa; }
+.sim-card--amber .sim-card-value { color:#fbbf24; }
+.sim-card--rose .sim-card-value { color:#fb7185; }
+.sim-chart-card { background:#161b22; border:1px solid #21262d; border-radius:12px; padding:18px 20px; margin-bottom:8px; }
+.sim-section-title { font-size:.85rem; font-weight:700; color:#8b949e; letter-spacing:.5px; text-transform:uppercase; display:flex; align-items:center; gap:10px; margin:20px 0 12px; }
+.sim-top-grid { display:flex; flex-direction:column; gap:8px; margin-bottom:8px; }
+.sim-top-item { display:flex; align-items:center; gap:14px; background:#161b22; border:1px solid #21262d; border-radius:8px; padding:12px 16px; }
+.sim-top-rank { width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:.9rem; font-weight:700; flex-shrink:0; background:#21262d; color:#8b949e; }
+.sim-top-rank-1 { background:#854d0e20; color:#fbbf24; border:1px solid #854d0e; }
+.sim-top-rank-2 { background:#1e293b50; color:#94a3b8; border:1px solid #334155; }
+.sim-top-rank-3 { background:#7c341220; color:#fb923c; border:1px solid #7c3412; }
+.sim-top-nombre { font-weight:600; font-size:.9rem; color:#e6edf3; }
+.sim-top-bms { font-size:.72rem; color:#6e7681; margin-top:1px; }
+.sim-top-bono { margin-left:auto; font-size:1.1rem; font-weight:700; color:#4ade80; white-space:nowrap; }
+.sim-search-input { margin-left:auto; padding:7px 14px; background:#0d1117; color:#c9d1d9; border:1px solid #30363d; border-radius:6px; font-size:.85rem; width:220px; }
+.sim-table-wrap { overflow-x:auto; border:1px solid #21262d; border-radius:10px; margin-bottom:20px; }
+.sim-table { width:100%; border-collapse:collapse; font-size:.82rem; color:#c9d1d9; }
+.sim-table thead th { background:#161b22; padding:11px 14px; text-align:left; font-size:.7rem; font-weight:700; color:#8b949e; letter-spacing:.5px; text-transform:uppercase; border-bottom:1px solid #21262d; white-space:nowrap; }
+.sim-table tbody tr { border-bottom:1px solid #161b22; }
+.sim-table tbody tr:hover { background:#161b22; }
+.sim-table tbody td { padding:10px 14px; vertical-align:middle; }
+.sim-td-bono { font-weight:700; color:#4ade80; text-align:right; }
+.sim-td-zero { color:#4b5563; text-align:right; }
+.sim-td-bloq { color:#fb7185; text-align:right; }
+.sim-badge-rol { display:inline-block; padding:2px 8px; border-radius:4px; font-size:.68rem; font-weight:700; background:#1e3a5f40; color:#60a5fa; border:1px solid #1e40af; }
+.sim-badge-blq { display:inline-block; padding:2px 8px; border-radius:4px; font-size:.63rem; font-weight:700; background:#3b0764; color:#e879f9; border:1px solid #6b21a8; }
+.sim-readonly-note { text-align:center; font-size:.78rem; color:#6e7681; padding:16px; border:1px dashed #21262d; border-radius:8px; margin-top:8px; }
+@media(max-width:700px) { .sim-filtros { grid-template-columns:1fr; } }
+
+    
+/* ── FICHA KPI PREMIUM DARK ── */
+#modal-ficha-agente {
+    display: none;
+    position: fixed;
+    z-index: 10000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(10px);
+    overflow-y: auto;
+    font-family: 'DM Sans', system-ui, sans-serif;
+}
+.fka-panel {
+    background: linear-gradient(145deg, #1e293b, #0f172a);
+    margin: 40px auto;
+    width: 90%;
+    max-width: 1100px;
+    border-radius: 16px;
+    box-shadow: 0 24px 50px rgba(0,0,0,0.5);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #e2e8f0;
+    overflow: hidden;
+    animation: fkaFadeIn 0.3s ease-out;
+}
+@keyframes fkaFadeIn { from{ opacity:0; transform:translateY(-20px); } to{ opacity:1; transform:translateY(0); } }
+.fka-header {
+    background: rgba(255,255,255,0.03);
+    padding: 20px 30px;
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+.fka-header-ico {
+    font-size: 2.2rem;
+    margin-right: 15px;
+    background: linear-gradient(135deg, #38bdf8, #818cf8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+.fka-header h2 {
+    margin: 0 0 5px 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #f8fafc;
+}
+.fka-header p {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #94a3b8;
+}
+.fka-close-btn {
+    margin-left: auto;
+    background: rgba(255,255,255,0.1);
+    border: none;
+    color: #fff;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: 0.2s;
+    font-size: 1.1rem;
+}
+.fka-close-btn:hover {
+    background: #ef4444;
+    transform: scale(1.1);
+}
+.fka-filtros {
+    padding: 20px 30px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    background: rgba(0,0,0,0.2);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.fka-campo {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.fka-campo label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.fka-filtros select, .fka-search-input {
+    background: #0f172a;
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.2);
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+    outline: none;
+}
+.fka-filtros select:focus, .fka-search-input:focus {
+    border-color: #38bdf8;
+    box-shadow: 0 0 0 2px rgba(56,189,248,0.2);
+}
+.fka-run-btn {
+    background: linear-gradient(135deg, #3b82f6, #4f46e5);
+    color: white;
+    border: none;
+    padding: 8px 20px;
+    margin-top: auto;
+    border-radius: 8px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: 0.2s;
+    box-shadow: 0 4px 15px rgba(59,130,246,0.4);
+}
+.fka-run-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(59,130,246,0.6);
+}
+.fka-stats {
+    padding: 15px 30px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    background: rgba(255,255,255,0.02);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    align-items: center;
+}
+.fka-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.fka-stat-lbl {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+}
+.fka-stat-val {
+    font-size: 1.2rem;
+    font-weight: 700;
+}
+.fka-stat-val.g { color: #10b981; }
+.fka-stat-val.b { color: #3b82f6; }
+.fka-stat-val.r { color: #ef4444; }
+.fka-stat-val.a { color: #f59e0b; }
+.fka-stat-val.p { color: #e2e8f0; }
+
+.fka-loading {
+    padding: 40px;
+    text-align: center;
+    display: none;
+}
+.fka-spin {
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(255,255,255,0.1);
+    border-top-color: #38bdf8;
+    border-radius: 50%;
+    animation: fkaSpin 1s linear infinite;
+    margin: 0 auto 15px;
+}
+@keyframes fkaSpin { to { transform: rotate(360deg); } }
+
+.fka-error {
+    background: rgba(239, 68, 68, 0.1);
+    color: #fca5a5;
+    padding: 15px 30px;
+    border-left: 4px solid #ef4444;
+    display: none;
+}
+.fka-body {
+    padding: 20px 30px;
+    min-height: 200px;
+}
+.fka-modal-foot {
+    padding: 15px 30px;
+    background: rgba(0,0,0,0.3);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid rgba(255,255,255,0.05);
+}
+.fka-modal-foot p {
+    margin: 0;
+    font-size: 0.8rem;
+    color: #64748b;
+}
+.fka-export-btn {
+    background: #334155;
+    color: white;
+    border: none;
+    padding: 6px 15px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: 0.2s;
+}
+.fka-export-btn:hover { background: #475569; }
+
+</style>
 </head>
 
 
@@ -846,6 +1105,24 @@ code {
             <button class="btn-primary" onclick="cargarHorasDesdeBackup()" style="background:#e67e22;">
                 🔧 Cargar Horas Manual
             </button>
+
+     
+<button onclick="abrirModalSimular()"
+        style="padding:10px 20px;background:linear-gradient(135deg,#0f4c81,#1a6bb5);color:#fff;border:none;border-radius:8px;font-size:0.9rem;font-weight:700;cursor:pointer;letter-spacing:.3px;box-shadow:0 4px 14px rgba(15,76,129,.35);"
+        onmouseover="this.style.transform='translateY(-2px)'"
+        onmouseout="this.style.transform=''"
+        title="Simula el calculo sin guardar nada">
+  Simular
+</button>
+
+<button onclick="abrirFichaAgente()"
+  style="padding:10px 20px;background:linear-gradient(135deg, #0f172a, #1e293b);color:#38bdf8;
+         border:1px solid #38bdf8;border-radius:8px;margin-left:5px;
+         font-weight:700;cursor:pointer;box-shadow: 0 4px 15px rgba(56,189,248,0.2); transition: 0.2s;"
+  onmouseover="this.style.boxShadow='0 6px 20px rgba(56,189,248,0.4)'; this.style.transform='translateY(-2px)'"
+  onmouseout="this.style.boxShadow='0 4px 15px rgba(56,189,248,0.2)'; this.style.transform='translateY(0)'">
+  📋 Ficha KPI
+</button>
             <button onclick="cambiarTipoAccesoUsuario()" class="btn-primary">
                 🔄 Cambiar Acceso
             </button>
@@ -1149,6 +1426,208 @@ code {
 
 
 
+
+<div id="modal-simular" style="display:none;position:fixed;inset:0;background:rgba(10,14,26,0.82);z-index:10000;align-items:flex-start;justify-content:center;padding:24px 16px;overflow-y:auto;backdrop-filter:blur(6px);">
+  <div class="sim-shell">
+ 
+    <div class="sim-header">
+      <div class="sim-header-left">
+        <div class="sim-icon-wrap">&#x1F9EE;</div>
+        <div>
+          <div class="sim-title">Simulacion de Bonos</div>
+          <div class="sim-subtitle">Solo lectura - No guarda datos</div>
+        </div>
+      </div>
+      <button onclick="cerrarModalSimular()" class="sim-close-btn" title="Cerrar">&#x2715;</button>
+    </div>
+ 
+    <div class="sim-filtros">
+      <div>
+        <label class="sim-label">LOB</label>
+        <select id="sim-select-lob" class="sim-select" onchange="simOnChangeLob()">
+          <option value="">Selecciona una LOB</option>
+        </select>
+      </div>
+      <div>
+        <label class="sim-label">Fecha</label>
+        <select id="sim-select-fecha" class="sim-select" disabled onchange="simOnChangeFecha()">
+          <option value="">Primero selecciona LOB</option>
+        </select>
+      </div>
+      <div>
+        <label class="sim-label">Mes CDM</label>
+        <select id="sim-select-mes" class="sim-select" disabled>
+          <option value="">Primero selecciona fecha</option>
+        </select>
+      </div>
+      <div class="sim-field-btn">
+        <button onclick="ejecutarSimulacion()" id="btn-ejecutar-sim" class="sim-run-btn">
+          Ejecutar Simulacion
+        </button>
+      </div>
+    </div>
+ 
+    <div id="sim-loading" style="display:none;" class="sim-loading-wrap">
+      <div class="sim-spinner"></div>
+      <span id="sim-loading-txt">Calculando...</span>
+    </div>
+ 
+    <div id="sim-error" style="display:none;" class="sim-alert-error"></div>
+ 
+    <div id="sim-resultado" style="display:none;">
+      <div class="sim-cards" id="sim-cards-grid"></div>
+      <div class="sim-chart-card">
+        <div class="sim-section-title">Distribucion de Bonos</div>
+        <div style="position:relative;height:260px;">
+          <canvas id="sim-chart-barras"></canvas>
+        </div>
+      </div>
+      <div class="sim-section-title">Top Performers</div>
+      <div id="sim-top-list" class="sim-top-grid"></div>
+      <div class="sim-section-title">
+        Detalle por Agente
+        <input type="text" id="sim-search" placeholder="Buscar agente o BMS..." oninput="simFiltrarTabla()" class="sim-search-input">
+      </div>
+      <div class="sim-table-wrap">
+        <table class="sim-table">
+          <thead id="sim-thead"></thead>
+          <tbody id="sim-tbody"></tbody>
+        </table>
+      </div>
+      <div class="sim-readonly-note">
+        Simulacion de solo lectura. Ningun dato fue guardado en Audit ni Disputa.
+      </div>
+    </div>
+ 
+  </div>
+</div>
+
+
+
+
+<!-- INYECCIÓN FICHA KPI MODAL -->
+</div>
+
+
+<div id="modal-ficha-agente">
+  <div class="fka-panel">
+ 
+    <!-- HEADER -->
+    <div class="fka-header">
+      <div class="fka-header-ico">📋</div>
+      <div>
+        <h2>Ficha KPI por Agente</h2>
+        <p>CCMS ID · Nombre · KPI · Score · Valor · Bono — solo lectura</p>
+      </div>
+      <button class="fka-close-btn" onclick="cerrarFichaAgente()" title="Cerrar (Esc)">✕</button>
+    </div>
+ 
+    <!-- FILTROS -->
+    <div class="fka-filtros">
+      <div class="fka-campo">
+        <label>LOB</label>
+        <select id="fka-lob" onchange="fka_onLob()">
+          <option value="">Selecciona LOB</option>
+        </select>
+      </div>
+      <div class="fka-campo">
+        <label>Fecha</label>
+        <select id="fka-fecha" disabled onchange="fka_onFecha()">
+          <option value="">Primero LOB</option>
+        </select>
+      </div>
+      <div class="fka-campo">
+        <label>Mes CDM</label>
+        <select id="fka-mes" disabled>
+          <option value="">CDM General</option>
+        </select>
+      </div>
+      <div class="fka-campo">
+        <label>Filtrar por Estado</label>
+        <select id="fka-filtro-estado" onchange="fka_aplicarFiltrosMultiples()">
+          <option value="todos">Todos los agentes</option>
+          <option value="bonificando">Solo bonificando</option>
+          <option value="bloqueados">Bloqueados (Key/Gate)</option>
+        </select>
+      </div>
+      <div class="fka-campo">
+        <label>Filtrar por Gate</label>
+        <select id="fka-filtro-gate" onchange="fka_aplicarFiltrosMultiples()">
+          <option value="todos">Todos</option>
+          <option value="con-gate">Con KPIs de Gate</option>
+          <option value="sin-gate">Sin KPIs de Gate</option>
+          <option value="fallo-gate">Fallo en Gate</option>
+        </select>
+      </div>
+      <div class="fka-campo">
+        <label>Acción</label>
+        <button class="fka-run-btn" id="fka-run-btn" onclick="ejecutarFichaAgente()">
+          ▶ Calcular
+        </button>
+      </div>
+      <div class="fka-campo" style="flex:1; min-width:200px;">
+        <label>Búsqueda</label>
+        <input type="text" class="fka-search-input" id="fka-search"
+               placeholder="Nombre o BMS…"
+               oninput="fka_aplicarFiltrosMultiples()" style="display:none; width:100%;">
+      </div>
+    </div>
+ 
+    <!-- STATS -->
+    <div class="fka-stats" id="fka-stats">
+      <div class="fka-stat">
+        <span class="fka-stat-lbl">Total Bonos</span>
+        <span class="fka-stat-val g" id="fka-s-total">—</span>
+      </div>
+      <div class="fka-stat">
+        <span class="fka-stat-lbl">Agentes</span>
+        <span class="fka-stat-val b" id="fka-s-ag">—</span>
+      </div>
+      <div class="fka-stat">
+        <span class="fka-stat-lbl">Con bono</span>
+        <span class="fka-stat-val g" id="fka-s-cb">—</span>
+      </div>
+      <div class="fka-stat">
+        <span class="fka-stat-lbl">Sin bono / Bloq.</span>
+        <span class="fka-stat-val r" id="fka-s-sb">—</span>
+      </div>
+      <div class="fka-stat">
+        <span class="fka-stat-lbl">Promedio</span>
+        <span class="fka-stat-val a" id="fka-s-prom">—</span>
+      </div>
+      <div class="fka-stat" style="margin-left:auto;">
+        <span class="fka-stat-lbl">LOB</span>
+        <span class="fka-stat-val p" id="fka-s-lob">—</span>
+      </div>
+      <!-- Toggle expandir todo -->
+      <button onclick="fka_expandirTodo()" 
+        style="margin-left:8px;padding:5px 12px;background:#0f172a;border:1px solid #1e293b;
+               border-radius:5px;color:#475569;font-size:0.68rem;cursor:pointer;font-family:inherit;"
+        id="fka-btn-expand">▼ Expandir todo</button>
+    </div>
+ 
+    <!-- LOADING -->
+    <div class="fka-loading" id="fka-loading">
+      <div class="fka-spin"></div>
+      <p id="fka-loading-txt">Calculando bonos…</p>
+    </div>
+ 
+    <!-- ERROR -->
+    <div class="fka-error" id="fka-error"></div>
+ 
+    <!-- BODY con tarjetas -->
+    <div class="fka-body" id="fka-body"></div>
+ 
+    <!-- FOOTER -->
+    <div class="fka-modal-foot">
+      <p>Solo lectura — no guarda nada en Audit, Disputa ni ninguna hoja.</p>
+      <button class="fka-export-btn" onclick="fka_exportCSV()">
+        ↓ CSV
+      </button>
+    </div>
+ 
+  </div>
+</div>
 
 <script>
 
@@ -1984,258 +2463,92 @@ selectMesComparativo.addEventListener('change', function() {
   // CARGA DE DATOS
   // ========================================
 
+// ============================================================
+// FIX 3: cargarDatosCompletos SIMPLIFICADA
+// Elimina la doble llamada al servidor (leerHorasDirectamente + obtenerDatosParaFrontend)
+// Ahora hace UNA SOLA llamada — igual que el simulador.
+// Las horas ya vienen dentro de datosRecibidos.horasPorAgente
+// porque obtenerDatosParaFrontend() internamente llama OM_obtenerHorasPorAgente().
+//
+// RESULTADO: Tiempo de carga igual al simulador (~30-40s menos de espera)
+// ============================================================
 
 function cargarDatosCompletos(lob, fecha, mes) {
-    console.log('🔍 Cargando datos completos:', { lob, fecha, mes });
-    
-    limpiarComponentesDuplicados();
-    mostrarLoadingConProgreso();
-    limpiarAlertas();
-    limpiarExtras();
-    
-    // ⭐⭐⭐ PASO 1: LEER HORAS DIRECTAMENTE DEL BACKEND (DIAGNÓSTICO)
-    console.log('⏱️ PASO 1: Cargando horas desde HORAS_N...');
-    
-    google.script.run
-        .withSuccessHandler(function(horasDirectas) {
-            console.log('✅ Horas recibidas del diagnóstico:', horasDirectas);
-            
-            if (!horasDirectas || Object.keys(horasDirectas).length === 0) {
-                console.warn('⚠️ No se recibieron horas del diagnóstico');
-            } else {
-                console.log(`📊 Total horas cargadas: ${Object.keys(horasDirectas).length} agentes`);
-                
-                // Verificar estructura
-                const primeraKey = Object.keys(horasDirectas)[0];
-                if (primeraKey) {
-                    console.log(`📋 Estructura: ${primeraKey}:`, horasDirectas[primeraKey]);
-                }
-            }
-            
-            // ⭐⭐⭐ PASO 2: CARGAR RESTO DE DATOS
-            console.log('📊 PASO 2: Cargando resto de datos...');
-            
-            let intentos = 0;
-            const maxIntentos = 2;
-            
-            function ejecutarCarga() {
-                intentos++;
-                console.log(`🔄 Intento ${intentos} de ${maxIntentos}`);
-                
-                google.script.run
-                    .withSuccessHandler(function(datosRecibidos) {
-                        console.log('✅ Respuesta recibida del servidor en intento', intentos);
-                        console.log('📦 Datos completos recibidos:', datosRecibidos);
-                        
-                        // ========================================
-                        // ⭐⭐⭐ DEBUG DE HORAS COMPLETO
-                        // ========================================
-                        console.log('🔍 ========== DEBUG HORAS ==========');
-                        console.log('📊 horasPorAgente existe?', !!datosRecibidos.horasPorAgente);
-                        
-                        if (datosRecibidos.horasPorAgente) {
-                            const keys = Object.keys(datosRecibidos.horasPorAgente);
-                            console.log('📊 Total keys en horasPorAgente:', keys.length);
-                            console.log('📋 Primeras 5 keys:', keys.slice(0, 5));
-                            
-                            // ⭐ MOSTRAR ESTRUCTURA DEL PRIMER AGENTE
-                            if (keys.length > 0) {
-                                const firstKey = keys[0];
-                                const firstData = datosRecibidos.horasPorAgente[firstKey];
-                                console.log(`📋 Estructura del primer agente [${firstKey}]:`, firstData);
-                                console.log(`   - Tipo de dato:`, typeof firstData);
-                                console.log(`   - Keys del objeto:`, Object.keys(firstData));
-                                
-                                if (firstData.horas !== undefined) {
-                                    console.log(`   ✅ Campo 'horas' existe: ${firstData.horas}`);
-                                } else {
-                                    console.log(`   ❌ Campo 'horas' NO EXISTE`);
-                                }
-                                
-                                if (firstData.ausencias !== undefined) {
-                                    console.log(`   ✅ Campo 'ausencias' existe: ${firstData.ausencias}`);
-                                } else {
-                                    console.log(`   ❌ Campo 'ausencias' NO EXISTE o es undefined`);
-                                }
-                                
-                                if (firstData.horasTotales !== undefined) {
-                                    console.log(`   ✅ Campo 'horasTotales' existe: ${firstData.horasTotales}`);
-                                }
-                            }
-                            
-                            // ⭐ BUSCAR AGENTES ESPECÍFICOS
-                            console.log('🔍 BÚSQUEDA DE AGENTES ESPECÍFICOS:');
-                            const agentesEspecificos = ['2116682', '5437184', '5492754', '5161496', '5438085', '5320998'];
-                            
-                            agentesEspecificos.forEach(bmsId => {
-                                if (datosRecibidos.horasPorAgente[bmsId]) {
-                                    const datos = datosRecibidos.horasPorAgente[bmsId];
-                                    console.log(`✅ [${bmsId}] ENCONTRADO:`);
-                                    console.log(`   - horas: ${datos.horas} (tipo: ${typeof datos.horas})`);
-                                    console.log(`   - ausencias: ${datos.ausencias} (tipo: ${typeof datos.ausencias})`);
-                                    console.log(`   - horasTotales: ${datos.horasTotales}`);
-                                    console.log(`   - Objeto completo:`, JSON.stringify(datos));
-                                } else {
-                                    console.log(`❌ [${bmsId}] NO ENCONTRADO en horasPorAgente`);
-                                    
-                                    // Buscar variaciones del ID
-                                    const variaciones = keys.filter(k => k.includes(bmsId.slice(-4)));
-                                    if (variaciones.length > 0) {
-                                        console.log(`   ⚠️ Posibles variaciones:`, variaciones);
-                                        variaciones.forEach(v => {
-                                            console.log(`      [${v}]:`, datosRecibidos.horasPorAgente[v]);
-                                        });
-                                    }
-                                }
-                            });
-                            
-                            // ⭐ VERIFICAR SI HAY AUSENCIAS DEFINIDAS
-                            console.log('🔍 VERIFICACIÓN DE AUSENCIAS:');
-                            let conAusencias = 0;
-                            let sinAusencias = 0;
-                            let ausenciasUndefined = 0;
-                            
-                            keys.forEach(bmsId => {
-                                const datos = datosRecibidos.horasPorAgente[bmsId];
-                                if (datos.ausencias === undefined) {
-                                    ausenciasUndefined++;
-                                } else if (datos.ausencias > 0) {
-                                    conAusencias++;
-                                } else {
-                                    sinAusencias++;
-                                }
-                            });
-                            
-                            console.log(`   ✅ Con ausencias > 0: ${conAusencias}`);
-                            console.log(`   ✅ Con ausencias = 0: ${sinAusencias}`);
-                            console.log(`   ❌ Con ausencias = undefined: ${ausenciasUndefined}`);
-                            
-                            // ⭐ VERIFICAR ESTRUCTURA VS ESPERADA
-                            if (keys.length > 0) {
-                                const sample = datosRecibidos.horasPorAgente[keys[0]];
-                                const expectedFields = ['horas', 'ausencias', 'horasTotales'];
-                                const actualFields = Object.keys(sample);
-                                
-                                console.log('📋 COMPARACIÓN DE ESTRUCTURA:');
-                                console.log('   Esperados:', expectedFields);
-                                console.log('   Actuales:', actualFields);
-                                
-                                const missing = expectedFields.filter(f => !actualFields.includes(f));
-                                const extra = actualFields.filter(f => !expectedFields.includes(f));
-                                
-                                if (missing.length > 0) {
-                                    console.log(`   ⚠️ Campos faltantes: ${missing.join(', ')}`);
-                                }
-                                if (extra.length > 0) {
-                                    console.log(`   ℹ️ Campos adicionales: ${extra.join(', ')}`);
-                                }
-                            }
-                            
-                        } else {
-                            console.error('❌ horasPorAgente NO EXISTE en datosRecibidos');
-                            console.log('📋 Keys disponibles en datosRecibidos:', Object.keys(datosRecibidos));
-                            
-                            // Verificar si está bajo otro nombre
-                            const possibleNames = ['horasPorAgente', 'horas', 'horasAgentes', 'agentesHoras'];
-                            possibleNames.forEach(name => {
-                                if (datosRecibidos[name]) {
-                                    console.log(`   ⚠️ ENCONTRADO bajo el nombre: ${name}`);
-                                    console.log(`   Tipo:`, typeof datosRecibidos[name]);
-                                    console.log(`   Keys:`, Object.keys(datosRecibidos[name]).slice(0, 5));
-                                }
-                            });
-                        }
-                        
-                        console.log('🔍 ====================================');
-                        // ========================================
-                        // ⭐ FIN DEBUG DE HORAS
-                        // ========================================
-                        
-                        // ========================================
-                        // VALIDACIÓN DE DATOS RECIBIDOS
-                        // ========================================
-                        if (!datosRecibidos) {
-                            console.error('❌ datosRecibidos es null/undefined en intento', intentos);
-                            
-                            if (intentos < maxIntentos) {
-                                console.log('🔄 Reintentando...');
-                                setTimeout(ejecutarCarga, 2000);
-                                return;
-                            }
-                            
-                            mostrarError('No se pudieron cargar los datos después de ' + maxIntentos + ' intentos.');
-                            return;
-                        }
-                        
-                        if (datosRecibidos.error) {
-                            mostrarError('Error del servidor: ' + datosRecibidos.error);
-                            return;
-                        }
-                        
-                        // ========================================
-                        // ASIGNAR DATOS GLOBALES
-                        // ========================================
-                        datos = datosRecibidos;
-                        
-                        // ⭐⭐⭐ REEMPLAZAR con horas del diagnóstico
-                        console.log('🔄 REEMPLAZANDO horas con datos del diagnóstico...');
-                        console.log('   Antes:', datos.horasPorAgente ? Object.keys(datos.horasPorAgente).length : 0, 'agentes');
-                        
-                        datos.horasPorAgente = horasDirectas;
-                        
-                        console.log('   Después:', datos.horasPorAgente ? Object.keys(datos.horasPorAgente).length : 0, 'agentes');
-                        
-                        // Verificar que se reemplazó correctamente
-                        const agentesTest = ['2116682', '5437184', '5492754'];
-                        console.log('🔍 Verificando agentes después del reemplazo:');
-                        agentesTest.forEach(id => {
-                            if (datos.horasPorAgente[id]) {
-                                console.log(`   ✅ [${id}]:`, datos.horasPorAgente[id]);
-                            } else {
-                                console.log(`   ❌ [${id}]: NO encontrado después del reemplazo`);
-                            }
-                        });
-                        
-                        console.log('✅ Datos cargados exitosamente en intento', intentos);
-                        
-                        // ========================================
-                        // PROCESAR Y MOSTRAR DATOS
-                        // ========================================
-                        validarYMostrarAgentes(lob);
-                        procesarYMostrarDatos(lob);
-                        
-                        // ⭐ APLICAR DISPUTAS DEL CACHE
-                        setTimeout(() => {
-                            aplicarDisputasDesdeCache();
-                        }, 1000);
-                        
-                        ocultarLoading();
-                    })
-                    .withFailureHandler(function(err) {
-                        console.error('❌ Error en intento', intentos, ':', err);
-                        
-                        if (intentos < maxIntentos) {
-                            console.log('🔄 Reintentando en 2 segundos...');
-                            setTimeout(ejecutarCarga, 2000);
-                            return;
-                        }
-                        
-                        mostrarError('Error de conexión después de ' + maxIntentos + ' intentos: ' + err.message);
-                    })
-                    .obtenerDatosParaFrontend(lob, fecha, mes);
-            }
-            
-            ejecutarCarga();
-            
-        })
-        .withFailureHandler(function(error) {
-            console.error('❌ Error al cargar horas del diagnóstico:', error);
-            ocultarLoading();
-            mostrarError('Error al cargar horas: ' + error.message);
-        })
-        .leerHorasDirectamente(lob, mes);
-}
+  console.log('🔍 Cargando datos:', { lob, fecha, mes });
 
+  limpiarComponentesDuplicados();
+  mostrarLoadingConProgreso();
+  limpiarAlertas();
+  limpiarExtras();
+
+  var intentos    = 0;
+  var maxIntentos = 2;
+
+  function ejecutarCarga() {
+    intentos++;
+    console.log('🔄 Intento ' + intentos + ' de ' + maxIntentos);
+
+    google.script.run
+      .withSuccessHandler(function(datosRecibidos) {
+        console.log('✅ Respuesta recibida en intento ' + intentos);
+
+        // ── Validación básica ──────────────────────────────
+        if (!datosRecibidos) {
+          console.error('❌ datosRecibidos es null en intento ' + intentos);
+          if (intentos < maxIntentos) {
+            console.log('🔄 Reintentando en 2s...');
+            setTimeout(ejecutarCarga, 2000);
+            return;
+          }
+          mostrarError('No se pudieron cargar los datos después de ' + maxIntentos + ' intentos.');
+          return;
+        }
+
+        if (datosRecibidos.error) {
+          mostrarError('Error del servidor: ' + datosRecibidos.error);
+          return;
+        }
+
+        // ── Asignar datos globales ─────────────────────────
+        datos = datosRecibidos;
+
+        // ── Debug horas (resumen) ──────────────────────────
+        var horasKeys = datos.horasPorAgente ? Object.keys(datos.horasPorAgente).length : 0;
+        console.log('⏱ horasPorAgente recibidos: ' + horasKeys + ' agentes');
+
+        if (horasKeys === 0 && mes) {
+          console.warn('⚠️ horasPorAgente vacío para mes ' + mes + '. Verifica hoja HORAS_' + mes + ' en CDM.');
+          mostrarAlerta('⚠️ No se encontraron horas para el mes seleccionado (HORAS_' + mes + '). Verifica la hoja en CDM.', 'warning');
+        }
+
+        // ── Procesar y mostrar ─────────────────────────────
+        validarYMostrarAgentes(lob);
+        procesarYMostrarDatos(lob);
+
+        // ── Aplicar disputas del cache ─────────────────────
+        setTimeout(function() {
+          aplicarDisputasDesdeCache();
+        }, 1000);
+
+        ocultarLoading();
+        console.log('✅ Carga completada exitosamente');
+      })
+      .withFailureHandler(function(err) {
+        console.error('❌ Error en intento ' + intentos + ':', err);
+
+        if (intentos < maxIntentos) {
+          console.log('🔄 Reintentando en 2s...');
+          setTimeout(ejecutarCarga, 2000);
+          return;
+        }
+
+        mostrarError('Error de conexión después de ' + maxIntentos + ' intentos: ' + err.message);
+      })
+      .obtenerDatosParaFrontend(lob, fecha, mes);
+  }
+
+  ejecutarCarga();
+}
 
 
 
@@ -2644,184 +2957,160 @@ function ocultarLoading() {
   // ========================================
   // MÉTRICAS
   // ========================================
+ 
 function generarMetricas(lobSeleccionada) {
+    const metricas = datos.metricasPorLob ? datos.metricasPorLob[lobSeleccionada] : null;
     const empleados = empleadosPorLob[lobSeleccionada];
-    
+ 
     if (!empleados || Object.keys(empleados).length === 0) {
-        console.warn('⚠️ No hay empleados');
         document.getElementById('metrics-grid').style.display = 'none';
         return;
     }
-    
+ 
+    // ── Construir Set de resKeys que son Gate ──────────────
+    // (solo bonusStructure y additionalIncentives pueden ser Gate)
+    const gateResKeys = new Set();
+    if (metricas) {
+        ['bonusStructure', 'additionalIncentives'].forEach(function(cat) {
+            (metricas[cat] || []).forEach(function(kpiObj, idx) {
+                if (kpiObj.esGate === true) {
+                    gateResKeys.add(cat + '_' + idx);
+                }
+            });
+        });
+    }
+ 
     const keys = Object.keys(empleados);
-    let totalBonos = 0;
-    let totalKPIs = 0;
-    let kpisCumplidos = 0;
-    let topBono = 0;
-    let topNombre = '';
-    
-    // ⭐⭐⭐ NUEVAS VARIABLES PARA HORAS
-    let totalHorasReales = 0;
-    let totalHorasEsperadas = 0;
-    let agentesConHoras = 0;
-    
-    console.log('📊 Calculando métricas para LOB:', lobSeleccionada);
-    
-    keys.forEach(key => {
-        const emp = empleados[key];
-        const bmsId = emp.bmsId;
-        
-        let bonoEmpleado = 0;
-        let keysDelEmpleado = [];
-        let otrasCategoriasDelEmpleado = 0;
-        let totalDecreases = 0;
-        
-        // ========================================
-        // ⭐ CALCULAR HORAS PARA ESTE AGENTE
-        // ========================================
+    let totalBonos = 0, totalKPIs = 0, kpisCumplidos = 0,
+        topBono = 0, topNombre = '';
+    let totalHorasReales = 0, totalHorasEsperadas = 0, agentesConHoras = 0;
+ 
+    keys.forEach(function(key) {
+        const emp    = empleados[key];
+        const bmsId  = emp.bmsId;
+ 
+        // ── Horas ──────────────────────────────────────────
         if (datos.horasPorAgente && datos.horasPorAgente[bmsId]) {
-            const hData = datos.horasPorAgente[bmsId];
-            const hReales = hData.horas || 0;
-            
-            // Obtener horas semanales desde agentesPermitidos
-            const agentesPermitidos = datos.agentesPermitidos || {};
-            const hSemanales = agentesPermitidos[bmsId]?.horasSemanales || 42;
-            
-            // Calcular horas esperadas (simplificado: 22 días * horas diarias)
-            const hEsperadas = (hSemanales / 5) * 22;
-            
-            totalHorasReales += hReales;
-            totalHorasEsperadas += hEsperadas;
+            const hData     = datos.horasPorAgente[bmsId];
+            const hReales   = hData.horas || 0;
+            const agPerm    = datos.agentesPermitidos || {};
+            const hSemanales= (agPerm[bmsId] && agPerm[bmsId].horasSemanales) || 42;
+            const hEsperadas= (hSemanales / 5) * 22;
+            totalHorasReales   += hReales;
+            totalHorasEsperadas+= hEsperadas;
             agentesConHoras++;
         }
-        
-        // ========================================
-        // ⭐ CALCULAR KEYS PRIMERO
-        // ========================================
-        Object.keys(emp.resultados).forEach(resKey => {
+ 
+        // ── Detectar Gate fallido para ESTE agente ──────────
+        // Un Gate falla si: resKey está en gateResKeys Y !cumple Y !sinDatos
+        const tieneGateFallido = Array.from(gateResKeys).some(function(resKey) {
+            const res = emp.resultados[resKey];
+            return res && !res.cumple && !res.sinDatos;
+        });
+ 
+        // ── Acumular KPIs ───────────────────────────────────
+        let keysDelEmpleado = [];         // [{cumple, bono}]
+        let totalOtras      = 0;          // bonus + additional
+        let totalDecreases  = 0;
+ 
+        Object.keys(emp.resultados).forEach(function(resKey) {
+            const res = emp.resultados[resKey];
+ 
             if (resKey.startsWith('keys_')) {
-                const res = emp.resultados[resKey];
                 totalKPIs++;
-                
                 if (!res.sinDatos) {
                     if (res.cumple) {
                         kpisCumplidos++;
-                        const bono = res.bono || 0;
-                        if (bono > 0) {
-                            keysDelEmpleado.push({ cumple: true, bono: bono });
-                        }
+                        keysDelEmpleado.push({ cumple: true, bono: res.bono || 0 });
                     } else {
                         keysDelEmpleado.push({ cumple: false, bono: 0 });
                     }
                 }
-            }
-        });
-        
-        // ========================================
-        // ⭐ CALCULAR OTRAS CATEGORÍAS
-        // ========================================
-        Object.keys(emp.resultados).forEach(resKey => {
-            const res = emp.resultados[resKey];
-            
-            if (resKey.startsWith('bonusStructure_') || resKey.startsWith('additionalIncentives_')) {
+ 
+            } else if (resKey.startsWith('bonusStructure_') ||
+                       resKey.startsWith('additionalIncentives_')) {
                 totalKPIs++;
-                
                 if (res.cumple && !res.sinDatos) {
                     kpisCumplidos++;
-                    const bono = res.bono || 0;
-                    if (bono > 0) {
-                        otrasCategoriasDelEmpleado += bono;
+                    // Solo suma si el Gate NO ha fallado
+                    if (!tieneGateFallido) {
+                        totalOtras += res.bono || 0;
                     }
                 }
+ 
             } else if (resKey.startsWith('decreasedKPIs_')) {
                 totalKPIs++;
-                
                 if (res.cumple && !res.sinDatos) {
                     kpisCumplidos++;
-                    const bono = res.bono || 0;
-                    totalDecreases += bono;
+                    totalDecreases += res.bono || 0; // suele ser negativo
                 }
             }
         });
-        
-        // ========================================
-        // ⭐ APLICAR LÓGICA DE KEYS
-        // ========================================
-        if (keysDelEmpleado.length > 0) {
-            const todosKeysCumplen = keysDelEmpleado.every(k => k.cumple);
-            
+ 
+        // ── Calcular bono final del agente ──────────────────
+        let bonoEmpleado = 0;
+ 
+        if (tieneGateFallido) {
+            // Gate falló → solo penalizaciones
+            bonoEmpleado = totalDecreases;
+ 
+        } else if (keysDelEmpleado.length > 0) {
+            const todosKeysCumplen = keysDelEmpleado.every(function(k) { return k.cumple; });
             if (todosKeysCumplen) {
-                const totalKeys = keysDelEmpleado.reduce((sum, k) => sum + k.bono, 0);
-                bonoEmpleado = Math.max(0, totalKeys) + Math.max(0, otrasCategoriasDelEmpleado) + totalDecreases;
+                const sumKeys = keysDelEmpleado.reduce(function(s, k) { return s + k.bono; }, 0);
+                bonoEmpleado  = Math.max(0, sumKeys) + Math.max(0, totalOtras) + totalDecreases;
             } else {
+                // Key no cumplida → solo penalizaciones
                 bonoEmpleado = totalDecreases;
             }
         } else {
-            bonoEmpleado = Math.max(0, otrasCategoriasDelEmpleado) + totalDecreases;
+            bonoEmpleado = Math.max(0, totalOtras) + totalDecreases;
         }
-        
-        if (bonoEmpleado < 0) {
-            bonoEmpleado = 0;
-        }
-        
-        if (bonoEmpleado > 0) {
-            totalBonos += bonoEmpleado;
-        }
-        
-        if (bonoEmpleado > topBono) {
-            topBono = bonoEmpleado;
-            topNombre = emp.nombre;
-        }
+ 
+        if (bonoEmpleado < 0) bonoEmpleado = 0;
+ 
+        if (bonoEmpleado > 0) totalBonos += bonoEmpleado;
+        if (bonoEmpleado > topBono) { topBono = bonoEmpleado; topNombre = emp.nombre; }
     });
-    
-    const porcentajeCumplimiento = totalKPIs > 0 ? ((kpisCumplidos / totalKPIs) * 100).toFixed(1) : 0;
-    
-    // ⭐⭐⭐ CALCULAR PORCENTAJE DE HORAS
-    const porcentajeHoras = totalHorasEsperadas > 0 
-        ? ((totalHorasReales / totalHorasEsperadas) * 100).toFixed(1) 
-        : 0;
-    
-    const colorHoras = porcentajeHoras >= 95 ? '#27ae60' : porcentajeHoras >= 85 ? '#f39c12' : '#e74c3c';
-    
-    console.log('📊 Resumen de métricas:');
-    console.log(`   Total Bonos: $${totalBonos.toFixed(2)}`);
-    console.log(`   Total Horas Reales: ${totalHorasReales.toFixed(1)}h`);
-    console.log(`   Total Horas Esperadas: ${totalHorasEsperadas.toFixed(1)}h`);
-    console.log(`   Porcentaje Horas: ${porcentajeHoras}%`);
-    
+ 
+    // ── Render métricas ────────────────────────────────────
+    const porcentajeCumplimiento = totalKPIs > 0
+        ? ((kpisCumplidos / totalKPIs) * 100).toFixed(1) : 0;
+    const porcentajeHoras = totalHorasEsperadas > 0
+        ? ((totalHorasReales / totalHorasEsperadas) * 100).toFixed(1) : 0;
+    const colorHoras = porcentajeHoras >= 95 ? '#27ae60'
+                     : porcentajeHoras >= 85 ? '#f39c12' : '#e74c3c';
+ 
     const metricsGrid = document.getElementById('metrics-grid');
     metricsGrid.innerHTML = `
         <div class="metric-card success">
             <div class="metric-icon">💰</div>
             <div class="metric-label">Total Bonos</div>
-            <div class="metric-value">$${totalBonos.toLocaleString('es-CO', {minimumFractionDigits: 2})}</div>
+            <div class="metric-value">$${totalBonos.toLocaleString('es-CO', { minimumFractionDigits: 2 })}</div>
             <div class="metric-subtitle">Suma total pagada</div>
         </div>
-        
         <div class="metric-card">
             <div class="metric-icon">📊</div>
             <div class="metric-label">Cumplimiento</div>
             <div class="metric-value">${porcentajeCumplimiento}%</div>
             <div class="metric-subtitle">${kpisCumplidos} de ${totalKPIs} KPIs</div>
         </div>
-        
         <div class="metric-card" style="border-left-color:${colorHoras};">
             <div class="metric-icon">⏱️</div>
             <div class="metric-label">Asistencia</div>
             <div class="metric-value" style="color:${colorHoras};">${porcentajeHoras}%</div>
             <div class="metric-subtitle">${totalHorasReales.toFixed(0)}h de ${totalHorasEsperadas.toFixed(0)}h esperadas</div>
         </div>
-        
         <div class="metric-card danger">
             <div class="metric-icon">🏆</div>
             <div class="metric-label">Top Performer</div>
-            <div class="metric-value">$${topBono.toLocaleString('es-CO', {minimumFractionDigits: 2})}</div>
+            <div class="metric-value">$${topBono.toLocaleString('es-CO', { minimumFractionDigits: 2 })}</div>
             <div class="metric-subtitle">${topNombre.split(',')[0]}</div>
         </div>
     `;
-    
     metricsGrid.style.display = 'grid';
-    console.log(`✅ Métricas generadas: ${keys.length} empleados, ${agentesConHoras} con horas`);
+ 
+    console.log(`✅ generarMetricas: ${keys.length} agentes | Gates detectados: ${gateResKeys.size} | Total: $${totalBonos.toFixed(2)}`);
 }
 
 
@@ -2960,18 +3249,34 @@ function generarMetricas(lobSeleccionada) {
   // ========================================
   // GRÁFICOS
   // ========================================
- function generarGraficos() {
+function generarGraficos() {
     if (!datos.metricasPorLob) return;
-    
+ 
     const chartsGrid = document.getElementById('charts-grid');
-    chartsGrid.innerHTML = '<div class="chart-card"><div class="chart-header"><h3 class="chart-title">📊 Cumplimiento de KPIs</h3></div><canvas id="chartKPIs"></canvas></div><div class="chart-card"><div class="chart-header"><h3 class="chart-title">💵 Monto Total Pagado por KPI</h3></div><canvas id="chartLOBs"></canvas></div><div class="chart-card"><div class="chart-header"><h3 class="chart-title">🎯 Distribución</h3></div><canvas id="chartDistribucion"></canvas></div>';
-    
+ 
+    // Solo dos charts en el grid: Cumplimiento y Distribución
+    chartsGrid.innerHTML = `
+        <div class="chart-card">
+            <div class="chart-header"><h3 class="chart-title">📊 Cumplimiento de KPIs</h3></div>
+            <canvas id="chartKPIs"></canvas>
+        </div>
+        <div class="chart-card">
+            <div class="chart-header"><h3 class="chart-title">🎯 Distribución</h3></div>
+            <canvas id="chartDistribucion"></canvas>
+        </div>`;
+ 
     chartsGrid.style.display = 'grid';
+ 
     crearGraficoKPIs();
-    crearGraficoLOBs();
+    // crearGraficoLOBs() ← ELIMINADO ("Total Pagado por LOB")
     crearGraficoDistribucion();
+ 
+    // Restaurar el gráfico "Monto Total Pagado por KPI"
+    const kpiPaymentContainer = document.getElementById('kpi-payment-chart-container');
+    if (kpiPaymentContainer) kpiPaymentContainer.style.display = 'block';
     crearGraficoKPIPagos();
 }
+ 
 
   function crearGraficoKPIs() {
       const kpisCumplimiento = {
@@ -3433,44 +3738,67 @@ function mostrarTablaPorLob(lobSeleccionada) {
 // ============================================================
 // FUNCIÓN AUXILIAR: Filtrar filas por estado de un KPI
 // ============================================================
+
+ 
 function filtrarColumnaKPI(colIndex, estado) {
   var tabla = document.getElementById('tabla-agentes');
   if (!tabla) return;
-
+ 
+  // Actualizar estilos de botones del grupo
   document.querySelectorAll('.kpi-filter-btn[data-col="' + colIndex + '"]').forEach(function(b) {
     var activo = b.dataset.estado === estado;
     b.style.background  = activo ? '#3b82f6' : '#1e293b';
     b.style.color       = activo ? '#fff'    : '#94a3b8';
     b.style.borderColor = activo ? '#3b82f6' : '#334155';
   });
-
+ 
   var filas = tabla.querySelectorAll('tbody tr');
+ 
   filas.forEach(function(fila) {
+    // Saltar fila de totales (la del borde superior)
     if (fila.style.borderTop === '2px solid rgb(226, 232, 240)') return;
-    if (estado === 'todos') { fila.style.display = ''; return; }
-
+ 
+    // Si es "todos", mostrar siempre
+    if (estado === 'todos') {
+      fila.style.display = '';
+      return;
+    }
+ 
     var celdas = fila.querySelectorAll('td');
     var celda  = celdas[colIndex];
-    if (!celda) { fila.style.display = ''; return; }
-
-    var html        = celda.innerHTML || '';
-    var esBloqueado = html.includes('Gate ✗') || html.includes('Bloq. por otro Gate');
-    var esCumple    = html.includes('Gate ✓') || celda.classList.contains('cumple');
-    var esNoCumple  = !esCumple && !esBloqueado;
-
-    var mostrar = false;
-    if (estado === 'cumple')    mostrar = esCumple;
-    if (estado === 'nocumple')  mostrar = esNoCumple;
-    if (estado === 'bloqueado') mostrar = esBloqueado;
-
-    fila.style.display = mostrar ? '' : 'none';
+ 
+    // ⭐ Si la celda no existe o no tiene data-estado,
+    //    es una columna fija → NO tiene KPI → ocultar la fila
+    //    porque no puede coincidir con ningún filtro de KPI.
+    if (!celda) {
+      fila.style.display = 'none';
+      return;
+    }
+ 
+    var estadoCelda = celda.getAttribute('data-estado');
+ 
+    // ⭐ Si la celda no tiene data-estado (columna fija sin KPI)
+    //    → ocultar: no pertenece al filtro activo
+    if (!estadoCelda) {
+      fila.style.display = 'none';
+      return;
+    }
+ 
+    // Comparación directa: mostrar solo si coincide exactamente
+    fila.style.display = (estadoCelda === estado) ? '' : 'none';
   });
 }
-
+ 
 function limpiarFiltrosKPI() {
   var tabla = document.getElementById('tabla-agentes');
   if (!tabla) return;
-  tabla.querySelectorAll('tbody tr').forEach(function(f) { f.style.display = ''; });
+ 
+  // Mostrar todas las filas
+  tabla.querySelectorAll('tbody tr').forEach(function(f) {
+    f.style.display = '';
+  });
+ 
+  // Resetear todos los botones de filtro al estado "Todos"
   document.querySelectorAll('.kpi-filter-btn').forEach(function(b) {
     var activo = b.dataset.estado === 'todos';
     b.style.background  = activo ? '#3b82f6' : '#1e293b';
@@ -3478,14 +3806,18 @@ function limpiarFiltrosKPI() {
     b.style.borderColor = activo ? '#3b82f6' : '#334155';
   });
 }
+ 
 
 // ============================================================
 // FUNCIÓN PRINCIPAL
 // ============================================================
 
 
-
-
+// ============================================================
+// FUNCIÓN COMPLETA: generarTablaConLobs
+// FIX CRÍTICO: Gate multi-escala fallido ahora bloquea correctamente
+//              el total (detecta gate desde emp.resultados, no desde índices)
+// ============================================================
 
 function generarTablaConLobs(lobSeleccionada, empleados, metricas, categorias, todasLasLobs) {
   if (!empleados || !metricas || !categorias || !todasLasLobs) {
@@ -3508,6 +3840,7 @@ function generarTablaConLobs(lobSeleccionada, empleados, metricas, categorias, t
     gatesPorCategoria[cat] = kpis.filter(function(k) { return k.esGate === true; });
   });
 
+  // ── Mapa de columnas TD (para filtros) ──
   var colTDCursor = 7;
   var kpiColMap   = [];
   categorias.forEach(function(cat) {
@@ -3522,6 +3855,9 @@ function generarTablaConLobs(lobSeleccionada, empleados, metricas, categorias, t
     }
   });
 
+  // ══════════════════════════════════════════
+  // THEAD
+  // ══════════════════════════════════════════
   var theadHTML = '<tr>';
   theadHTML += '<th rowspan="2" onclick="ordenarTabla(0)" style="cursor:pointer;">#</th>';
   theadHTML += '<th rowspan="2" style="background:#1e293b;color:#94a3b8;min-width:200px;">Trasladar</th>';
@@ -3610,6 +3946,9 @@ function generarTablaConLobs(lobSeleccionada, empleados, metricas, categorias, t
   });
   theadHTML += '</tr>';
 
+  // ══════════════════════════════════════════
+  // TBODY
+  // ══════════════════════════════════════════
   var tbodyHTML   = '';
   var keys_emp    = Object.keys(empleados);
   var contadorVis = 0;
@@ -3720,37 +4059,55 @@ function generarTablaConLobs(lobSeleccionada, empleados, metricas, categorias, t
     }
     tbodyHTML += '</td>';
 
-    // ── Gates por categoría ──
-    var gateStatusPorCat = {};
+    // ══════════════════════════════════════════════════════════
+    // ⭐⭐⭐ FIX CRÍTICO: detectar gates fallidos desde emp.resultados
+    //
+    // El método anterior usaba kpis.indexOf(gateKpi) que falla con
+    // KPIs multi-escala consolidados porque el índice no coincide.
+    //
+    // Ahora recorremos todos los resultados del agente buscando
+    // directamente los KPIs que son Gate y verificando si cumplieron.
+    // ══════════════════════════════════════════════════════════
+    var gateFalloEnCat    = {};   // { cat: true/false }
+    var gatesQueFailaron  = [];   // nombres para mostrar en badge
+    var gateStatusPorCat  = {};   // compatibilidad para lógica de 2 gates
+
     categorias.forEach(function(cat) {
-      var kpis  = metricas[cat] || [];
-      var gates = gatesPorCategoria[cat] || [];
-      if (gates.length === 0) {
-        gateStatusPorCat[cat] = { todosCumplen: true, fallidos: [] };
-        return;
-      }
-      var fallidos = [];
-      gates.forEach(function(gateKpi) {
-        var gateIdx = kpis.indexOf(gateKpi);
-        if (gateIdx === -1) return;
-        var resGate = emp.resultados[cat + '_' + gateIdx] || {};
-        if (!resGate.sinDatos && !resGate.cumple) {
-          fallidos.push(gateKpi.kpi || 'Gate');
+      var kpis     = metricas[cat] || [];
+      var numGates = (gatesPorCategoria[cat] || []).length;
+
+      gateFalloEnCat[cat]   = false;
+      gateStatusPorCat[cat] = { todosCumplen: true, fallidos: [] };
+
+      if (numGates === 0) return;
+
+      // ⭐ Recorrer los KPIs de esta categoría que son Gates
+      kpis.forEach(function(kpiObj, idx) {
+        if (kpiObj.esGate !== true) return;
+
+        var resKey = cat + '_' + idx;
+        var res    = emp.resultados[resKey] || {};
+
+        // ⭐ Un Gate falla si: no cumple Y no es sinDatos
+        // (sinDatos = no tiene información = no bloquea)
+        var gateFallo = !res.sinDatos && !res.cumple;
+
+        if (gateFallo) {
+          gateFalloEnCat[cat] = true;
+          gateStatusPorCat[cat].todosCumplen = false;
+          gateStatusPorCat[cat].fallidos.push(kpiObj.kpi || 'Gate');
+          gatesQueFailaron.push(kpiObj.kpi || 'Gate');
         }
       });
-      gateStatusPorCat[cat] = {
-        todosCumplen: fallidos.length === 0,
-        fallidos:     fallidos,
-        total:        gates.length
-      };
     });
 
     // ── Celdas KPI ──
     var totalKeys            = 0;
     var todosKeysOK          = true;
     var tieneAlgunKey        = false;
-    var totalOtrasCategorias = 0;
-    var totalDecreases       = 0;
+    var totalBonus           = 0;   // bonusStructure
+    var totalAdditional      = 0;   // additionalIncentives
+    var totalDecreases       = 0;   // decreasedKPIs (nunca bloqueado por Gate)
 
     categorias.forEach(function(cat) {
       var kpis       = metricas[cat] || [];
@@ -3782,6 +4139,7 @@ function generarTablaConLobs(lobSeleccionada, empleados, metricas, categorias, t
           bloqueadoPorOtroGate = cumple;
         }
 
+        // ── Acumuladores ──
         if (esKey) {
           if (!sinDatos) {
             tieneAlgunKey = true;
@@ -3789,13 +4147,26 @@ function generarTablaConLobs(lobSeleccionada, empleados, metricas, categorias, t
             else        todosKeysOK = false;
           }
         } else if (esDecrease) {
+          // Penalizaciones: siempre aplican, Gate nunca las bloquea
           if (cumple && !sinDatos) totalDecreases += bonoOriginal;
-        } else {
-          if (cumple && !sinDatos) totalOtrasCategorias += bonoEfectivo;
+        } else if (cat === 'bonusStructure') {
+          // ⭐ Solo acumular si el Gate de bonusStructure NO falló
+          if (!gateFalloEnCat[cat] && cumple && !sinDatos && !esGate) {
+            totalBonus += bonoEfectivo;
+          }
+          // ⭐ Si el KPI ES el Gate y cumplió, también suma
+          if (esGate && !gateFalloEnCat[cat] && cumple && !sinDatos) {
+            totalBonus += bonoEfectivo;
+          }
+        } else if (cat === 'additionalIncentives') {
+          if (!gateFalloEnCat[cat] && cumple && !sinDatos) {
+            totalAdditional += bonoEfectivo;
+          }
         }
 
+        // ── valorF ──
         var valF = '-';
-        if (res.valorF !== undefined && res.valorF !== null) {
+        if (res.valorF !== undefined && res.valorF !== null && res.valorF !== '-') {
           var vNum = parseFloat(res.valorF);
           valF = isNaN(vNum)
             ? res.valorF
@@ -3803,6 +4174,8 @@ function generarTablaConLobs(lobSeleccionada, empleados, metricas, categorias, t
               ? vNum.toLocaleString('es-CO')
               : vNum.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
+
+        var sinValorReal = (valF === '-');
 
         var scoreAM = kpiObj.score || '-';
         var partAM  = null;
@@ -3818,19 +4191,23 @@ function generarTablaConLobs(lobSeleccionada, empleados, metricas, categorias, t
           }
         }
 
+        // ══════════════════════════════════════════════════════
+        // RENDERIZADO CON data-estado
+        // ══════════════════════════════════════════════════════
+
         if (sinDatos) {
-          tbodyHTML += '<td style="background:#f1f5f9;color:#999;font-size:0.8rem;text-align:center;">Sin datos</td>';
+          tbodyHTML += '<td data-estado="nocumple" style="background:#f1f5f9;color:#999;font-size:0.8rem;text-align:center;">Sin datos</td>';
           tbodyHTML += '<td style="background:#f1f5f9;color:#999;text-align:center;">$0.00</td>';
 
         } else if (esKey) {
-          if (cumple) {
-            tbodyHTML += '<td style="background:#f0fdf4;color:#166534;font-weight:500;border-left:3px solid #4ade80;text-align:center;">'
+          if (cumple && !sinValorReal) {
+            tbodyHTML += '<td data-estado="cumple" style="background:#f0fdf4;color:#166534;font-weight:500;border-left:3px solid #4ade80;text-align:center;">'
               + valF + '<br><small style="font-size:0.7rem;">(' + scoreAM + ')</small></td>';
             tbodyHTML += '<td style="background:#f0fdf4;color:#166534;font-weight:600;text-align:center;">$'
               + bonoEfectivo.toLocaleString('es-CO', { minimumFractionDigits: 2 }) + '</td>';
           } else {
-            tbodyHTML += '<td style="background:#fef2f2;color:#9f1239;font-weight:500;text-align:center;">'
-              + valF + '<br><small style="font-size:0.7rem;">(' + scoreAM + ')</small></td>';
+            tbodyHTML += '<td data-estado="nocumple" style="background:#fef2f2;color:#9f1239;font-weight:500;text-align:center;">'
+              + (sinValorReal ? '-' : valF) + '<br><small style="font-size:0.7rem;">(' + (sinValorReal ? 'sin dato' : scoreAM) + ')</small></td>';
             tbodyHTML += '<td style="background:#fef2f2;color:#9f1239;text-align:center;">$0.00</td>';
           }
 
@@ -3838,52 +4215,52 @@ function generarTablaConLobs(lobSeleccionada, empleados, metricas, categorias, t
           var bonoFmt = bonoOriginal < 0
             ? '-$' + Math.abs(bonoOriginal).toLocaleString('es-CO', { minimumFractionDigits: 2 })
             : '$' + bonoOriginal.toLocaleString('es-CO', { minimumFractionDigits: 2 });
-          if (cumple) {
-            tbodyHTML += '<td style="background:#fef2f2;color:#9f1239;font-weight:500;text-align:center;">'
+          if (cumple && !sinValorReal) {
+            tbodyHTML += '<td data-estado="cumple" style="background:#fef2f2;color:#9f1239;font-weight:500;text-align:center;">'
               + valF + '<br><small>(' + scoreAM + ')</small>'
               + '<br><small style="font-size:0.65rem;color:#dc2626;">Penalización</small></td>';
             tbodyHTML += '<td style="background:#fef2f2;color:#9f1239;font-weight:500;text-align:center;">' + bonoFmt + '</td>';
           } else {
-            tbodyHTML += '<td style="background:#f0fdf4;color:#166534;font-weight:500;text-align:center;">'
-              + valF + '<br><small>(' + scoreAM + ')</small>'
+            tbodyHTML += '<td data-estado="nocumple" style="background:#f0fdf4;color:#166534;font-weight:500;text-align:center;">'
+              + (sinValorReal ? '-' : valF) + '<br><small>(' + (sinValorReal ? 'sin dato' : scoreAM) + ')</small>'
               + '<br><small style="font-size:0.65rem;color:#16a34a;">Sin penalización</small></td>';
             tbodyHTML += '<td style="background:#f0fdf4;color:#166534;text-align:center;">$0.00</td>';
           }
 
         } else if (esGate) {
           if (numGates === 1) {
-            if (cumple) {
-              tbodyHTML += '<td style="background:#f0fdf4;color:#166534;font-weight:500;padding:10px;text-align:center;">'
+            if (cumple && !sinValorReal) {
+              tbodyHTML += '<td data-estado="cumple" style="background:#f0fdf4;color:#166534;font-weight:500;padding:10px;text-align:center;">'
                 + valF + '<br><small style="font-size:0.7rem;">(' + scoreAM + ')</small>'
                 + '<br><span style="font-size:0.62rem;background:#dcfce7;color:#15803d;padding:2px 7px;border-radius:4px;display:inline-block;margin-top:3px;font-weight:600;border:1px solid #86efac;">&#x1F512; Gate ✓</span>'
                 + '</td>';
               tbodyHTML += '<td style="background:#f0fdf4;color:#166534;font-weight:600;text-align:center;padding:10px;">$'
                 + bonoEfectivo.toLocaleString('es-CO', { minimumFractionDigits: 2 }) + '</td>';
             } else {
-              tbodyHTML += '<td style="background:#fef2f2;color:#9f1239;font-weight:500;padding:10px;text-align:center;">'
-                + valF + '<br><small style="font-size:0.7rem;">(' + scoreAM + ')</small>'
+              tbodyHTML += '<td data-estado="nocumple" style="background:#fef2f2;color:#9f1239;font-weight:500;padding:10px;text-align:center;">'
+                + (sinValorReal ? '-' : valF) + '<br><small style="font-size:0.7rem;">(' + (sinValorReal ? 'sin dato' : scoreAM) + ')</small>'
                 + '<br><span style="font-size:0.62rem;background:#fee2e2;color:#b91c1c;padding:2px 7px;border-radius:4px;display:inline-block;margin-top:3px;font-weight:600;border:1px solid #fca5a5;">&#x1F512; Gate ✗</span>'
                 + '</td>';
               tbodyHTML += '<td style="background:#fef2f2;color:#9f1239;font-weight:500;text-align:center;padding:10px;">$0.00</td>';
             }
           } else {
-            if (cumple && !bloqueadoPorOtroGate) {
-              tbodyHTML += '<td style="background:#f0fdf4;color:#166534;font-weight:500;padding:10px;text-align:center;">'
+            if (cumple && !bloqueadoPorOtroGate && !sinValorReal) {
+              tbodyHTML += '<td data-estado="cumple" style="background:#f0fdf4;color:#166534;font-weight:500;padding:10px;text-align:center;">'
                 + valF + '<br><small style="font-size:0.7rem;">(' + scoreAM + ')</small>'
                 + '<br><span style="font-size:0.62rem;background:#dcfce7;color:#15803d;padding:2px 7px;border-radius:4px;display:inline-block;margin-top:3px;font-weight:600;border:1px solid #86efac;">&#x1F512; Gate ✓</span>'
                 + '</td>';
               tbodyHTML += '<td style="background:#f0fdf4;color:#166534;font-weight:600;text-align:center;padding:10px;">$'
                 + bonoEfectivo.toLocaleString('es-CO', { minimumFractionDigits: 2 }) + '</td>';
             } else if (cumple && bloqueadoPorOtroGate) {
-              tbodyHTML += '<td style="background:#fff7ed;color:#9a3412;font-weight:500;padding:10px;text-align:center;">'
-                + valF + '<br><small style="font-size:0.7rem;">(' + scoreAM + ')</small>'
+              tbodyHTML += '<td data-estado="bloqueado" style="background:#fff7ed;color:#9a3412;font-weight:500;padding:10px;text-align:center;">'
+                + (sinValorReal ? '-' : valF) + '<br><small style="font-size:0.7rem;">(' + (sinValorReal ? 'sin dato' : scoreAM) + ')</small>'
                 + '<br><span style="font-size:0.62rem;background:#dcfce7;color:#15803d;padding:2px 6px;border-radius:4px;display:inline-block;margin-top:3px;font-weight:600;border:1px solid #86efac;">&#x1F512; Gate ✓</span>'
                 + '<br><span style="font-size:0.6rem;background:#fee2e2;color:#b91c1c;padding:2px 6px;border-radius:4px;display:inline-block;margin-top:2px;font-weight:600;border:1px solid #fca5a5;">Bloq. por otro Gate</span>'
                 + '</td>';
               tbodyHTML += '<td style="background:#fff7ed;color:#9a3412;font-weight:600;text-align:center;padding:10px;">$0.00</td>';
             } else {
-              tbodyHTML += '<td style="background:#fef2f2;color:#9f1239;font-weight:500;padding:10px;text-align:center;">'
-                + valF + '<br><small style="font-size:0.7rem;">(' + scoreAM + ')</small>'
+              tbodyHTML += '<td data-estado="nocumple" style="background:#fef2f2;color:#9f1239;font-weight:500;padding:10px;text-align:center;">'
+                + (sinValorReal ? '-' : valF) + '<br><small style="font-size:0.7rem;">(' + (sinValorReal ? 'sin dato' : scoreAM) + ')</small>'
                 + '<br><span style="font-size:0.62rem;background:#fee2e2;color:#b91c1c;padding:2px 7px;border-radius:4px;display:inline-block;margin-top:3px;font-weight:600;border:1px solid #fca5a5;">&#x1F512; Gate ✗</span>'
                 + '</td>';
               tbodyHTML += '<td style="background:#fef2f2;color:#9f1239;font-weight:500;text-align:center;padding:10px;">$0.00</td>';
@@ -3891,46 +4268,79 @@ function generarTablaConLobs(lobSeleccionada, empleados, metricas, categorias, t
           }
 
         } else {
+          // ── KPI normal (bonusStructure / additionalIncentives) ──
           var infoExtra = '';
-          if (esMultiTier && cumple && partAM) {
+          if (esMultiTier && cumple && partAM && !sinValorReal) {
             infoExtra = '<br><small style="font-size:0.65rem;color:#3498db;font-weight:600;">Tier: ' + scoreAM + '</small>'
               + '<br><small style="font-size:0.65rem;color:#f39c12;font-weight:600;background:rgba(243,156,18,0.15);padding:2px 6px;border-radius:8px;">Part: ' + partAM + '</small>';
-          } else {
+          } else if (!sinValorReal) {
             infoExtra = '<br><small style="font-size:0.7rem;">(' + scoreAM + ')</small>';
           }
-          if (cumple) {
-            tbodyHTML += '<td class="cumple" style="text-align:center;">' + valF + infoExtra + '</td>';
+
+          if (cumple && !sinValorReal) {
+            tbodyHTML += '<td data-estado="cumple" class="cumple" style="text-align:center;">' + valF + infoExtra + '</td>';
             tbodyHTML += '<td style="text-align:center;">$' + Math.max(0, bonoEfectivo).toLocaleString('es-CO', { minimumFractionDigits: 2 }) + '</td>';
+          } else if (cumple && sinValorReal) {
+            tbodyHTML += '<td data-estado="nocumple" style="background:#f1f5f9;color:#94a3b8;text-align:center;">-<br><small style="font-size:0.65rem;color:#cbd5e1;">sin dato CDM</small></td>';
+            tbodyHTML += '<td style="background:#f1f5f9;color:#94a3b8;text-align:center;">$0.00</td>';
           } else {
-            tbodyHTML += '<td class="no-cumple" style="text-align:center;">' + valF + infoExtra + '</td>';
+            var noTierMsg = '';
+            if (esMultiTier && !sinValorReal) {
+              noTierMsg = '<br><small style="font-size:0.65rem;color:#dc2626;font-weight:600;">No alcanza ningún tier</small>';
+            }
+            tbodyHTML += '<td data-estado="nocumple" class="no-cumple" style="text-align:center;">'
+              + (sinValorReal ? '-' : valF)
+              + (sinValorReal ? '' : infoExtra)
+              + noTierMsg
+              + '</td>';
             tbodyHTML += '<td style="text-align:center;">$0.00</td>';
           }
         }
-      });
+      }); // fin kpis.forEach
+    }); // fin categorias.forEach
+
+    // ══════════════════════════════════════════════════════════
+    // CÁLCULO DEL TOTAL
+    // totalBonus y totalAdditional ya son $0 si el Gate falló
+    // porque se acumularon condicionalmente con !gateFalloEnCat[cat]
+    // ══════════════════════════════════════════════════════════
+    var totalFinal       = 0;
+    var bloqueadoPorKey  = false;
+    var bloqueadoPorGate = categorias.some(function(cat) {
+      return (cat === 'bonusStructure' || cat === 'additionalIncentives')
+        && gateFalloEnCat[cat];
     });
 
-    // ── Total del agente ──
-    var totalFinal      = 0;
-    var bloqueadoPorKey = false;
+    var totalOtras = Math.max(0, totalBonus) + Math.max(0, totalAdditional);
 
     if (tieneAlgunKey) {
       if (todosKeysOK) {
-        totalFinal = Math.max(0, totalKeys) + Math.max(0, totalOtrasCategorias) + totalDecreases;
+        totalFinal = Math.max(0, totalKeys) + totalOtras + totalDecreases;
       } else {
         totalFinal      = totalDecreases;
         bloqueadoPorKey = true;
       }
     } else {
-      totalFinal = Math.max(0, totalOtrasCategorias) + totalDecreases;
+      totalFinal = totalOtras + totalDecreases;
     }
+
     totalFinal = Math.max(0, totalFinal);
     totalGeneralTabla += totalFinal;
 
-    // ⭐ Estilo celda total según estado
-    var estiloTotalCelda  = bloqueadoPorKey
-      ? 'background:linear-gradient(135deg,#fef2f2 0%,#fee2e2 100%);border-left:4px solid #dc2626;'
-      : 'background:#ffffff;';
-    var colorMontoDisplay = bloqueadoPorKey ? '#dc2626' : '#1e293b';
+    // ── Estilos diferenciados ──
+    var estiloTotalCelda;
+    var colorMontoDisplay;
+
+    if (bloqueadoPorKey) {
+      estiloTotalCelda  = 'background:linear-gradient(135deg,#fef2f2 0%,#fee2e2 100%);border-left:4px solid #dc2626;';
+      colorMontoDisplay = '#dc2626';
+    } else if (bloqueadoPorGate) {
+      estiloTotalCelda  = 'background:linear-gradient(135deg,#fff7ed 0%,#ffedd5 100%);border-left:4px solid #f97316;';
+      colorMontoDisplay = '#9a3412';
+    } else {
+      estiloTotalCelda  = 'background:#ffffff;';
+      colorMontoDisplay = '#1e293b';
+    }
 
     tbodyHTML += '<td class="celda-total" data-bms="' + emp.bmsId
       + '" data-bono-original="' + totalFinal
@@ -3940,33 +4350,40 @@ function generarTablaConLobs(lobSeleccionada, empleados, metricas, categorias, t
     tbodyHTML += '<span class="monto-display" style="font-size:1.2rem;font-weight:700;color:' + colorMontoDisplay + ';display:block;margin-bottom:4px;">$'
       + totalFinal.toLocaleString('es-CO', { minimumFractionDigits: 2 }) + '</span>';
 
-    // ⭐ Badge bloqueado por key
     if (bloqueadoPorKey) {
       tbodyHTML += '<div style="margin-top:5px;background:#fee2e2;border:1px solid #fca5a5;'
         + 'border-radius:4px;padding:4px 8px;font-size:0.72rem;font-weight:700;'
         + 'color:#dc2626;text-align:center;letter-spacing:0.3px;">'
         + '🔒 Bloq. por Key'
         + '</div>';
+    } else if (bloqueadoPorGate) {
+      tbodyHTML += '<div style="margin-top:5px;background:#ffedd5;border:1px solid #fdba74;'
+        + 'border-radius:4px;padding:4px 8px;font-size:0.72rem;font-weight:700;'
+        + 'color:#9a3412;text-align:center;letter-spacing:0.3px;">'
+        + '🚫 No bonifica por Gate'
+        + '</div>';
+      if (gatesQueFailaron.length > 0) {
+        tbodyHTML += '<div style="margin-top:3px;font-size:0.65rem;color:#c2410c;text-align:center;">'
+          + gatesQueFailaron.join(' · ')
+          + '</div>';
+      }
     }
 
-    // ⭐ Info horas/factor (solo si NO está bloqueado por key)
-    if (!bloqueadoPorKey) {
+    if (!bloqueadoPorKey && !bloqueadoPorGate) {
       tbodyHTML += '<div style="font-size:0.68rem;color:#94a3b8;margin-top:3px;">'
         + hSem + 'h × ' + (factorHoras * 100).toFixed(0) + '%'
         + '</div>';
     }
 
-    // ⭐ Prorrateo — solo si totalFinal > 0 y no está bloqueado por key
+    // ── Prorrateo ──
     if (hData && typeof hData === 'object' && totalFinal > 0 && !bloqueadoPorKey) {
-      var diasLab2      = parseFloat(hData.diasLaborados) || 0;
-      var hRealesPro    = parseFloat(hData.horas)         || 0;
-      var horasPorDia   = hSem / 5;              // depende del HC del agente
+      var diasLab2       = parseFloat(hData.diasLaborados) || 0;
+      var hRealesPro     = parseFloat(hData.horas)         || 0;
+      var horasPorDia    = hSem / 5;
       var horasEsperadas = horasPorDia * 22;
       var porcentajeHoras = hRealesPro / horasEsperadas;
 
       if (diasLab2 > 0 && diasLab2 < 20 && porcentajeHoras < 0.85) {
-
-        // ⭐ FÓRMULA: valor día = total/30, días exactos = horas reales / horas por día
         var valorDia    = totalFinal / 30;
         var diasExactos = hRealesPro / horasPorDia;
         var bonoProrr   = valorDia * diasExactos;
@@ -3975,10 +4392,10 @@ function generarTablaConLobs(lobSeleccionada, empleados, metricas, categorias, t
         tbodyHTML += '<div style="margin-top:10px;padding:10px;background:#fafafa;border-radius:4px;border:1px dashed #cbd5e1;">';
         tbodyHTML += '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.85rem;color:#1e293b;margin-bottom:8px;">';
         tbodyHTML += '<input type="checkbox" class="prorrateo-check"'
-          + ' data-bms="'          + emp.bmsId              + '"'
-          + ' data-total-full="'   + totalFinal             + '"'
-          + ' data-dias-laborados="' + diasExactos.toFixed(4) + '"'
-          + ' data-horas-sem="'    + hSem                   + '"'  // ⭐ pasar hSem al toggleProrrateo
+          + ' data-bms="'           + emp.bmsId              + '"'
+          + ' data-total-full="'    + totalFinal             + '"'
+          + ' data-dias-laborados="'+ diasExactos.toFixed(4) + '"'
+          + ' data-horas-sem="'     + hSem                   + '"'
           + ' onchange="toggleProrrateo(this)"'
           + ' style="width:18px;height:18px;cursor:pointer;accent-color:#16a085;">';
         tbodyHTML += '<span style="font-weight:600;">Aplicar Prorrateo por Días</span></label>';
@@ -4026,7 +4443,9 @@ function generarTablaConLobs(lobSeleccionada, empleados, metricas, categorias, t
     tbodyHTML += '<td colspan="3"></td></tr>';
   }
 
-  // ── HTML contenedor ──
+  // ══════════════════════════════════════════
+  // CONTENEDOR FINAL
+  // ══════════════════════════════════════════
   var container = document.getElementById('table-container');
   var html = '<div class="table-header"><h3 style="font-size:1.1rem;font-weight:600;color:#1e293b;">Agentes - ' + lobSeleccionada + '</h3>';
   html += '<div style="display:flex;align-items:center;gap:15px;flex-wrap:wrap;">';
@@ -4039,6 +4458,13 @@ function generarTablaConLobs(lobSeleccionada, empleados, metricas, categorias, t
   html += '<button class="btn-primary" onclick="aplicarTraslados()" style="background:#78350f;color:#fde68a;border:none;">Aplicar Traslados</button>';
   html += '<button class="btn-primary" onclick="limpiarTodosLosProrrateos()" style="background:#475569;color:white;border:none;">Quitar Prorrateos</button>';
   html += '<button class="btn-primary" onclick="enviaraprobados()" style="background:#15803d;">Enviar y Aprobar</button>';
+  html += '<label style="display:inline-flex;align-items:center;gap:7px;cursor:pointer;'
+        + 'background:#1e293b;color:#94a3b8;padding:7px 14px;border-radius:4px;'
+        + 'font-size:0.85rem;font-weight:600;border:1px solid #334155;'
+        + 'user-select:none;" title="Marcar como cálculo de semana parcial">'
+        + '<input type="checkbox" id="chk-semana" onchange="toggleModoSemana(this)"'
+        + ' style="width:16px;height:16px;cursor:pointer;accent-color:#3b82f6;">'
+        + '📅 Semana</label>';
   html += '<button class="btn-primary" onclick="actualizarSoloTabla()" style="background:#1e293b;color:#94a3b8;border:none;">Actualizar Tabla</button>';
   html += '<button class="btn-primary" onclick="toggleTabla()">Ocultar</button>';
   html += '</div></div></div>';
@@ -4064,6 +4490,32 @@ function generarTablaConLobs(lobSeleccionada, empleados, metricas, categorias, t
     setTimeout(function() { aplicarDisputasDesdeCache(); }, 500);
   }, 1000);
 }
+
+console.log('✅ generarTablaConLobs — Fix Gate multi-escala cargado');
+
+// ⭐⭐⭐ FUNCIÓN: Toggle modo semana ──────────────────────────────────────────
+function toggleModoSemana(checkbox) {
+  var activo = checkbox.checked;
+  var label  = checkbox.closest('label');
+
+  if (activo) {
+    label.style.background    = '#1e40af';
+    label.style.color         = '#bfdbfe';
+    label.style.borderColor   = '#3b82f6';
+    console.log('📅 Modo Semana ACTIVADO');
+  } else {
+    label.style.background    = '#1e293b';
+    label.style.color         = '#94a3b8';
+    label.style.borderColor   = '#334155';
+    console.log('📅 Modo Semana DESACTIVADO');
+  }
+
+  // Aquí puedes conectar la lógica que necesites cuando se active/desactive
+  // Por ejemplo: recalcular bonos con base semanal, filtrar, etc.
+  // actualizarTotalAprobar();
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 console.log('✅ generarTablaConLobs COMPLETA con Días Laborados (Columna G) cargada');
 
 // ⭐ FUNCIÓN TEMPORAL: Cargar horas desde diagnóstico
@@ -5453,8 +5905,6 @@ function obtenerNombreMesDesdeNumero(numeroMes) {
 // FUNCIÓN: ENVIAR Y APROBAR (NUEVA)
 // ========================================
 
-
-
 function enviaraprobados() {
   const checkboxes = document.querySelectorAll('.aprobado-check:checked');
 
@@ -5466,6 +5916,47 @@ function enviaraprobados() {
   const lobActual       = selectLob.value;
   const fechaActual     = selectFecha.value;
   const nombreMesActual = obtenerNombreMesDesdeNumero(mesComparativoActual) || 'General';
+
+  // ⭐ LEER CHECKBOX SEMANA
+  const chkSemana    = document.getElementById('chk-semana');
+  const esModoSemana = chkSemana ? chkSemana.checked : false;
+
+  // ════════════════════════════════════════════════════════════
+  // ⭐ VALIDACIÓN MODO SEMANA — ANTES DE CUALQUIER OTRA LÓGICA
+  // ════════════════════════════════════════════════════════════
+  const bannerSemana           = document.getElementById('banner-modo-semana');
+  const haySemanaPreviaDetectada = bannerSemana && bannerSemana.style.display === 'flex';
+
+  if (haySemanaPreviaDetectada && !esModoSemana) {
+    // Hay semanas previas pero el usuario NO marcó el checkbox → advertencia fuerte
+    const continuar = confirm(
+      '⚠️ ADVERTENCIA — SEMANAS PREVIAS DETECTADAS\n\n'
+      + 'El sistema encontró semanas ya registradas para esta LOB\n'
+      + 'pero el checkbox "📅 Semana" está DESMARCADO.\n\n'
+      + '❌ Si envías sin marcarlo, esta aprobación se guardará como\n'
+      + '   independiente y NO se contará como semana del mes.\n\n'
+      + '✅ Cancela y marca "📅 Semana" si corresponde a una semana.\n'
+      + '➡️ Continúa solo si esta es una aprobación fuera del ciclo semanal.\n\n'
+      + '¿Continuar SIN modo Semana?'
+    );
+    if (!continuar) return;
+
+  } else if (!esModoSemana && !haySemanaPreviaDetectada) {
+    // Sin semanas previas y checkbox desmarcado → recordatorio suave
+    const continuar = confirm(
+      '📋 RECORDATORIO — MODO SEMANA\n\n'
+      + 'El checkbox "📅 Semana" NO está marcado.\n\n'
+      + '• Si este mes se aprueba dividido en SEMANAS (4 semanas = 1 mes):\n'
+      + '  ↩️  Cancela y marca "📅 Semana" antes de enviar.\n\n'
+      + '• Si esta es la aprobación del MES COMPLETO de una sola vez:\n'
+      + '  ✅  Continúa normalmente.\n\n'
+      + '¿Continuar sin modo Semana?'
+    );
+    if (!continuar) return;
+  }
+  // ════════════════════════════════════════════════════════════
+  // FIN VALIDACIÓN MODO SEMANA
+  // ════════════════════════════════════════════════════════════
 
   const bmsSeleccionados = new Set();
   checkboxes.forEach(function(ch) { bmsSeleccionados.add(ch.getAttribute('data-bms')); });
@@ -5515,47 +6006,43 @@ function enviaraprobados() {
 
     let tieneDisputa      = false;
     let comentarioDisputa = '';
-    // ⭐⭐⭐ NUEVOS CAMPOS DISPUTA
     let kpisDisputados    = [];
     let montoDisputa      = 0;
     let bonoKPIsSelec     = 0;
 
     if (disputasPendientes[bmsId]) {
       tieneDisputa      = true;
-      comentarioDisputa = disputasPendientes[bmsId].comentario      || '';
-      kpisDisputados    = disputasPendientes[bmsId].kpisSeleccionados || [];  // ⭐ array de KPIs
-      montoDisputa      = parseFloat(disputasPendientes[bmsId].montoDisputa) || 0; // ⭐ monto $
-      bonoKPIsSelec     = parseFloat(disputasPendientes[bmsId].bonoKPIsSelec) || 0; // ⭐ bono KPIs selec
+      comentarioDisputa = disputasPendientes[bmsId].comentario       || '';
+      kpisDisputados    = disputasPendientes[bmsId].kpisSeleccionados || [];
+      montoDisputa      = parseFloat(disputasPendientes[bmsId].montoDisputa)  || 0;
+      bonoKPIsSelec     = parseFloat(disputasPendientes[bmsId].bonoKPIsSelec) || 0;
       countDisp++;
     }
 
-    // ══════════════════════════════════════════
-    // HORAS Y AUSENCIAS
-    // ══════════════════════════════════════════
     let horasTrabajadas = 0;
     let ausencias       = 0;
 
     if (datos && datos.horasPorAgente && datos.horasPorAgente[bmsId]) {
       const hData     = datos.horasPorAgente[bmsId];
-      horasTrabajadas = parseFloat(hData.horas)    || parseFloat(hData.horasTotales) || 0;
+      horasTrabajadas = parseFloat(hData.horas)     || parseFloat(hData.horasTotales) || 0;
       ausencias       = parseFloat(hData.ausencias) || 0;
     }
 
-    // ══════════════════════════════════════════
-    // DESGLOSE KPIs ⭐ CON FLAG GATE
-    // ══════════════════════════════════════════
-    const desgloseKPIs = [];
-
+    const desgloseKPIs  = [];
     let totalAdditional = 0;
     let totalDecreased  = 0;
 
     try {
       const metricas2 = datos.metricasPorLob ? datos.metricasPorLob[lobActual] : null;
 
-      console.log('══ BMS: ' + bmsId + ' ══');
-      console.log('  metricas2:', metricas2 ? 'OK' : 'NULL ❌');
+      // ⭐ FIX: si metricasPorLob[lob] llegó como {error:...} → desgloseKPIs queda vacío
+      // y Audit_Detalle no recibe nada. Logguear para diagnóstico.
+      if (metricas2 && metricas2.error) {
+        console.warn('⚠️ metricasPorLob[' + lobActual + '] tiene error: ' + metricas2.error +
+          ' — desgloseKPIs estará vacío y Audit_Detalle no se llenará para BMS ' + bmsId);
+      }
 
-      if (metricas2) {
+      if (metricas2 && !metricas2.error) {
         const categorias2 = ['keys', 'bonusStructure', 'additionalIncentives', 'decreasedKPIs'];
         const catNombres  = {
           keys:                 'Key',
@@ -5580,15 +6067,12 @@ function enviaraprobados() {
             });
 
             if (!empCumple && !empNoCumple && !empSinDatos) return;
-            if (empSinDatos && !empCumple && !empNoCumple) return;
+            if (empSinDatos && !empCumple && !empNoCumple)  return;
 
             const emp    = empCumple || empNoCumple;
             const cumple = !!empCumple;
             const bono   = emp.bono   || 0;
             const valorF = (emp.valorF !== undefined && emp.valorF !== null) ? emp.valorF : '-';
-
-            console.log('    [' + cat + '] ' + kpiObj.kpi +
-              ' | cumple=' + cumple + ' | bono=' + bono + ' | valorF=' + valorF);
 
             let scoreObjetivo = kpiObj.score || '-';
             if (kpiObj.esMultiTier && emp.scoreCumplido) {
@@ -5601,34 +6085,17 @@ function enviaraprobados() {
             const esGate = kpiObj.esGate === true;
 
             let nota = '';
-            if (cat === 'decreasedKPIs' && cumple) {
-              nota = 'Penalización';
-            }
-            if (esGate && cumple) {
-              nota += (nota ? ' | ' : '') + '🔒 Gate cumplido';
-            }
-            if (esGate && !cumple) {
-              nota += (nota ? ' | ' : '') + '🔒 Gate NO cumplido - bloqueó grupo';
-            }
+            if (cat === 'decreasedKPIs' && cumple)  nota  = 'Penalización';
+            if (esGate && cumple)   nota += (nota ? ' | ' : '') + '🔒 Gate cumplido';
+            if (esGate && !cumple)  nota += (nota ? ' | ' : '') + '🔒 Gate NO cumplido - bloqueó grupo';
 
-            let tipoEstructura;
-            if (esGate) {
-              tipoEstructura = 'Gate';
-            } else if (kpiObj.esMultiTier) {
-              tipoEstructura = 'Multi-Escala';
-            } else {
-              tipoEstructura = 'Fija';
-            }
-
+            const tipoEstructura = esGate ? 'Gate' : kpiObj.esMultiTier ? 'Multi-Escala' : 'Fija';
             const categoriaLabel = catNombres[cat];
             const bonoNum        = parseFloat(bono) || 0;
 
             if (cumple) {
-              if (cat === 'additionalIncentives') {
-                totalAdditional += bonoNum;
-              } else if (cat === 'decreasedKPIs') {
-                totalDecreased += bonoNum;
-              }
+              if (cat === 'additionalIncentives') totalAdditional += bonoNum;
+              else if (cat === 'decreasedKPIs')   totalDecreased  += bonoNum;
             }
 
             desgloseKPIs.push({
@@ -5643,14 +6110,7 @@ function enviaraprobados() {
             });
           });
         });
-      } else {
-        console.warn('⚠️ BMS ' + bmsId + ' — metricas2 NULL');
       }
-
-      console.log('  → KPIs generados: ' + desgloseKPIs.length);
-      console.log('  → Additional: $' + totalAdditional.toFixed(2));
-      console.log('  → Decreased:  $' + totalDecreased.toFixed(2));
-
     } catch(e) {
       console.error('⚠️ Error desglose BMS ' + bmsId + ':', e);
     }
@@ -5672,27 +6132,23 @@ function enviaraprobados() {
       ausencias:           ausencias,
       tieneDisputa:        tieneDisputa,
       comentarioDisputa:   comentarioDisputa,
-      // ⭐⭐⭐ NUEVOS CAMPOS DISPUTA
-      kpisDisputados:      kpisDisputados,   // array [{kpi, categoria, bono, cumple, ...}]
-      montoDisputa:        montoDisputa,     // número $
-      bonoKPIsSelec:       bonoKPIsSelec,    // bono total de KPIs seleccionados
-      // ────────────────────────────────────
+      kpisDisputados:      kpisDisputados,
+      montoDisputa:        montoDisputa,
+      bonoKPIsSelec:       bonoKPIsSelec,
       desgloseKPIs:        desgloseKPIs,
       totalAdditional:     totalAdditional,
       totalDecreased:      totalDecreased
     });
   });
 
-  // DEBUG FINAL
-  console.log('📤 Enviando ' + aprobaciones.length + ' aprobaciones | Prorrateos: ' + countProrr + ' | Disputas: ' + countDisp);
-  console.log('📊 Disputas:', aprobaciones
-    .filter(function(a) { return a.tieneDisputa; })
-    .map(function(a) {
-      return a.bmsId + ': $' + a.montoDisputa + ' | ' + a.kpisDisputados.length + ' KPIs disputados';
-    }).join(' | '));
-
+  // ── Mensaje de confirmación ──────────────────────────────
   let msgConf  = '⚠️ CONFIRMACIÓN DE APROBACIÓN\n\n';
   msgConf     += 'LOB: ' + lobActual + ' | Mes: ' + nombreMesActual + '\n';
+  if (esModoSemana) {
+    msgConf   += '📅 Modo: SEMANA (se detectará automáticamente Semana_1 a 4)\n';
+  } else {
+    msgConf   += '📋 Modo: MES COMPLETO\n';
+  }
   msgConf     += '══════════════════════════════\n\n';
   msgConf     += '👥 Agentes: '  + aprobaciones.length + '\n';
   msgConf     += '💰 Total: $'   + totalGeneral.toLocaleString('es-CO', { minimumFractionDigits: 2 }) + '\n';
@@ -5714,6 +6170,8 @@ function enviaraprobados() {
         let msg  = '✅ APROBACIÓN REGISTRADA\n\n';
         msg     += '• ' + resp.count + ' agente(s)\n';
         msg     += '• Total: $' + totalGeneral.toLocaleString('es-CO', { minimumFractionDigits: 2 }) + '\n';
+        if (resp.semana)               msg += '• 📅 Registrado como: ' + resp.semana + '\n';
+        if (resp.esTotalMes)           msg += '• 🎯 ¡Semana 4 completada! TOTAL_MES calculado.\n';
         if (resp.kpisDetalle       > 0) msg += '• ' + resp.kpisDetalle       + ' KPIs en Audit_Detalle\n';
         if (resp.prorrateos        > 0) msg += '• ' + resp.prorrateos        + ' prorrateo(s)\n';
         if (resp.disputasGuardadas > 0) msg += '• ' + resp.disputasGuardadas + ' disputa(s)\n';
@@ -5723,36 +6181,59 @@ function enviaraprobados() {
         disputasPendientes = {};
         actualizarBannerDisputas();
 
+        // ⭐ Si fue semana 4 → desactivar checkbox y ocultar banner
+        if (resp.esTotalMes) {
+          if (chkSemana) {
+            chkSemana.checked = false;
+            toggleModoSemana(chkSemana);
+          }
+          // Ocultar banner de semana y mostrar el de "mes completo"
+          const bSemana    = document.getElementById('banner-modo-semana');
+          const bSinSemana = document.getElementById('banner-sin-semana');
+          if (bSemana)    bSemana.style.display    = 'none';
+          if (bSinSemana) bSinSemana.style.display = 'flex';
+        }
+
         checkboxes.forEach(function(ch) {
           const bms    = ch.getAttribute('data-bms');
           const apInfo = aprobaciones.find(function(a) { return a.bmsId === bms; });
           const filaEl = document.getElementById('row-' + bms);
 
           let badges = '<span style="color:#155724;font-weight:bold;font-size:0.85rem;">✓ APROBADO</span>';
-          if (apInfo && apInfo.fueProrateado) badges += '<br><span style="color:#16a085;font-size:0.7rem;">⚙️ Prorrateado</span>';
-          if (apInfo && apInfo.tieneDisputa)  badges += '<br><span style="color:#e74c3c;font-size:0.7rem;">🚨 Con Disputa</span>';
 
-          // ⭐ Badge monto disputado
+          if (resp.semana) {
+            badges += '<br><span style="background:#dbeafe;color:#1e40af;font-size:0.7rem;'
+              + 'padding:1px 6px;border-radius:3px;font-weight:600;">📅 ' + resp.semana + '</span>';
+          }
+          if (resp.esTotalMes) {
+            badges += '<br><span style="background:#fef9c3;color:#854d0e;font-size:0.7rem;'
+              + 'padding:1px 6px;border-radius:3px;font-weight:600;">🎯 TOTAL MES</span>';
+          }
+          if (apInfo && apInfo.fueProrateado)
+            badges += '<br><span style="color:#16a085;font-size:0.7rem;">⚙️ Prorrateado</span>';
+          if (apInfo && apInfo.tieneDisputa)
+            badges += '<br><span style="color:#e74c3c;font-size:0.7rem;">🚨 Con Disputa</span>';
           if (apInfo && apInfo.tieneDisputa && apInfo.montoDisputa > 0) {
             badges += '<br><span style="color:#8e44ad;font-size:0.7rem;">💲 Disputado: $' +
               apInfo.montoDisputa.toLocaleString('es-CO', { minimumFractionDigits: 2 }) + '</span>';
           }
-
           if (apInfo && apInfo.desgloseKPIs && apInfo.desgloseKPIs.length > 0) {
             const gates        = apInfo.desgloseKPIs.filter(function(k) { return k.tipoEstructura === 'Gate'; });
             const gatesCumplen = gates.filter(function(k) { return k.estado === 'Cumple'; });
             badges += '<br><span style="color:#3498db;font-size:0.7rem;">📊 ' + apInfo.desgloseKPIs.length + ' KPIs</span>';
             if (gates.length > 0) {
               const colorGate = gatesCumplen.length === gates.length ? '#27ae60' : '#e74c3c';
-              badges += '<br><span style="color:' + colorGate + ';font-size:0.7rem;">🔒 ' + gatesCumplen.length + '/' + gates.length + ' Gates OK</span>';
+              badges += '<br><span style="color:' + colorGate + ';font-size:0.7rem;">🔒 '
+                + gatesCumplen.length + '/' + gates.length + ' Gates OK</span>';
             }
           }
-
           if (apInfo && apInfo.totalAdditional > 0) {
-            badges += '<br><span style="color:#27ae60;font-size:0.7rem;">➕ Add: $' + apInfo.totalAdditional.toLocaleString('es-CO', {minimumFractionDigits: 2}) + '</span>';
+            badges += '<br><span style="color:#27ae60;font-size:0.7rem;">➕ Add: $'
+              + apInfo.totalAdditional.toLocaleString('es-CO', { minimumFractionDigits: 2 }) + '</span>';
           }
           if (apInfo && apInfo.totalDecreased !== 0) {
-            badges += '<br><span style="color:#e74c3c;font-size:0.7rem;">➖ Dec: $' + apInfo.totalDecreased.toLocaleString('es-CO', {minimumFractionDigits: 2}) + '</span>';
+            badges += '<br><span style="color:#e74c3c;font-size:0.7rem;">➖ Dec: $'
+              + apInfo.totalDecreased.toLocaleString('es-CO', { minimumFractionDigits: 2 }) + '</span>';
           }
 
           ch.parentElement.style.background = 'linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%)';
@@ -5768,8 +6249,14 @@ function enviaraprobados() {
         if (master) master.checked = false;
 
       } else {
-        alert('❌ ERROR\n\n' + resp.error);
-        mostrarAlerta('❌ Error: ' + resp.error, 'danger');
+        // ⭐ Si el backend devuelve MES CERRADO, mostrar mensaje especial
+        if (resp.esMesCerrado) {
+          alert('🔒 MES CERRADO\n\nEste mes ya tiene las 4 semanas registradas.\nNo se pueden agregar más aprobaciones.');
+          mostrarAlerta('🔒 MES CERRADO — Las 4 semanas ya fueron registradas para esta LOB.', 'danger');
+        } else {
+          alert('❌ ERROR\n\n' + resp.error);
+          mostrarAlerta('❌ Error: ' + resp.error, 'danger');
+        }
       }
     })
     .withFailureHandler(function(err) {
@@ -5777,9 +6264,8 @@ function enviaraprobados() {
       alert('❌ ERROR DE CONEXIÓN\n\n' + err.message);
       mostrarAlerta('❌ Error: ' + err.message, 'danger');
     })
-    .guardarAprobaciones(aprobaciones);
+    .guardarAprobaciones(aprobaciones, esModoSemana);
 }
-
 
 // ========================================
 // FUNCIÓN: SELECCIONAR/DESELECCIONAR TODOS LOS APROBAR
@@ -5819,129 +6305,168 @@ function seleccionarTodosAprobar(masterCheckbox) {
 // AGREGAR AL FINAL DEL <script> EN EL HTML
 // ========================================
 
-/**
- * Valida si la LOB ya fue aprobada antes de cargar datos
- */
 function validarYCargarDatos(lob, fecha, mes) {
-            const lobActual = lob;
-            const fechaActual = fecha;
-            const mesActual = mes;
+    const lobActual   = lob;
+    const fechaActual = fecha;
+    const mesActual   = mes;
 
-            console.log(`🔍 Validando aprobación previa para ${lobActual} (${fechaActual})...`);
-            mostrarLoading('Verificando aprobaciones previas...');
+    console.log(`🔍 Validando aprobación previa para ${lobActual} (${fechaActual})...`);
+    mostrarLoading('Verificando aprobaciones previas...');
 
-            google.script.run
-                .withSuccessHandler(function (resultado) {
-                    console.log('📦 Resultado de validación:', resultado);
+    google.script.run
+        .withSuccessHandler(function(resultado) {
+            console.log('📦 Resultado de validación:', resultado);
 
-                    if (resultado.yaAprobado) {
-                        ocultarLoading();
-                        mostrarMensajeYaAprobado(resultado);
-                    } else {
-                        console.log('✅ Validación pasada - Cargando datos...');
-                        cargarDatosCompletos(lobActual, fechaActual, mesActual);
-                    }
-                })
-                .withFailureHandler(function (error) {
-                    console.error('❌ Error en validación:', error);
-                    ocultarLoading();
+            if (resultado.yaAprobado) {
+                ocultarLoading();
+                mostrarMensajeYaAprobado(resultado);
+                return;
+            }
 
-                    const continuar = confirm(
-                        '⚠️ ERROR AL VERIFICAR APROBACIONES\n\n' +
-                        'No se pudo verificar si esta LOB ya fue aprobada.\n\n' +
-                        'Detalles: ' + error.message + '\n\n' +
-                        '¿Desea continuar de todas formas?'
-                    );
+            // ⭐ Modo semana: hay semanas previas pero NO está cerrado → permitir continuar
+            if (resultado.esModoSemana) {
+                console.log(`📅 Modo semana detectado: semana actual=${resultado.semanaActual}, próxima=${resultado.proximaSemana}`);
 
-                    if (continuar) {
-                        cargarDatosCompletos(lobActual, fechaActual, mesActual);
-                    }
-                })
-                .validarAprobacionPrevia(lobActual, fechaActual, mesActual);
-        }
+                // Activar checkbox semana automáticamente
+                const chkSemana = document.getElementById('chk-semana');
+                if (chkSemana && !chkSemana.checked) {
+                    chkSemana.checked = true;
+                    if (typeof toggleModoSemana === 'function') toggleModoSemana(chkSemana);
+                }
 
+                // Mostrar banner informativo (no bloqueante)
+                mostrarAlerta(
+                    '📅 <strong>' + resultado.mensaje + '</strong>' +
+                    ' — Acumulado: <strong>' + (resultado.detalles.totalAcumulado || '') + '</strong>',
+                    'info'
+                );
+            }
 
+            // En ambos casos (sin semana o con semana parcial) → cargar datos
+            console.log('✅ Validación pasada - Cargando datos...');
+            cargarDatosCompletos(lobActual, fechaActual, mesActual);
+        })
+        .withFailureHandler(function(error) {
+            console.error('❌ Error en validación:', error);
+            ocultarLoading();
 
+            const continuar = confirm(
+                '⚠️ ERROR AL VERIFICAR APROBACIONES\n\n' +
+                'No se pudo verificar si esta LOB ya fue aprobada.\n\n' +
+                'Detalles: ' + error.message + '\n\n' +
+                '¿Desea continuar de todas formas?'
+            );
+
+            if (continuar) {
+                cargarDatosCompletos(lobActual, fechaActual, mesActual);
+            }
+        })
+        .verificarAprobacionExistente(lobActual, fechaActual, mesActual); // ⭐ cambiado a verificarAprobacionExistente
+}
 
 
 function mostrarMensajeYaAprobado(resultado) {
-  const det = resultado.detalles || {};
+    const det = resultado.detalles || {};
 
-  ['metrics-grid', 'charts-grid', 'kpi-payment-chart-container'].forEach(function(id) {
-    const el = document.getElementById(id);
-    if (el) el.style.display = 'none';
-  });
-  if (typeof limpiarExtras  === 'function') limpiarExtras();
-  if (typeof limpiarAlertas === 'function') limpiarAlertas();
+    ['metrics-grid', 'charts-grid', 'kpi-payment-chart-container'].forEach(function(id) {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+    if (typeof limpiarExtras  === 'function') limpiarExtras();
+    if (typeof limpiarAlertas === 'function') limpiarAlertas();
 
-  const container = document.getElementById('table-container');
+    const container = document.getElementById('table-container');
 
-  container.innerHTML = `
-    <div style="background:#fff3cd;border:4px solid #f39c12;border-radius:12px;
-                padding:30px;margin:20px 0;box-shadow:0 8px 25px rgba(243,156,18,0.3);">
-      <div style="text-align:center;margin-bottom:25px;">
-        <div style="font-size:4rem;">🔒</div>
-        <h2 style="color:#856404;margin:0 0 8px 0;">LOB YA APROBADA</h2>
-        <p style="color:#856404;margin:0;">Esta LOB + Mes ya fue aprobada y registrada en "Audit"</p>
-      </div>
+    // ⭐ Icono y título según tipo de bloqueo
+    const esCerrado  = resultado.esMesCerrado === true;
+    const icono      = esCerrado ? '🔒' : '⚠️';
+    const titulo     = esCerrado ? 'MES CERRADO' : 'LOB YA APROBADA';
+    const colorBorde = esCerrado ? '#e74c3c' : '#f39c12';
+    const colorBG    = esCerrado ? '#fef2f2'  : '#fff3cd';
+    const colorTexto = esCerrado ? '#7f1d1d'  : '#856404';
 
-      <div style="background:#fff;border-radius:8px;padding:25px;margin-bottom:20px;
-                  border-left:4px solid #f39c12;">
-        <h3 style="color:#856404;margin:0 0 20px 0;">📋 Detalles del Registro</h3>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:15px;">
-          <div>
-            <div style="font-size:0.8rem;color:#856404;font-weight:600;margin-bottom:4px;">LOB</div>
-            <div style="font-size:1.1rem;font-weight:600;">${det.lob || 'N/A'}</div>
-          </div>
-          <div>
-            <div style="font-size:0.8rem;color:#856404;font-weight:600;margin-bottom:4px;">Mes CDM</div>
-            <div style="font-size:1.1rem;font-weight:600;">${det.mes || 'N/A'}</div>
-          </div>
-          <div>
-            <div style="font-size:0.8rem;color:#856404;font-weight:600;margin-bottom:4px;">Agentes Aprobados</div>
-            <div style="font-size:2rem;color:#3498db;font-weight:700;">${det.agentes || '?'}</div>
-          </div>
-          <div>
-            <div style="font-size:0.8rem;color:#856404;font-weight:600;margin-bottom:4px;">💰 Total LOB (completo)</div>
-            <div style="font-size:2rem;color:#27ae60;font-weight:700;">${det.total || '$0'}</div>
-          </div>
-          <div>
-            <div style="font-size:0.8rem;color:#856404;font-weight:600;margin-bottom:4px;">Fecha de Aprobación</div>
-            <div>${det.fechaAprobacion || 'N/A'}</div>
-          </div>
-          <div>
-            <div style="font-size:0.8rem;color:#856404;font-weight:600;margin-bottom:4px;">Aprobado por</div>
-            <div style="font-weight:600;">${det.usuario || 'N/A'}</div>
-          </div>
+    // ⭐ Info de semanas si aplica
+    const semanasHTML = det.semanasInfo
+        ? `<p style="margin:4px 0;color:#555;">📅 Estado semanas: <strong>${det.semanasInfo}</strong></p>`
+        : '';
+
+    container.innerHTML = `
+        <div style="background:${colorBG};border:4px solid ${colorBorde};border-radius:12px;
+                    padding:30px;margin:20px 0;box-shadow:0 8px 25px rgba(0,0,0,0.15);">
+            <div style="text-align:center;margin-bottom:25px;">
+                <div style="font-size:4rem;">${icono}</div>
+                <h2 style="color:${colorTexto};margin:0 0 8px 0;">${titulo}</h2>
+                <p style="color:${colorTexto};margin:0;">
+                    ${esCerrado
+                        ? 'Las 4 semanas fueron registradas y el TOTAL MES fue calculado.'
+                        : 'Esta LOB + Mes ya fue aprobada y registrada en "Audit"'}
+                </p>
+            </div>
+
+            <div style="background:#fff;border-radius:8px;padding:25px;margin-bottom:20px;
+                        border-left:4px solid ${colorBorde};">
+                <h3 style="color:${colorTexto};margin:0 0 20px 0;">📋 Detalles del Registro</h3>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:15px;">
+                    <div>
+                        <div style="font-size:0.8rem;color:${colorTexto};font-weight:600;margin-bottom:4px;">LOB</div>
+                        <div style="font-size:1.1rem;font-weight:600;">${det.lob || 'N/A'}</div>
+                    </div>
+                    <div>
+                        <div style="font-size:0.8rem;color:${colorTexto};font-weight:600;margin-bottom:4px;">Mes CDM</div>
+                        <div style="font-size:1.1rem;font-weight:600;">${det.mes || 'N/A'}</div>
+                    </div>
+                    <div>
+                        <div style="font-size:0.8rem;color:${colorTexto};font-weight:600;margin-bottom:4px;">Agentes Aprobados</div>
+                        <div style="font-size:2rem;color:#3498db;font-weight:700;">${det.agentes || '?'}</div>
+                    </div>
+                    <div>
+                        <div style="font-size:0.8rem;color:${colorTexto};font-weight:600;margin-bottom:4px;">💰 Total LOB</div>
+                        <div style="font-size:2rem;color:#27ae60;font-weight:700;">${det.total || det.totalAcumulado || '$0'}</div>
+                    </div>
+                    ${det.fechaAprobacion ? `
+                    <div>
+                        <div style="font-size:0.8rem;color:${colorTexto};font-weight:600;margin-bottom:4px;">Fecha de Aprobación</div>
+                        <div>${det.fechaAprobacion}</div>
+                    </div>` : ''}
+                    ${det.usuario ? `
+                    <div>
+                        <div style="font-size:0.8rem;color:${colorTexto};font-weight:600;margin-bottom:4px;">Aprobado por</div>
+                        <div style="font-weight:600;">${det.usuario}</div>
+                    </div>` : ''}
+                </div>
+            </div>
+
+            <div style="background:#fff;border-radius:8px;padding:20px;border-left:4px solid #e67e22;">
+                <h4 style="margin:0 0 12px 0;color:${colorTexto};">🔍 ¿Qué puedes hacer?</h4>
+                ${semanasHTML}
+                <p style="margin:4px 0;color:#555;">✅ Ver detalle en la hoja <strong>Audit</strong>${det.fila ? ' (desde fila ' + det.fila + ')' : ''}</p>
+                ${esCerrado
+                    ? '<p style="margin:4px 0;color:#555;">🔒 Para reabrir: elimina las filas <strong>TOTAL_MES</strong> y las 4 semanas en Audit</p>'
+                    : '<p style="margin:4px 0;color:#555;">✅ Para corregir: elimina las filas en Audit y vuelve a aprobar</p>'
+                }
+                <p style="margin:4px 0;color:#555;">✅ Selecciona otra <strong>LOB</strong> o <strong>Mes</strong> para nueva aprobación</p>
+            </div>
+
+            <div style="text-align:center;margin-top:25px;">
+                <button onclick="location.reload()"
+                    style="padding:14px 40px;font-size:1rem;background:#e67e22;color:#fff;
+                           border:none;border-radius:8px;cursor:pointer;font-weight:600;">
+                    🔄 Seleccionar Otra LOB / Fecha
+                </button>
+            </div>
         </div>
-      </div>
+    `;
+    container.style.display = 'block';
 
-      <div style="background:#fff;border-radius:8px;padding:20px;border-left:4px solid #e67e22;">
-        <h4 style="margin:0 0 12px 0;color:#856404;">🔍 ¿Qué puedes hacer?</h4>
-        <p style="margin:4px 0;color:#555;">✅ Ver detalle en la hoja <strong>Audit</strong> (desde fila ${det.fila || 'N/A'})</p>
-        <p style="margin:4px 0;color:#555;">✅ Para corregir: elimina las filas en Audit y vuelve a aprobar</p>
-        <p style="margin:4px 0;color:#555;">✅ Selecciona otra <strong>LOB</strong> o <strong>Mes</strong> para nueva aprobación</p>
-      </div>
+    // ⭐ Alerta según tipo
+    const alertMsg = esCerrado
+        ? '🔒 <strong>MES CERRADO:</strong> Las 4 semanas fueron registradas. Total acumulado: <strong>' + (det.total || det.totalAcumulado || '$0') + '</strong>'
+        : '🔒 <strong>LOB BLOQUEADA:</strong> Aprobada el ' + (det.fechaAprobacion || '') +
+          ' por <strong>' + (det.usuario || '') + '</strong>. Total: <strong>' + (det.total || '') +
+          '</strong>' + (det.agentes ? ' (' + det.agentes + ' agentes).' : '.');
 
-      <div style="text-align:center;margin-top:25px;">
-        <button onclick="location.reload()"
-          style="padding:14px 40px;font-size:1rem;background:#e67e22;color:#fff;
-                 border:none;border-radius:8px;cursor:pointer;font-weight:600;">
-          🔄 Seleccionar Otra LOB / Fecha
-        </button>
-      </div>
-    </div>
-  `;
-  container.style.display = 'block';
-
-  mostrarAlerta(
-    '🔒 <strong>LOB BLOQUEADA:</strong> Aprobada el ' + det.fechaAprobacion +
-    ' por <strong>' + det.usuario + '</strong>. Total: <strong>' + det.total +
-    '</strong> (' + det.agentes + ' agentes).',
-    'warning'
-  );
+    mostrarAlerta(alertMsg, esCerrado ? 'danger' : 'warning');
 }
-
 
 
 
@@ -7214,7 +7739,1118 @@ document.addEventListener('keydown', function(e) {
 
 console.log('✅ Sistema de Disputas con Modal y Cache cargado');
 
+///////////////////////////////////////////7--- SIMULACION BONO 
+
+ var simDatosActuales = null;
+var simChartSim = null;
+
+function abrirModalSimular() {
+  var modal = document.getElementById('modal-simular');
+  if (!modal) { alert('modal-simular no encontrado'); return; }
+  modal.style.display = 'flex';
+
+  var selLob = document.getElementById('sim-select-lob');
+  selLob.innerHTML = '<option value="">Selecciona una LOB</option>';
+
+  var lobsOrigen = [];
+  if (typeof datos !== 'undefined' && datos && datos.todasLasLobs && datos.todasLasLobs.length) {
+    lobsOrigen = datos.todasLasLobs;
+  } else {
+    var mainSel = document.getElementById('selectLob');
+    if (mainSel) {
+      for (var i = 0; i < mainSel.options.length; i++) {
+        if (mainSel.options[i].value) lobsOrigen.push(mainSel.options[i].value);
+      }
+    }
+  }
+
+  for (var i = 0; i < lobsOrigen.length; i++) {
+    var opt = document.createElement('option');
+    opt.value = lobsOrigen[i];
+    opt.textContent = lobsOrigen[i];
+    selLob.appendChild(opt);
+  }
+
+  var mainLob = document.getElementById('selectLob');
+  if (mainLob && mainLob.value) {
+    selLob.value = mainLob.value;
+    simOnChangeLob();
+  }
+
+  simLimpiarResultado();
+
+  modal.onclick = function(e) {
+    if (e.target === modal) cerrarModalSimular();
+  };
+}
+
+function cerrarModalSimular() {
+  var modal = document.getElementById('modal-simular');
+  if (modal) modal.style.display = 'none';
+}
+
+function simOnChangeLob() {
+  var lob = document.getElementById('sim-select-lob').value;
+  var selFec = document.getElementById('sim-select-fecha');
+  var selMes = document.getElementById('sim-select-mes');
+
+  selFec.innerHTML = '<option value="">Cargando fechas...</option>';
+  selFec.disabled = true;
+  selMes.innerHTML = '<option value="">Primero selecciona fecha</option>';
+  selMes.disabled = true;
+  simLimpiarResultado();
+
+  if (!lob) return;
+
+  google.script.run
+    .withSuccessHandler(function(fechas) {
+      selFec.innerHTML = '<option value="">Selecciona una fecha</option>';
+      var arr = fechas || [];
+      for (var i = 0; i < arr.length; i++) {
+        var o = document.createElement('option');
+        o.value = arr[i];
+        o.textContent = arr[i];
+        selFec.appendChild(o);
+      }
+      selFec.disabled = false;
+
+      var fa = document.getElementById('selectFechas');
+      if (fa && fa.value) {
+        selFec.value = fa.value;
+        simOnChangeFecha();
+      }
+    })
+    .withFailureHandler(function(err) {
+      selFec.innerHTML = '<option value="">Error al cargar fechas</option>';
+      console.error('simOnChangeLob error:', err);
+    })
+    .obtenerFechasPorLob(lob);
+}
+
+function simOnChangeFecha() {
+  var selMes = document.getElementById('sim-select-mes');
+  selMes.innerHTML = '<option value="">Cargando meses CDM...</option>';
+  selMes.disabled = true;
+  simLimpiarResultado();
+
+  google.script.run
+    .withSuccessHandler(function(meses) {
+      selMes.innerHTML = '<option value="">CDM General</option>';
+      var arr = meses || [];
+      for (var i = 0; i < arr.length; i++) {
+        var o = document.createElement('option');
+        o.value = arr[i].numero;
+        o.textContent = arr[i].nombre;
+        selMes.appendChild(o);
+      }
+      selMes.disabled = false;
+
+      var ma = document.getElementById('selectMesComparativo');
+      if (ma && ma.value) selMes.value = ma.value;
+    })
+    .withFailureHandler(function(err) {
+      selMes.innerHTML = '<option value="">Error</option>';
+      console.error('simOnChangeFecha error:', err);
+    })
+    .obtenerMesesCDMDisponibles();
+}
+
+function ejecutarSimulacion() {
+  var lob   = document.getElementById('sim-select-lob').value;
+  var fecha = document.getElementById('sim-select-fecha').value;
+  var mesEl = document.getElementById('sim-select-mes').value;
+  var mes   = mesEl ? parseInt(mesEl, 10) : null;
+
+  if (!lob || !fecha) {
+    simMostrarError('Selecciona LOB y Fecha antes de simular.');
+    return;
+  }
+
+  simLimpiarResultado();
+  simMostrarLoading('Calculando bonos para ' + lob + '...');
+
+  var btn = document.getElementById('btn-ejecutar-sim');
+  if (btn) btn.disabled = true;
+
+  console.log('%c🚀 SIMULACIÓN INICIADA - DIAGNÓSTICO DETALLADO PARA 5051677', 
+    'color:#c026d3; font-size:15px; font-weight:bold');
+
+  google.script.run
+    .withSuccessHandler(function(resultado) {
+      if (btn) btn.disabled = false;
+      simOcultarLoading();
+
+      if (!resultado || resultado.error) {
+        simMostrarError('Error: ' + (resultado ? resultado.error : 'Respuesta vacía'));
+        return;
+      }
+
+      // ==================== DIAGNÓSTICO ESPECÍFICO PARA 5051677 ====================
+      console.log('%c🔍 DIAGNÓSTICO DETALLADO - AGENTE 5051677 (CCMS ID)', 
+        'color:#e11d48; font-size:16px; font-weight:bold; background:#1f2937; padding:4px 8px; border-radius:4px;');
+
+      const agente = resultado.resumenAgentes ? resultado.resumenAgentes['5051677'] : null;
+
+      if (!agente) {
+        console.log('❌ Agente 5051677 NO encontrado en resumenAgentes');
+        console.table(resultado.resumenAgentes ? Object.keys(resultado.resumenAgentes) : []);
+      } else {
+        console.log(`Nombre: ${agente.nombre}`);
+        console.log(`BMS / CCMS ID: 5051677`);
+        console.log(`Bono Final Total: $${(agente.bonoFinal || 0).toFixed(2)}`);
+        console.log(`Bloqueado por Key: ${agente.bloqueadoPorKey ? 'SÍ' : 'NO'}`);
+
+        // Detalle por KPI
+        console.log('%c📋 DETALLE POR KPI (incluyendo Decreased):', 'color:#eab308; font-weight:bold');
+
+        if (agente.detalle && agente.detalle.length > 0) {
+          agente.detalle.forEach((kpi, index) => {
+            const bono = parseFloat(kpi.bono) || 0;
+            const esDecrease = kpi.categoria === 'decreasedKPIs' || kpi.categoria?.toLowerCase().includes('decrease');
+
+            console.log(
+              `%c${index+1}. ${kpi.kpi} | ${kpi.categoria || '—'} | ` +
+              `Cumple: ${kpi.cumple ? '✅' : '❌'} | ` +
+              `Sin Datos: ${kpi.sinDatos ? '⚠️' : '—'} | ` +
+              `Bono: ${esDecrease && bono !== 0 ? '-' : ''}$${Math.abs(bono).toFixed(2)}`,
+              esDecrease ? 'color:#e11d48; font-weight:600' : 'color:#64748b'
+            );
+          });
+        } else {
+          console.log('⚠️ No hay detalle de KPIs para este agente');
+        }
+      }
+
+      // Total general de la simulación
+      console.log('%c📊 TOTAL GENERAL DE LA SIMULACIÓN', 'color:#16a34a; font-weight:bold');
+      console.log(`Total calculado por backend: $${(resultado.totales?.totalGeneral || 0).toFixed(2)}`);
+
+      simDatosActuales = resultado;
+      simRenderizarResultado(resultado);
+    })
+    .withFailureHandler(function(err) {
+      if (btn) btn.disabled = false;
+      simOcultarLoading();
+      simMostrarError('Error de conexión: ' + err.message);
+    })
+    .simularBonos(lob, fecha, mes);
+}
+
+function simRenderizarResultado(r) {
+  if (!r || !r.totales || !r.resumenAgentes || !r.metricasPorLob) {
+    simMostrarError('Datos incompletos del servidor.');
+    console.error('simRenderizarResultado datos incompletos:', r);
+    return;
+  }
+  if (!r.metricasPorLob[r.lob]) {
+    simMostrarError('Sin metricas para LOB: ' + r.lob);
+    return;
+  }
+  document.getElementById('sim-resultado').style.display = 'block';
+  simRenderCards(r);
+  simRenderTop(r);
+  simRenderTabla(r);
+  simRenderGraficoSim(r);
+}
+
+function simFmt(n) {
+  return '$' + (n || 0).toLocaleString('es-CO', { minimumFractionDigits: 0 });
+}
+
+function simRenderCards(r) {
+    if (!r.resumenAgentes) return;
+ 
+    // ⭐ Calcular totales directamente desde resumenAgentes
+    // (misma fuente que usa simRenderTabla → totales siempre coinciden)
+    var totalGeneral  = 0;
+    var totalAgentes  = 0;
+    var agentesConBono = 0;
+    var bloqueadosGate = 0;
+    var bloqueadosKey  = 0;
+ 
+    Object.values(r.resumenAgentes).forEach(function(ag) {
+        totalGeneral += ag.bonoFinal || 0;
+        totalAgentes++;
+        if ((ag.bonoFinal || 0) > 0) agentesConBono++;
+        if (ag.bloqueadoPorGate) bloqueadosGate++;
+        if (ag.bloqueadoPorKey)  bloqueadosKey++;
+    });
+ 
+    var sinBono = totalAgentes - agentesConBono;
+ 
+    var html =
+        '<div class="sim-card sim-card--green">' +
+            '<div class="sim-card-icon">&#x1F4B0;</div>' +
+            '<div class="sim-card-label">Total Bonos</div>' +
+            '<div class="sim-card-value">' + simFmt(totalGeneral) + '</div>' +
+            '<div class="sim-card-sub">Suma total (Gate ajustado)</div>' +
+        '</div>' +
+        '<div class="sim-card sim-card--blue">' +
+            '<div class="sim-card-icon">&#x1F465;</div>' +
+            '<div class="sim-card-label">Total Agentes</div>' +
+            '<div class="sim-card-value">' + totalAgentes + '</div>' +
+            '<div class="sim-card-sub">' + agentesConBono + ' con bono</div>' +
+        '</div>' +
+        '<div class="sim-card sim-card--amber">' +
+            '<div class="sim-card-icon">&#x1F4CA;</div>' +
+            '<div class="sim-card-label">Promedio Bono</div>' +
+            '<div class="sim-card-value">' +
+                simFmt(totalAgentes > 0 ? totalGeneral / totalAgentes : 0) +
+            '</div>' +
+            '<div class="sim-card-sub">Por agente</div>' +
+        '</div>' +
+        '<div class="sim-card sim-card--rose">' +
+            '<div class="sim-card-icon">&#x1F512;</div>' +
+            '<div class="sim-card-label">Sin Bono</div>' +
+            '<div class="sim-card-value">' + sinBono + '</div>' +
+            '<div class="sim-card-sub">' +
+                (bloqueadosGate > 0 ? bloqueadosGate + ' Gate | ' : '') +
+                (bloqueadosKey  > 0 ? bloqueadosKey  + ' Key | '  : '') +
+                (sinBono - bloqueadosGate - bloqueadosKey > 0
+                    ? (sinBono - bloqueadosGate - bloqueadosKey) + ' sin datos' : '') +
+            '</div>' +
+        '</div>';
+ 
+    document.getElementById('sim-cards-grid').innerHTML = html;
+}
+ 
+
+function simRenderTop(r) {
+  if (!r.resumenAgentes) return;
+  var todos = Object.values(r.resumenAgentes);
+  todos.sort(function(a, b) { return b.bonoFinal - a.bonoFinal; });
+  var top = todos.slice(0, 10);
+  var medallas = ['&#x1F947;', '&#x1F948;', '&#x1F949;'];
+  var html = '';
+  for (var i = 0; i < top.length; i++) {
+    var ag = top[i];
+    var rankCls = i < 3 ? 'sim-top-rank sim-top-rank-' + (i + 1) : 'sim-top-rank';
+    var icono = i < 3 ? medallas[i] : (i + 1);
+    var nombre = (ag.nombre || '').split(',')[0];
+    html +=
+      '<div class="sim-top-item">' +
+        '<div class="' + rankCls + '">' + icono + '</div>' +
+        '<div>' +
+          '<div class="sim-top-nombre">' + nombre + '</div>' +
+          '<div class="sim-top-bms">BMS ' + ag.bmsId + ' - ' + (ag.rol || '') + '</div>' +
+        '</div>' +
+        '<div class="sim-top-bono">' + simFmt(ag.bonoFinal) + '</div>' +
+      '</div>';
+  }
+  document.getElementById('sim-top-list').innerHTML = html;
+}
+
+
+// ============================================================
+// FIX TOTAL GENERAL — simRenderTabla + simRenderCards
+// El backend calcula ag.bonoFinal mal cuando Gate falla
+// (porque esGate no se propaga al detalle).
+// Solución: recalcular el total visual usando el gate detectado
+// localmente en el frontend, igual que hacemos con las celdas.
+// ============================================================
+
+function simRenderTabla(r) {
+    if (!r.resumenAgentes || !r.metricasPorLob || !r.metricasPorLob[r.lob]) return;
+
+    var agentes = Object.values(r.resumenAgentes);
+    agentes.sort(function(a, b) { return b.bonoFinal - a.bonoFinal; });
+
+    var cats      = ['keys', 'bonusStructure', 'additionalIncentives', 'decreasedKPIs'];
+    var catLabels = { keys: 'Key', bonusStructure: 'Bonus',
+                     additionalIncentives: 'Add.', decreasedKPIs: 'Dec.' };
+    var catColors = { keys: '#60a5fa', bonusStructure: '#4ade80',
+                     additionalIncentives: '#fbbf24', decreasedKPIs: '#fb7185' };
+
+    // ── KPIs únicos con esGate ───────────────────────────────
+    var kpisUnicos = [];
+    var kpiSet     = {};
+    for (var ci = 0; ci < cats.length; ci++) {
+        var cat     = cats[ci];
+        var kpiList = (r.metricasPorLob[r.lob][cat]) || [];
+        for (var ki = 0; ki < kpiList.length; ki++) {
+            var k = kpiList[ki];
+            if (!kpiSet[k.kpi]) {
+                kpiSet[k.kpi] = true;
+                kpisUnicos.push({ kpi: k.kpi, cat: cat, esGate: k.esGate === true });
+            }
+        }
+    }
+
+    // ── THEAD ────────────────────────────────────────────────
+    var thHTML = '<tr><th>#</th><th>CCMS ID</th><th>Nombre</th><th>Rol</th>' +
+                 '<th style="text-align:right">Horas</th>';
+    for (var ki = 0; ki < kpisUnicos.length; ki++) {
+        var kk = kpisUnicos[ki];
+        var gateTag = kk.esGate
+            ? ' <span style="font-size:.55rem;background:#7f1d1d;color:#fca5a5;padding:1px 5px;border-radius:3px;font-weight:700;">GATE</span>'
+            : '';
+        thHTML += '<th style="color:' + catColors[kk.cat] + ';text-align:center;min-width:100px">' +
+                  kk.kpi + gateTag +
+                  '<br><span style="font-size:.6rem;color:#6e7681">' + catLabels[kk.cat] + '</span></th>';
+    }
+    thHTML += '<th style="text-align:right">Total $</th><th style="text-align:center">Estado</th></tr>';
+    document.getElementById('sim-thead').innerHTML = thHTML;
+
+    // ── TBODY ────────────────────────────────────────────────
+    var tbHTML   = '';
+    var totalGen = 0;   // ⭐ se acumula CON la corrección de gate local
+    var agentesConBono   = 0;
+    var bloqueadosGateCnt = 0;
+    var bloqueadosKeyCnt  = 0;
+
+    for (var ai = 0; ai < agentes.length; ai++) {
+        var ag = agentes[ai];
+
+        // ── detalleMap ───────────────────────────────────────
+        var detalleMap = {};
+        var det = ag.detalle || [];
+        for (var di = 0; di < det.length; di++) {
+            var nameKey = det[di].kpiName || det[di].kpiNombre || det[di].kpi || '';
+            if (nameKey) detalleMap[nameKey] = det[di];
+        }
+
+        // ⭐ Calcular gate failure LOCALMENTE
+        var hayGateFallido = false;
+        for (var gi = 0; gi < kpisUnicos.length; gi++) {
+            var gk = kpisUnicos[gi];
+            if (!gk.esGate) continue;
+            if (gk.cat !== 'bonusStructure' && gk.cat !== 'additionalIncentives') continue;
+            var gd = detalleMap[gk.kpi];
+            if (gd && !gd.sinDatos && !gd.cumple) { hayGateFallido = true; break; }
+        }
+
+        var bloqueadoPorGate = hayGateFallido || ag.bloqueadoPorGate;
+        var bloqueadoPorKey  = ag.bloqueadoPorKey;
+
+        // ⭐ Calcular el bono visual correcto para este agente
+        // Si gate falla → 0; si key falla → 0; si no → bonoFinal del backend
+        var bonoVisual;
+        if (bloqueadoPorGate || bloqueadoPorKey) {
+            bonoVisual = 0;
+        } else {
+            bonoVisual = ag.bonoFinal || 0;
+        }
+
+        // ⭐ Acumular en el total general CON la corrección
+        totalGen += bonoVisual;
+        if (bonoVisual > 0) agentesConBono++;
+        if (bloqueadoPorGate) bloqueadosGateCnt++;
+        if (bloqueadoPorKey)  bloqueadosKeyCnt++;
+
+        // ── Celdas KPI ───────────────────────────────────────
+        var celdas = '';
+        for (var ki = 0; ki < kpisUnicos.length; ki++) {
+            var kk = kpisUnicos[ki];
+            var d  = detalleMap[kk.kpi];
+
+            if (!d) {
+                celdas += '<td style="text-align:center;color:#4b5563;font-size:.72rem">-</td>';
+                continue;
+            }
+            if (d.sinDatos) {
+                celdas += '<td style="text-align:center;color:#4b5563;font-size:.72rem">sin datos</td>';
+                continue;
+            }
+
+            var stateColor = d.cumple ? '#4ade80' : '#fb7185';
+            var stateIcon  = d.cumple ? 'OK' : 'X';
+            var tdBg = '';
+            var bonStr;
+
+            if (kk.esGate && !d.cumple) {
+                stateColor = '#f87171';
+                tdBg  = 'background:#2d0d0d;';
+                bonStr = '<span style="background:#450a0a;color:#fca5a5;font-size:.6rem;padding:2px 6px;border-radius:4px;font-weight:700;">🔒 Gate ✗</span>';
+
+            } else if (kk.esGate && d.cumple) {
+                tdBg  = 'background:#0d2d1a;';
+                bonStr = '<span style="background:#14532d;color:#86efac;font-size:.6rem;padding:2px 6px;border-radius:4px;font-weight:700;">🔒 Gate ✓</span>' +
+                         '<br><span style="font-size:.68rem;color:#4ade80;">' + simFmt(d.bono) + '</span>';
+
+            } else if (bloqueadoPorGate && d.cumple && kk.cat !== 'decreasedKPIs') {
+                stateColor = '#6b7280';
+                tdBg  = 'background:#1a1a1a;';
+                bonStr = '<span style="text-decoration:line-through;color:#6b7280;font-size:.72rem;">' + simFmt(d.bono) + '</span>' +
+                         '<br><span style="color:#f87171;font-size:.62rem;font-weight:700;">🔒 $0</span>';
+
+            } else if (d.cumple) {
+                bonStr = simFmt(d.bono);
+            } else {
+                bonStr = '<span style="color:#6b7280">$0</span>';
+            }
+
+            celdas += '<td style="text-align:center;' + tdBg + '">' +
+                          '<span style="color:' + stateColor + ';font-weight:600;">' + stateIcon + '</span>' +
+                          '<br><span style="font-size:.72rem;color:#8b949e">' + bonStr + '</span>' +
+                      '</td>';
+        }
+
+        // ── Badges ───────────────────────────────────────────
+        var bloqBadge = '';
+        if (bloqueadoPorKey)  bloqBadge += '<span class="sim-badge-blq">⚠ Bloq. Key</span>';
+        if (bloqueadoPorGate) bloqBadge += '<span class="sim-badge-blq" style="background:#7f1d1d;color:#fca5a5;border-color:#b91c1c;margin-left:4px;">🔒 Gate ✗</span>';
+
+        // ── Total de la fila ──────────────────────────────────
+        var bonClass, totalStr;
+        if (bloqueadoPorGate) {
+            bonClass  = 'sim-td-bloq';
+            totalStr  = simFmt(0) +
+                        '<br><span style="color:#f87171;font-size:.62rem;font-weight:600;">No bonifica — Gate ✗</span>';
+        } else if (bloqueadoPorKey) {
+            bonClass  = 'sim-td-bloq';
+            totalStr  = simFmt(0) +
+                        '<br><span style="color:#fb923c;font-size:.62rem;font-weight:600;">Bloqueado por Key</span>';
+        } else {
+            bonClass  = bonoVisual > 0 ? 'sim-td-bono' : 'sim-td-zero';
+            totalStr  = simFmt(bonoVisual);
+        }
+
+        var nombre = (ag.nombre || '').split(',')[0];
+
+        tbHTML +=
+            '<tr data-nombre="' + ag.nombre.toLowerCase() + '" data-bms="' + ag.bmsId + '">' +
+                '<td style="color:#6e7681">' + (ai + 1) + '</td>' +
+                '<td style="color:#8b949e">' + ag.bmsId + '</td>' +
+                '<td style="font-weight:600">' + nombre + '</td>' +
+                '<td><span class="sim-badge-rol">' + (ag.rol || '') + '</span></td>' +
+                '<td style="text-align:right;color:#8b949e">' + (ag.horasSemanales || 0) + 'h</td>' +
+                celdas +
+                '<td class="' + bonClass + '">' + totalStr + '</td>' +
+                '<td style="text-align:center">' + bloqBadge + '</td>' +
+            '</tr>';
+    }
+
+    // ── Fila TOTAL GENERAL ───────────────────────────────────
+    var colsBefore = 5 + kpisUnicos.length;
+    tbHTML +=
+        '<tr style="border-top:2px solid #21262d">' +
+            '<td colspan="' + colsBefore + '" style="text-align:right;font-weight:700;color:#8b949e;padding:14px;">TOTAL GENERAL:</td>' +
+            '<td style="text-align:right;font-weight:800;font-size:1.1rem;color:#4ade80;">' + simFmt(totalGen) + '</td>' +
+            '<td></td>' +
+        '</tr>';
+
+    document.getElementById('sim-tbody').innerHTML = tbHTML;
+
+    // ⭐ Actualizar las cards con los mismos totales corregidos
+    _simActualizarCards(r, totalGen, agentes.length, agentesConBono, bloqueadosGateCnt, bloqueadosKeyCnt);
+}
+
+
+// ── Actualizar cards con totales corregidos por gate local ───
+function _simActualizarCards(r, totalGenCorregido, totalAgentes, agentesConBono, bloqueadosGate, bloqueadosKey) {
+    var sinBono  = totalAgentes - agentesConBono;
+    var promedio = totalAgentes > 0 ? totalGenCorregido / totalAgentes : 0;
+
+    var html =
+        '<div class="sim-card sim-card--green">' +
+            '<div class="sim-card-icon">&#x1F4B0;</div>' +
+            '<div class="sim-card-label">Total Bonos</div>' +
+            '<div class="sim-card-value">' + simFmt(totalGenCorregido) + '</div>' +
+            '<div class="sim-card-sub">Gate y Key ajustados</div>' +
+        '</div>' +
+        '<div class="sim-card sim-card--blue">' +
+            '<div class="sim-card-icon">&#x1F465;</div>' +
+            '<div class="sim-card-label">Total Agentes</div>' +
+            '<div class="sim-card-value">' + totalAgentes + '</div>' +
+            '<div class="sim-card-sub">' + agentesConBono + ' con bono</div>' +
+        '</div>' +
+        '<div class="sim-card sim-card--amber">' +
+            '<div class="sim-card-icon">&#x1F4CA;</div>' +
+            '<div class="sim-card-label">Promedio Bono</div>' +
+            '<div class="sim-card-value">' + simFmt(promedio) + '</div>' +
+            '<div class="sim-card-sub">Por agente</div>' +
+        '</div>' +
+        '<div class="sim-card sim-card--rose">' +
+            '<div class="sim-card-icon">&#x1F512;</div>' +
+            '<div class="sim-card-label">Sin Bono</div>' +
+            '<div class="sim-card-value">' + sinBono + '</div>' +
+            '<div class="sim-card-sub">' +
+                (bloqueadosGate > 0 ? bloqueadosGate + ' Gate | ' : '') +
+                (bloqueadosKey  > 0 ? bloqueadosKey  + ' Key | '  : '') +
+                (sinBono - bloqueadosGate - bloqueadosKey > 0
+                    ? (sinBono - bloqueadosGate - bloqueadosKey) + ' sin datos' : '') +
+            '</div>' +
+        '</div>';
+
+    var el = document.getElementById('sim-cards-grid');
+    if (el) el.innerHTML = html;
+}
+
+
+ 
+
+function simRenderGraficoSim(r) {
+  if (!r.resumenAgentes) return;
+  var todos = Object.values(r.resumenAgentes);
+  todos.sort(function(a, b) { return b.bonoFinal - a.bonoFinal; });
+  var agentes = todos.slice(0, 20);
+
+  var labels = [];
+  var values = [];
+  var colors = [];
+  for (var i = 0; i < agentes.length; i++) {
+    var ag = agentes[i];
+    labels.push((ag.nombre || '').split(',')[0].trim().split(' ')[0]);
+    values.push(ag.bonoFinal);
+    colors.push((ag.bonoFinal <= 0 || ag.bloqueadoPorKey)
+      ? 'rgba(251,113,133,0.7)' : 'rgba(74,222,128,0.8)');
+  }
+
+  var ctx = document.getElementById('sim-chart-barras');
+  if (!ctx) return;
+  if (simChartSim) { simChartSim.destroy(); simChartSim = null; }
+
+  var borderColors = [];
+  for (var i = 0; i < colors.length; i++) {
+    borderColors.push(colors[i].replace('0.7', '1').replace('0.8', '1'));
+  }
+
+  simChartSim = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Bono ($)',
+        data: values,
+        backgroundColor: colors,
+        borderColor: borderColors,
+        borderWidth: 1,
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(c) {
+              return '$' + c.parsed.y.toLocaleString('es-CO', { minimumFractionDigits: 0 });
+            }
+          },
+          backgroundColor: '#1c2128',
+          borderColor: '#30363d',
+          borderWidth: 1,
+          titleColor: '#e6edf3',
+          bodyColor: '#8b949e'
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#6e7681', font: { size: 10 } }, grid: { color: '#21262d' } },
+        y: {
+          ticks: {
+            color: '#6e7681',
+            callback: function(v) { return '$' + v.toLocaleString('es-CO'); }
+          },
+          grid: { color: '#21262d' }
+        }
+      }
+    }
+  });
+}
+
+function simFiltrarTabla() {
+  var q = document.getElementById('sim-search').value.toLowerCase();
+  var rows = document.querySelectorAll('#sim-tbody tr[data-nombre]');
+  for (var i = 0; i < rows.length; i++) {
+    var nombre = rows[i].getAttribute('data-nombre') || '';
+    var bms    = rows[i].getAttribute('data-bms')    || '';
+    rows[i].style.display = (!q || nombre.indexOf(q) !== -1 || bms.indexOf(q) !== -1) ? '' : 'none';
+  }
+}
+
+function simMostrarLoading(txt) {
+  document.getElementById('sim-loading').style.display = 'flex';
+  document.getElementById('sim-loading-txt').textContent = txt || 'Calculando...';
+  document.getElementById('sim-error').style.display     = 'none';
+  document.getElementById('sim-resultado').style.display = 'none';
+}
+
+function simOcultarLoading() {
+  document.getElementById('sim-loading').style.display = 'none';
+}
+
+function simMostrarError(msg) {
+  var el = document.getElementById('sim-error');
+  if (!el) return;
+  el.innerHTML = msg;
+  el.style.display = 'block';
+  simOcultarLoading();
+}
+
+function simLimpiarResultado() {
+  var ocultar = ['sim-resultado', 'sim-error', 'sim-loading'];
+  for (var i = 0; i < ocultar.length; i++) {
+    var el = document.getElementById(ocultar[i]);
+    if (el) el.style.display = 'none';
+  }
+  var limpiar = ['sim-cards-grid', 'sim-top-list', 'sim-thead', 'sim-tbody'];
+  for (var i = 0; i < limpiar.length; i++) {
+    var el = document.getElementById(limpiar[i]);
+    if (el) el.innerHTML = '';
+  }
+  if (simChartSim) { simChartSim.destroy(); simChartSim = null; }
+  simDatosActuales = null;
+}
+
+
+// ══════════════════════════════════════════════════════════════
+//  FRONTEND FICHA AGENTE
+//  Usa fichaKPIPorLob() del GS (ficha_kpi_gs.js)
+// ══════════════════════════════════════════════════════════════
+ 
+var fkaDatos     = null;
+var fkaExpandAll = false;
+ 
+// ── Formato moneda ─────────────────────────────────────────
+function fkaFmt(n) {
+  n = parseFloat(n) || 0;
+  return '$' + n.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+function fkaFmtDec(n) {
+  n = parseFloat(n) || 0;
+  return '$' + n.toLocaleString('es-CO', { minimumFractionDigits: 2 });
+}
+function fkaIni(nombre) {
+  var p = (nombre || '').split(/[\s,]+/).filter(Boolean);
+  return ((p[0] || '')[0] || '') + ((p[1] || '')[0] || '');
+}
+ 
+// ── ABRIR / CERRAR ─────────────────────────────────────────
+function abrirFichaAgente() {
+  var modal = document.getElementById('modal-ficha-agente');
+  if (!modal) { console.error('modal-ficha-agente no existe'); return; }
+  modal.classList.add('fka-open');
+ 
+  // Poblar LOBs
+  var selLob = document.getElementById('fka-lob');
+  selLob.innerHTML = '<option value="">Selecciona LOB</option>';
+ 
+  var lobsOrig = [];
+  if (typeof datos !== 'undefined' && datos && datos.todasLasLobs && datos.todasLasLobs.length) {
+    lobsOrig = datos.todasLasLobs;
+  } else {
+    var ms = document.getElementById('selectLob');
+    if (ms) for (var i = 0; i < ms.options.length; i++)
+      if (ms.options[i].value) lobsOrig.push(ms.options[i].value);
+  }
+ 
+  lobsOrig.forEach(function(l) {
+    var o = document.createElement('option');
+    o.value = l; o.textContent = l; selLob.appendChild(o);
+  });
+ 
+  // Pre-seleccionar activo
+  var ml = document.getElementById('selectLob');
+  if (ml && ml.value) { selLob.value = ml.value; fka_onLob(); }
+ 
+  fka_limpiar();
+  modal.onclick = function(e) { if (e.target === modal) cerrarFichaAgente(); };
+  document.addEventListener('keydown', fka_onEsc);
+}
+ 
+function cerrarFichaAgente() {
+  var m = document.getElementById('modal-ficha-agente');
+  if (m) m.classList.remove('fka-open');
+  document.removeEventListener('keydown', fka_onEsc);
+}
+function fka_onEsc(e) { if (e.key === 'Escape') cerrarFichaAgente(); }
+ 
+// ── CASCADA FILTROS ─────────────────────────────────────────
+function fka_onLob() {
+  var lob = document.getElementById('fka-lob').value;
+  var sF  = document.getElementById('fka-fecha');
+  var sM  = document.getElementById('fka-mes');
+  sF.innerHTML = '<option value="">Cargando...</option>'; sF.disabled = true;
+  sM.innerHTML = '<option value="">CDM General</option>'; sM.disabled = true;
+  fka_limpiar();
+  if (!lob) return;
+ 
+  google.script.run
+    .withSuccessHandler(function(fechas) {
+      sF.innerHTML = '<option value="">Selecciona fecha</option>';
+      (fechas || []).forEach(function(f) {
+        var o = document.createElement('option'); o.value = f; o.textContent = f; sF.appendChild(o);
+      });
+      sF.disabled = false;
+      var fa = document.getElementById('selectFechas');
+      if (fa && fa.value) { sF.value = fa.value; fka_onFecha(); }
+    })
+    .withFailureHandler(function(e) {
+      sF.innerHTML = '<option value="">Error</option>';
+      console.error('fka_onLob:', e);
+    })
+    .obtenerFechasPorLob(lob);
+}
+ 
+function fka_onFecha() {
+  var sM = document.getElementById('fka-mes');
+  sM.innerHTML = '<option value="">Cargando...</option>'; sM.disabled = true;
+  fka_limpiar();
+ 
+  google.script.run
+    .withSuccessHandler(function(meses) {
+      sM.innerHTML = '<option value="">CDM General</option>';
+      (meses || []).forEach(function(m) {
+        var o = document.createElement('option'); o.value = m.numero; o.textContent = m.nombre;
+        sM.appendChild(o);
+      });
+      sM.disabled = false;
+      var ma = document.getElementById('selectMesComparativo');
+      if (ma && ma.value) sM.value = ma.value;
+    })
+    .withFailureHandler(function(e) {
+      sM.innerHTML = '<option value="">CDM General</option>'; sM.disabled = false;
+      console.error('fka_onFecha:', e);
+    })
+    .obtenerMesesCDMDisponibles();
+}
+ 
+// ── EJECUTAR ────────────────────────────────────────────────
+function ejecutarFichaAgente() {
+  var lob   = document.getElementById('fka-lob').value;
+  var fecha = document.getElementById('fka-fecha').value;
+  var mesEl = document.getElementById('fka-mes').value;
+  var mes   = mesEl ? parseInt(mesEl, 10) : null;
+ 
+  if (!lob || !fecha) { fka_error('Selecciona LOB y Fecha primero.'); return; }
+ 
+  fka_limpiar();
+  fka_loading('Cargando agentes H_C, CDM y horas…');
+  var btn = document.getElementById('fka-run-btn');
+  if (btn) btn.disabled = true;
+ 
+  // ⭐ Llama a la función GS NUEVA fichaKPIPorLob()
+  google.script.run
+    .withSuccessHandler(function(r) {
+      if (btn) btn.disabled = false;
+      fka_stopLoading();
+      if (!r || r.error) { fka_error('Error: ' + (r ? r.error : 'Sin respuesta')); return; }
+      fkaDatos = r;
+      fka_renderizar(r);
+    })
+    .withFailureHandler(function(e) {
+      if (btn) btn.disabled = false;
+      fka_stopLoading();
+      fka_error('Error de conexión: ' + e.message);
+    })
+    .fichaKPIPorLob(lob, fecha, mes);   // ← función nueva en GS
+}
+ 
+// ── RENDERIZAR ──────────────────────────────────────────────
+function fka_renderizar(r) {
+  // Stats
+  var t  = r.totales || {};
+  var sb = (t.totalAgentes || 0) - (t.agentesConBono || 0);
+  document.getElementById('fka-s-total').textContent = fkaFmt(t.totalGeneral);
+  document.getElementById('fka-s-ag').textContent    = t.totalAgentes || 0;
+  document.getElementById('fka-s-cb').textContent    = t.agentesConBono || 0;
+  document.getElementById('fka-s-sb').textContent    = sb;
+  document.getElementById('fka-s-prom').textContent  = fkaFmt(t.promedio);
+  document.getElementById('fka-s-lob').textContent   = r.lob || '—';
+  document.getElementById('fka-stats').classList.add('show');
+ 
+  // Búsqueda
+  var srch = document.getElementById('fka-search');
+  if (srch) { srch.style.display = 'block'; srch.value = ''; }
+ 
+  // Generar tarjetas
+  var body = document.getElementById('fka-body');
+  body.innerHTML = '';
+ 
+  var agentes = Object.values(r.fichaAgentes || {});
+  agentes.sort(function(a, b) { return b.bonoFinal - a.bonoFinal; });
+ 
+  if (!agentes.length) {
+    body.innerHTML = '<p style="color:#475569;text-align:center;padding:40px;font-family:monospace;">Sin agentes encontrados.</p>';
+    return;
+  }
+ 
+  agentes.forEach(function(ag, idx) {
+    body.appendChild(fka_tarjeta(ag, r.kpisPorCategoria));
+  });
+
+  // Aplicar filtros iniciales
+  fka_aplicarFiltrosMultiples();
+}
+ 
+// ── TARJETA POR AGENTE ───────────────────────────────────────
+function fka_tarjeta(ag, kpisPorCategoria) {
+  var ini     = fkaIni(ag.nombre);
+  var nombre  = (ag.nombre || '').split(',')[0].trim();
+  var clase   = ag.bonoFinal > 0 ? 'ok' : ag.bloqueadoPorKey ? 'blq' : 'zero';
+  var bonoCls = ag.bonoFinal > 0 ? '' : ag.bloqueadoPorKey ? 'blq' : 'zero';
+ 
+  var horasPct = ag.horasSemanales
+    ? Math.min(100, (ag.horasReales / (ag.horasSemanales * 4.34)) * 100)
+    : 0;
+ 
+  var div = document.createElement('div');
+  div.className = 'fka-agente ' + clase;
+  
+  // Data attributes para filtrado eficiente
+  div.setAttribute('data-bms', ag.bmsId);
+  div.setAttribute('data-nombre', (ag.nombre || '').toLowerCase());
+  div.setAttribute('data-estado', ag.bonoFinal > 0 ? 'bonificando' : 'bloqueado');
+  
+  var tieneGate = (ag.kpisDesglose || []).some(function(k) { return k.esGate; });
+  var falloGate = !!ag.bloqueadoPorGate;
+  div.setAttribute('data-gate', falloGate ? 'fallo' : (tieneGate ? 'con' : 'sin'));
+
+  // ── Cabecera (clickable para expandir) ──
+  var headHTML =
+    '<div class="fka-agente-head" onclick="fka_toggle(this.parentElement)">' +
+      '<div class="fka-avatar" style="border-radius:10px;">' + ini + '</div>' +
+      '<div class="fka-agent-info">' +
+        '<div class="fka-agent-nombre">' + nombre + '</div>' +
+        '<div class="fka-agent-meta">' +
+          '<span>🪪 ' + ag.bmsId + '</span>' +
+          '<span>👔 ' + (ag.rol || '—') + '</span>' +
+          '<span>⏱ ' + (ag.horasSemanales || 0) + 'h/sem</span>' +
+          (ag.tieneHoras ? '<span style="color:#60a5fa;">📊 ' + (ag.horasReales || 0).toFixed(1) + 'h reales</span>' : '<span style="color:#475569;">Sin horas</span>') +
+        '</div>' +
+      '</div>' +
+      '<div class="fka-agent-bono">' +
+        '<div class="fka-agent-bono-val ' + bonoCls + '">' + fkaFmt(ag.bonoFinal) + '</div>' +
+        '<div class="fka-agent-bono-sub">bono final</div>' +
+      '</div>' +
+      '<span class="fka-expand-ico" style="margin-left:12px; font-size:12px;">▼</span>' +
+    '</div>';
+ 
+  // ── Body acordeón ──
+  var bodyHTML = '<div class="fka-agente-body">';
+ 
+  // Barra de horas
+  if (horasPct > 0) {
+    bodyHTML += '<div class="fka-horas-mini"><div class="fka-horas-fill" style="width:' + horasPct.toFixed(0) + '%"></div></div>';
+  }
+ 
+  // Banner bloqueado / Comentario de bono
+  if (ag.comentarioBono) {
+    var iconBlq = ag.bloqueadoPorGate ? '🚫' : '⚠️';
+    bodyHTML += '<div class="fka-blq-banner">' + iconBlq + ' ' + ag.comentarioBono + '. Solo aplican penalizaciones.</div>';
+  } else if (ag.bloqueadoPorKey) {
+    bodyHTML += '<div class="fka-blq-banner">⚠️ Bono bloqueado — Key no cumplida. Solo aplican penalizaciones.</div>';
+  }
+ 
+  // Header de columnas
+  bodyHTML +=
+    '<div class="fka-kpi-header">' +
+      '<div></div>' +
+      '<div>KPI</div>' +
+      '<div style="text-align:center;">Score Obj.</div>' +
+      '<div style="text-align:center;">Valor</div>' +
+      '<div style="text-align:center;">Estado</div>' +
+      '<div style="text-align:right;">Bono $</div>' +
+    '</div>';
+ 
+  // KPIs agrupados por categoría
+  var catConfig = [
+    { key: 'keys',                label: '🔑 Keys',                color: '#60a5fa' },
+    { key: 'bonusStructure',      label: '⭐ Bonus Structure',      color: '#4ade80' },
+    { key: 'additionalIncentives',label: '➕ Additional Incentives', color: '#fbbf24' },
+    { key: 'decreasedKPIs',       label: '➖ Decreased KPIs',       color: '#f87171' }
+  ];
+ 
+  catConfig.forEach(function(cc) {
+    // Filtrar kpisDesglose de este agente para esta categoría
+    var kpisEnCat = (ag.kpisDesglose || []).filter(function(k) { return k.cat === cc.key; });
+    if (!kpisEnCat.length) return;
+ 
+    bodyHTML += '<div class="fka-cat-section">';
+    bodyHTML += '<div class="fka-cat-title" style="color:' + cc.color + '">' + cc.label + '</div>';
+ 
+    kpisEnCat.forEach(function(k) {
+      var bono     = parseFloat(k.bono) || 0;
+      var bonoCls  = bono > 0 ? 'pos' : bono < 0 ? 'neg' : 'zero';
+      var bonoStr  = k.sinDatos ? '—' : k.cumple && bono !== 0 ? fkaFmtDec(Math.abs(bono)) : '$0';
+      if (bono < 0 && !k.sinDatos) bonoStr = '-' + bonoStr;
+ 
+      // Dot de estado
+      var dotCls = k.sinDatos ? 'sd'
+                 : k.esGate && k.cumple ? 'gate-ok'
+                 : k.esGate && !k.cumple ? 'gate-fail'
+                 : k.cumple ? 'ok' : 'fail';
+ 
+      // Score
+      var scoreStr = k.score || '—';
+      if (k.esMultiTier) scoreStr = k.scoreCumplido ? k.scoreCumplido : 'Multi';
+      
+      // Valor obtenido
+      var valorStr = '—';
+      if (!k.sinDatos) {
+        valorStr = (k.valorF !== undefined && k.valorF !== null && k.valorF !== '-' && k.valorF !== '')
+          ? String(k.valorF)
+          : (k.valorH !== undefined ? String(k.valorH) : '—');
+      }
+ 
+      // Color de valor según cumple
+      var valCls = k.sinDatos ? '' : k.cumple ? 'hit' : 'miss';
+ 
+      // Estado texto
+      var estadoHTML = k.sinDatos
+        ? '<span style="color:#334155;font-size:0.62rem;">sin datos</span>'
+        : k.esGate && k.cumple
+          ? '<span class="fka-badge gate">🔒 Gate ✓</span>'
+          : k.esGate && !k.cumple
+            ? '<span class="fka-badge gate" style="color:#f87171;">🔒 Gate ✗</span>'
+            : k.cumple
+              ? '<span style="color:#4ade80;font-size:0.7rem;font-weight:700;">✓ OK</span>'
+              : '<span style="color:#f87171;font-size:0.7rem;font-weight:700;">✗ No</span>';
+ 
+      // Nombre con badges
+      var nameHTML = '<span>' + k.kpiNombre + '</span>';
+      if (k.esGate)      nameHTML += ' <span class="fka-badge gate">Gate</span>';
+      if (k.esMultiTier) nameHTML += ' <span class="fka-badge mt">MT</span>';
+ 
+      bodyHTML +=
+        '<div class="fka-kpi-row">' +
+          '<div class="fka-dot ' + dotCls + '"></div>' +
+          '<div class="fka-kpi-nombre">' + nameHTML + '</div>' +
+          '<div class="fka-kpi-score"><strong>' + scoreStr + '</strong></div>' +
+          '<div class="fka-kpi-val ' + valCls + '">' + valorStr + '</div>' +
+          '<div class="fka-kpi-estado">' + estadoHTML + '</div>' +
+          '<div class="fka-kpi-bono ' + bonoCls + '">' + bonoStr + '</div>' +
+        '</div>';
+    });
+ 
+    bodyHTML += '</div>'; // cat-section
+  });
+ 
+  // Footer resumen por categoría
+  bodyHTML +=
+    '<div class="fka-agente-foot">' +
+      '<span>Keys: <strong>' + fkaFmt(ag.totalKeys) + '</strong></span>' +
+      '<span>Bonus: <strong>' + fkaFmt(ag.totalBonusStructure) + '</strong></span>' +
+      '<span>Add: <strong>' + fkaFmt(ag.totalAdditional) + '</strong></span>' +
+      '<span>Dec: <strong style="color:#f87171;">-' + fkaFmt(ag.totalDecreased) + '</strong></span>' +
+      '<span style="margin-left:8px;padding-left:8px;border-left:1px solid #1e293b;">TOTAL: <strong style="color:' + (ag.bonoFinal > 0 ? '#4ade80' : '#f87171') + '">' + fkaFmtDec(ag.bonoFinal) + '</strong></span>' +
+    '</div>';
+ 
+  bodyHTML += '</div>'; // agente-body
+ 
+  div.innerHTML = headHTML + bodyHTML;
+  return div;
+}
+ 
+// ── TOGGLE ACORDEÓN ─────────────────────────────────────────
+function fka_toggle(el) {
+  el.classList.toggle('expanded');
+}
+ 
+function fka_expandirTodo() {
+  fkaExpandAll = !fkaExpandAll;
+  var cards = document.querySelectorAll('.fka-agente');
+  cards.forEach(function(c) {
+    if (fkaExpandAll) c.classList.add('expanded');
+    else              c.classList.remove('expanded');
+  });
+  var btn = document.getElementById('fka-btn-expand');
+  if (btn) btn.textContent = fkaExpandAll ? '▲ Colapsar todo' : '▼ Expandir todo';
+}
+ 
+// ── FILTRAR ──────────────────────────────────────────────────
+function fka_aplicarFiltrosMultiples() {
+  var q      = (document.getElementById('fka-search').value || '').toLowerCase().trim();
+  var estado = document.getElementById('fka-filtro-estado').value; // todos, bonificando, bloqueados
+  var gate   = document.getElementById('fka-filtro-gate').value;   // todos, con-gate, sin-gate, fallo-gate
+
+  var cards = document.querySelectorAll('#fka-body .fka-agente');
+  cards.forEach(function(c) {
+    var n      = c.getAttribute('data-nombre') || '';
+    var b      = c.getAttribute('data-bms')    || '';
+    var estVal = c.getAttribute('data-estado') || '';
+    var gateVal= c.getAttribute('data-gate')   || '';
+
+    var matchQ      = (!q || n.indexOf(q) !== -1 || b.indexOf(q) !== -1);
+    var matchEstado = (estado === 'todos' || 
+                       (estado === 'bonificando' && estVal === 'bonificando') ||
+                       (estado === 'bloqueados' && estVal === 'bloqueado'));
+    var matchGate   = (gate === 'todos' || 
+                       (gate === 'con-gate' && (gateVal === 'con' || gateVal === 'fallo')) ||
+                       (gate === 'sin-gate' && gateVal === 'sin') ||
+                       (gate === 'fallo-gate' && gateVal === 'fallo'));
+
+    c.style.display = (matchQ && matchEstado && matchGate) ? '' : 'none';
+  });
+}
+ 
+// ── EXPORT CSV ───────────────────────────────────────────────
+function fka_exportCSV() {
+  if (!fkaDatos || !fkaDatos.fichaAgentes) {
+    alert('Ejecuta el cálculo primero.'); return;
+  }
+ 
+  var rows = [['CCMS ID','Nombre','Rol','Supervisor','ACCM','OM',
+               'Horas/Sem HC','Horas Reales','Ausencias','Dias Laborados',
+               'Categoria KPI','KPI','Score Objetivo','Valor Obtenido',
+               'Cumple','Sin Datos','Es Gate','Bono KPI $',
+               'Total Keys','Total Bonus','Total Additional','Total Decreased','BONO FINAL'].join(',')];
+ 
+  Object.values(fkaDatos.fichaAgentes)
+    .sort(function(a,b) { return b.bonoFinal - a.bonoFinal; })
+    .forEach(function(ag) {
+      if (!ag.kpisDesglose || !ag.kpisDesglose.length) {
+        rows.push([ag.bmsId, '"' + ag.nombre + '"', ag.rol, ag.supervisor, ag.accm, ag.om,
+                   ag.horasSemanales, ag.horasReales || 0, ag.ausencias || 0, ag.diasLaborados || 0,
+                   '—','—','—','—','—','—','—',0,
+                   ag.totalKeys, ag.totalBonusStructure, ag.totalAdditional, ag.totalDecreased, ag.bonoFinal].join(','));
+        return;
+      }
+      ag.kpisDesglose.forEach(function(k) {
+        var valorStr = (k.valorF !== undefined && k.valorF !== null && k.valorF !== '-' && k.valorF !== '')
+          ? k.valorF
+          : (k.valorH !== undefined ? k.valorH : '—');
+        rows.push([
+          ag.bmsId, '"' + ag.nombre + '"', ag.rol, ag.supervisor, ag.accm, ag.om,
+          ag.horasSemanales, ag.horasReales || 0, ag.ausencias || 0, ag.diasLaborados || 0,
+          k.cat, '"' + k.kpiNombre + '"', k.score || '—', valorStr,
+          k.cumple ? 'SI' : 'NO', k.sinDatos ? 'SI' : 'NO', k.esGate ? 'SI' : 'NO',
+          parseFloat(k.bono) || 0,
+          ag.totalKeys, ag.totalBonusStructure, ag.totalAdditional, ag.totalDecreased, ag.bonoFinal
+        ].join(','));
+      });
+    });
+ 
+  var blob = new Blob(['\uFEFF' + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href   = url;
+  a.download = 'ficha_kpi_' + (fkaDatos.lob || 'lob').replace(/\s/g,'_') + '_' + Date.now() + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+ 
+// ── UTILIDADES ────────────────────────────────────────────────
+function fka_loading(txt) {
+  var el = document.getElementById('fka-loading');
+  if (el) { el.classList.add('show'); document.getElementById('fka-loading-txt').textContent = txt || 'Calculando…'; }
+  var body = document.getElementById('fka-body'); if (body) body.innerHTML = '';
+}
+function fka_stopLoading() {
+  var el = document.getElementById('fka-loading'); if (el) el.classList.remove('show');
+}
+function fka_error(msg) {
+  var el = document.getElementById('fka-error'); if (el) { el.innerHTML = '⚠ ' + msg; el.classList.add('show'); }
+  fka_stopLoading();
+}
+function fka_limpiar() {
+  fkaDatos = null; fkaExpandAll = false;
+  ['fka-error','fka-stats'].forEach(function(id) {
+    var el = document.getElementById(id); if (el) { el.classList.remove('show'); el.innerHTML !== undefined && id === 'fka-error' && (el.innerHTML = ''); }
+  });
+  document.getElementById('fka-stats').classList.remove('show');
+  document.getElementById('fka-error').classList.remove('show');
+  var body = document.getElementById('fka-body'); if (body) body.innerHTML = '';
+  var srch = document.getElementById('fka-search'); if (srch) srch.style.display = 'none';
+  var btn  = document.getElementById('fka-btn-expand'); if (btn) btn.textContent = '▼ Expandir todo';
+}
+
 </script>
+
+
+
 
 
 </body>

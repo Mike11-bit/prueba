@@ -1,223 +1,785 @@
-  /** holaaaa
- * ==========================================================================
- * 🔑 CÓDIGO DE SESIONES, LOGIN Y RUTAS
- * ==========================================================================
- */
-var ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4').getSheetByName('Usuario');
-// ✅ doGet: Maneja la entrada a la app
-function doGet(e) {
-  try {
-    const page = e && e.parameter.page ? e.parameter.page : "login";
-    const userEmail = Session.getActiveUser().getEmail();
-    // 1. Si no hay email (raro en Apps Script empresarial), ir a login
-    if (!userEmail) {
-      return HtmlService.createTemplateFromFile("login").evaluate();
-    }
-    // 2. Obtener rol
-    const role = getUserRole(userEmail); 
-    // 3. Permisos
-    const permisos = {
-      "OM": ["om", "audit", "registro", "dispute", "login"],
-      "ACCM": ["om", "audit", "registro", "dispute", "login"],
-      "Reporting Analyst": ["om", "audit", "registro", "dispute", "login"],
-      "Supervisor": ["om", "audit", "registro", "dispute", "login"],
-      "Audit": ["audit", "registro", "dispute", "login"],
-      "Admin": ["admin", "om", "audit", "registro", "dispute", "login"]
-    };
-    // 4. Redirección inteligente si entra a 'login' pero ya tiene sesión
-    if (page === 'login' && role) {
-        return renderUserPage(role, obtenerNombreUsuario(userEmail), role);
-    }
-    // 5. Validar acceso
-    if (!role || (permisos[role] && !permisos[role].includes(page.toLowerCase()))) {
-      if (role) return renderUserPage(role, obtenerNombreUsuario(userEmail), role);
-      return HtmlService.createTemplateFromFile("unauthorized").evaluate();
-    }
-    // 6. Cargar la vista solicitada
-    // IMPORTANTE: Debes tener un archivo HTML con el nombre que 'page' indique (ej. "OM", "Audit")
-    // Si usas un solo diseño para todos, asegúrate de que el archivo se llame como la página o usa un fallback.
-    let templateName = capitalize(page);
-    let template;
-    try {
-        template = HtmlService.createTemplateFromFile(templateName);
-    } catch(e) {
-        // Si no existe 'OM', 'Audit', etc., intenta cargar 'index' como respaldo
-        template = HtmlService.createTemplateFromFile('index');
-    }
-    
-    if (e && e.parameter.lob) template.lob = e.parameter.lob;
-    if (e && e.parameter.fecha) template.fecha = e.parameter.fecha;
-    return template.evaluate()
-      .setTitle("Dashboard")
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-      
-  } catch (error) {
-    return HtmlService.createHtmlOutput('Error en doGet: ' + error.message);
-  }
-}
-function getUrl() {
-  return ScriptApp.getService().getUrl();
-}
-// ✅ doPost: Maneja el Login
-function doPost(e) {
-  try {
-      var userIdInput = e.parameter.id?.trim();
-      var passwordInput = e.parameter.password?.trim();
-    
-      if (!userIdInput || !passwordInput) {
-        return renderLoginWithMessage("Por favor, ingrese BMS ID y contraseña.");
-      }
-    
-      var data = ss.getDataRange().getValues();
-      var email = Session.getActiveUser().getEmail();
-    
-      for (var i = 1; i < data.length; i++) {
-        var userId = String(data[i][0]).trim();
-        var username = String(data[i][1]).trim();
-        var userEmail = String(data[i][2]).trim();
-        var role = String(data[i][4]).trim(); // Índice 4 = Rol
-    
-        if (userId === userIdInput && passwordInput === userId && email === userEmail) {
-          return HtmlService.createHtmlOutput(
-            "<script>window.location.href='" + ScriptApp.getService().getUrl() +
-            "?page=" + role + "&username=" + username + "';</script>"
-          );
-        }
-      }
-    
-      return renderLoginWithMessage("Credenciales incorrectas o usuario no coincide.");
-  } catch (e) {
-      return renderLoginWithMessage("Error: " + e.message);
-  }
-}
-// ✅ renderUserPage: Carga el HTML según el rol
-function renderUserPage(role, username, roleDisplay) {
-  var output;
-  var templateName = 'index'; // Nombre por defecto si no encuentra el específico
-  if (["ACCM", "OM", "Reporting Analyst", "Supervisor"].includes(role)) {
-    templateName = "OM"; 
-  } else if (role === "Audit") {
-    templateName = "Audit";
-  } else if (role === "Agente") {
-    templateName = "Agente";
-  } else if (role === "Registro") {
-    templateName = "Registro";
-  } else if (role === "Admin") {
-    templateName = "Admin";
-  }
-  
-  try {
-      output = HtmlService.createTemplateFromFile(templateName);
-  } catch (e) {
-      // Si no tienes el archivo "OM", usa "index"
-      output = HtmlService.createTemplateFromFile('index');
-  }
-  output.username = username;
-  output.role = roleDisplay;
-  return output.evaluate().setTitle('Dashboard');
-}
-function renderLoginWithMessage(msg) {
-  var t = HtmlService.createTemplateFromFile("login");
-  t.message = msg;
-  return t.evaluate().setTitle("Login Page");
-}
-function logout() {
-  return HtmlService.createHtmlOutput("Sesión cerrada.");
-}
-function getUserEmail() {
-  return Session.getActiveUser().getEmail();
-}
-function capitalize(text) {
-  return String(text).charAt(0).toUpperCase() + String(text).slice(1).toLowerCase();
-}
-function getUserRole(email) {
-  const datos = obtenerDatosUsuarioActivo();
-  if (datos && datos.correo === email) {
-      return datos.rol;
-  }
-  return null;
-}
-function obtenerDatosUsuarioActivo() {
-  const email = Session.getActiveUser().getEmail().toLowerCase().trim();
-  const ssUsuario = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
-  const hojaUsuario = ssUsuario.getSheetByName('Usuario');
-  const dataUsuario = hojaUsuario.getDataRange().getValues();
-  
-  for (let i = 1; i < dataUsuario.length; i++) {
-    if (String(dataUsuario[i][2]).toLowerCase().trim() === email) {
-      return {
-        ccmsId: dataUsuario[i][0],
-        nombre: dataUsuario[i][1],
-        correo: dataUsuario[i][2],
-        account: dataUsuario[i][3],
-        rol: dataUsuario[i][4],
-        lob: dataUsuario[i][5],
-        perfil: dataUsuario[i][7]
-      };
-    }
-  }
-  return null;
-}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - Dashboard KPIs</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
 
-function cambiarTipoAcceso(email, tipoAcceso) {
-  try {
-    const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
-    const hojaUsuario = ss.getSheetByName('Usuario');
-    const data = hojaUsuario.getDataRange().getValues();
-    
-    const tiposValidos = ['Registro', 'Audit', 'OM'];
-    if (!tiposValidos.includes(tipoAcceso)) {
-      return { success: false, error: 'Tipo de acceso inválido.' };
+    :root {
+      --blue-deep:   #042C53;
+      --blue-mid:    #0C447C;
+      --blue-main:   #185FA5;
+      --blue-light:  #378ADD;
+      --blue-pale:   #B5D4F4;
+      --blue-bg:     #E6F1FB;
+      --sky-dawn:    #c8e3f7;
+      --sky-top:     #a8cff0;
+      --cloud-white: rgba(255,255,255,0.82);
+      --road-color:  #B5D4F4;
+      --road-border: #85B7EB;
     }
-    
-    for (let i = 1; i < data.length; i++) {
-      const emailFila = String(data[i][2]).toLowerCase().trim();
-      
-      if (emailFila === email.toLowerCase().trim()) {
-        
-        // ⭐ PASO 1: Si columna E está vacía, copiar el valor actual de D → E
-        const rolActualColumnaD = String(data[i][3] || '').trim(); // Columna D actual
-        const rollBaseColumnaE = String(data[i][4] || '').trim();  // Columna E actual
-        
-        if (!rollBaseColumnaE || rollBaseColumnaE === '') {
-          // ⭐ Preservar el rol original en columna E
-          hojaUsuario.getRange(i + 1, 5).setValue(rolActualColumnaD); // Columna E
-          console.log(`✅ Roll Base preservado en columna E: "${rolActualColumnaD}"`);
-        }
-        
-        // ⭐ PASO 2: Cambiar columna D al nuevo Tipo de Acceso
-        hojaUsuario.getRange(i + 1, 4).setValue(tipoAcceso); // Columna D
-        console.log(`✅ Tipo de Acceso cambiado a: "${tipoAcceso}"`);
-        
-        return { 
-          success: true, 
-          mensaje: `Tipo de acceso cambiado a: ${tipoAcceso}`,
-          rollBasePreservado: !rollBaseColumnaE ? rolActualColumnaD : rollBaseColumnaE
-        };
-      }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: #daeef8;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
     }
-    
-    return { success: false, error: 'Usuario no encontrado' };
-    
-  } catch (error) {
-    console.log('❌ Error en cambiarTipoAcceso:', error.toString());
-    return { success: false, error: error.message };
-  }
-}
-function obtenerTipoAccesoActual() {
-  try {
-    const email = Session.getActiveUser().getEmail();
-    const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
-    const hojaUsuario = ss.getSheetByName('Usuario');
-    const data = hojaUsuario.getDataRange().getValues();
-    
-    for (let i = 1; i < data.length; i++) {
-      if (String(data[i][2]).toLowerCase().trim() === email.toLowerCase().trim()) {
-        return String(data[i][3]).trim() || 'Registro';
-      }
+
+    /* ══ Blob / Morphing Background ══ */
+    .bg-canvas {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      overflow: hidden;
     }
-    return 'Registro';
-  } catch (error) {
-    return 'Registro';
-  }
-}
+
+    .blob {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(64px);
+      opacity: 0.55;
+      animation: blob-morph ease-in-out infinite alternate;
+      transform-origin: center;
+    }
+
+    /* Large anchor blob — top left */
+    .blob-1 {
+      width: 520px; height: 420px;
+      top: -120px; left: -140px;
+      background: radial-gradient(ellipse at 40% 40%, #85B7EB 0%, #378ADD 55%, transparent 100%);
+      animation-duration: 11s;
+      animation-name: blob-morph-1;
+    }
+    /* Mid blob — bottom right */
+    .blob-2 {
+      width: 460px; height: 500px;
+      bottom: -160px; right: -120px;
+      background: radial-gradient(ellipse at 60% 60%, #B5D4F4 0%, #5aabde 60%, transparent 100%);
+      animation-duration: 14s;
+      animation-name: blob-morph-2;
+    }
+    /* Accent blob — center top */
+    .blob-3 {
+      width: 300px; height: 260px;
+      top: 10%; left: 38%;
+      background: radial-gradient(ellipse at 50% 50%, #c8e8f8 0%, #7ecbf2 70%, transparent 100%);
+      opacity: 0.38;
+      animation-duration: 17s;
+      animation-name: blob-morph-3;
+    }
+    /* Small warm accent — lower left */
+    .blob-4 {
+      width: 200px; height: 180px;
+      bottom: 12%; left: 6%;
+      background: radial-gradient(ellipse at 50% 50%, #d0eefb 0%, #a8d8f0 70%, transparent 100%);
+      opacity: 0.45;
+      animation-duration: 9s;
+      animation-name: blob-morph-1;
+      animation-delay: -4s;
+    }
+
+    @keyframes blob-morph-1 {
+      0%   { transform: scale(1)    translate(0px, 0px)    rotate(0deg);   border-radius: 60% 40% 55% 45% / 50% 60% 40% 50%; }
+      33%  { transform: scale(1.06) translate(18px,-12px)  rotate(8deg);   border-radius: 40% 60% 45% 55% / 60% 40% 55% 45%; }
+      66%  { transform: scale(0.96) translate(-10px, 16px) rotate(-5deg);  border-radius: 55% 45% 60% 40% / 45% 55% 40% 60%; }
+      100% { transform: scale(1.04) translate(6px,  -8px)  rotate(12deg);  border-radius: 45% 55% 40% 60% / 55% 45% 60% 40%; }
+    }
+    @keyframes blob-morph-2 {
+      0%   { transform: scale(1)    translate(0px,  0px)   rotate(0deg);   border-radius: 55% 45% 40% 60% / 45% 60% 55% 40%; }
+      33%  { transform: scale(1.08) translate(-20px,10px)  rotate(-10deg); border-radius: 45% 55% 60% 40% / 55% 40% 45% 60%; }
+      66%  { transform: scale(0.94) translate(12px,-18px)  rotate(6deg);   border-radius: 60% 40% 50% 50% / 40% 55% 60% 45%; }
+      100% { transform: scale(1.05) translate(-6px, 10px)  rotate(-14deg); border-radius: 40% 60% 55% 45% / 60% 45% 40% 55%; }
+    }
+    @keyframes blob-morph-3 {
+      0%   { transform: scale(1)    translate(0px,   0px)  rotate(0deg);   border-radius: 50% 50% 50% 50%; }
+      50%  { transform: scale(1.12) translate(24px, -16px) rotate(20deg);  border-radius: 40% 60% 55% 45% / 55% 45% 60% 40%; }
+      100% { transform: scale(0.92) translate(-16px, 20px) rotate(-18deg); border-radius: 60% 40% 45% 55% / 40% 60% 50% 50%; }
+    }
+
+    /* Subtle noise texture overlay */
+    .bg-noise {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      opacity: 0.035;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-size: 160px 160px;
+    }
+
+    .wrap { position: relative; z-index: 2; }
+
+    .wrap {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 12px 60px rgba(24,95,165,0.18);
+      background: #fff;
+      max-width: 880px;
+      width: 100%;
+      min-height: 580px;
+    }
+
+    /* ══════════════════════════════════
+       BRAND PANEL
+    ══════════════════════════════════ */
+    .brand {
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* ── Dynamic Sky ── */
+    .sky {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(175deg, var(--sky-top) 0%, var(--sky-dawn) 55%, #daeef8 100%);
+      animation: sky-shift 8s ease-in-out infinite alternate;
+      z-index: 0;
+    }
+    @keyframes sky-shift {
+      from { filter: hue-rotate(0deg) brightness(1); }
+      to   { filter: hue-rotate(12deg) brightness(1.06); }
+    }
+
+    /* ── Sun ── */
+    .sun {
+      position: absolute;
+      top: 32px; right: 36px;
+      width: 42px; height: 42px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #fff9e0 30%, #ffd77a 70%, #ffb23a 100%);
+      box-shadow: 0 0 0 8px rgba(255,210,100,0.18), 0 0 0 18px rgba(255,210,100,0.09);
+      animation: sun-pulse 4s ease-in-out infinite alternate;
+      z-index: 1;
+    }
+    @keyframes sun-pulse {
+      from { box-shadow: 0 0 0 8px rgba(255,210,100,0.18), 0 0 0 18px rgba(255,210,100,0.09); }
+      to   { box-shadow: 0 0 0 14px rgba(255,210,100,0.22), 0 0 0 28px rgba(255,210,100,0.12); }
+    }
+
+    /* ── Clouds Layer ── */
+    .clouds { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+
+    .cloud {
+      position: absolute;
+      border-radius: 50px;
+      background: var(--cloud-white);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    /* cloud shapes via pseudo */
+    .cloud::before, .cloud::after {
+      content: '';
+      position: absolute;
+      border-radius: 50%;
+      background: var(--cloud-white);
+    }
+
+    /* Far clouds (slow, small, faded) */
+    .c1 { width:80px; height:22px; top:14%; left:-90px; opacity:0.55; animation: cloud-drift 22s linear infinite; }
+    .c1::before { width:36px; height:30px; top:-14px; left:14px; }
+    .c1::after  { width:26px; height:22px; top:-8px;  left:38px; }
+
+    .c2 { width:60px; height:16px; top:28%; left:-70px; opacity:0.4; animation: cloud-drift 30s linear infinite; animation-delay: -12s; }
+    .c2::before { width:28px; height:24px; top:-12px; left:10px; }
+    .c2::after  { width:20px; height:16px; top:-6px;  left:30px; }
+
+    /* Near clouds (faster, larger) */
+    .c3 { width:110px; height:28px; top:8%; left:-120px; opacity:0.75; animation: cloud-drift 14s linear infinite; animation-delay: -4s; }
+    .c3::before { width:48px; height:38px; top:-18px; left:18px; }
+    .c3::after  { width:36px; height:28px; top:-10px;  left:56px; }
+
+    .c4 { width:90px; height:22px; top:42%; left:-100px; opacity:0.6; animation: cloud-drift 18s linear infinite; animation-delay: -9s; }
+    .c4::before { width:38px; height:32px; top:-14px; left:14px; }
+    .c4::after  { width:28px; height:22px; top:-7px;  left:46px; }
+
+    @keyframes cloud-drift {
+      from { transform: translateX(0); }
+      to   { transform: translateX(calc(100% + 300px)); }
+    }
+
+    /* ── Hills ── */
+    .hills {
+      position: absolute;
+      bottom: 58px; left: 0; right: 0;
+      height: 80px;
+      z-index: 2;
+    }
+    .hill {
+      position: absolute;
+      border-radius: 50%;
+      bottom: 0;
+    }
+    .hill-far {
+      width: 260px; height: 90px;
+      left: -40px;
+      background: #8ec9ee;
+      opacity: 0.5;
+      animation: hill-drift 28s ease-in-out infinite alternate;
+    }
+    .hill-mid {
+      width: 200px; height: 70px;
+      right: -20px;
+      background: #74b8e8;
+      opacity: 0.55;
+      animation: hill-drift 20s ease-in-out infinite alternate-reverse;
+    }
+    .hill-near {
+      width: 300px; height: 60px;
+      left: 30px;
+      background: #5caae2;
+      opacity: 0.35;
+      animation: hill-drift 16s ease-in-out infinite alternate;
+    }
+    @keyframes hill-drift {
+      from { transform: translateX(-10px); }
+      to   { transform: translateX(10px); }
+    }
+
+    /* ── Trees parallax ── */
+    .trees-layer {
+      position: absolute;
+      bottom: 54px; left: 0; right: 0;
+      height: 50px;
+      z-index: 3;
+      overflow: hidden;
+    }
+    .tree-track {
+      display: flex;
+      gap: 48px;
+      position: absolute;
+      bottom: 0;
+      white-space: nowrap;
+      animation: trees-scroll 6s linear infinite;
+    }
+    .tree-track.slow { animation-duration: 11s; bottom: 10px; }
+    .tree {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+    }
+    .tree-top {
+      width: 0; height: 0;
+      border-left: 8px solid transparent;
+      border-right: 8px solid transparent;
+      border-bottom: 22px solid #2a7db5;
+      opacity: 0.55;
+    }
+    .tree-trunk {
+      width: 4px; height: 7px;
+      background: #1a5c88;
+      opacity: 0.55;
+    }
+    .tree-track.slow .tree-top {
+      border-left-width: 5px; border-right-width: 5px;
+      border-bottom-width: 14px;
+      border-bottom-color: #5aaad8;
+      opacity: 0.35;
+    }
+    .tree-track.slow .tree-trunk { width:3px; height:5px; background:#3d8ec0; opacity:0.35; }
+
+    @keyframes trees-scroll {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-50%); }
+    }
+
+    /* ── Road ── */
+    .road-layer {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 58px;
+      z-index: 4;
+    }
+    .road-surface {
+      position: absolute;
+      bottom: 0; left: 0; right: 0; height: 58px;
+      background: linear-gradient(180deg, #c8dff5 0%, #b0cfe8 100%);
+      border-top: 2px solid #85B7EB;
+    }
+    /* Road perspective lines */
+    .road-surface::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%);
+    }
+
+    .dashes {
+      position: absolute;
+      bottom: 22px; left: 0;
+      width: 200%;
+      display: flex;
+      gap: 28px;
+      animation: dash-move 0.7s linear infinite;
+    }
+    .dash {
+      width: 44px; height: 5px;
+      background: var(--blue-mid);
+      border-radius: 3px;
+      flex-shrink: 0;
+      opacity: 0.38;
+    }
+    @keyframes dash-move {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-72px); }
+    }
+
+    /* ── Car ── */
+    .car-wrap {
+      position: absolute;
+      bottom: 54px; left: 50%;
+      transform: translateX(-50%);
+      z-index: 5;
+      width: 190px;
+    }
+    /* Suspension: subtle pitch oscillation */
+    .car-body {
+      animation: car-pitch 0.55s ease-in-out infinite alternate;
+      transform-origin: center bottom;
+    }
+    @keyframes car-pitch {
+      from { transform: rotate(-0.4deg) translateY(0px); }
+      to   { transform: rotate(0.4deg) translateY(-2px); }
+    }
+
+    /* Wheel spin */
+    .wheel-spin {
+      animation: spin 0.35s linear infinite;
+      transform-box: fill-box;
+      transform-origin: center;
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+
+    /* Headlight beam */
+    .headlight-beam {
+      position: absolute;
+      bottom: 12px; right: -30px;
+      width: 50px; height: 16px;
+      background: linear-gradient(90deg, rgba(255,250,200,0.55) 0%, transparent 100%);
+      clip-path: polygon(0 30%, 100% 0%, 100% 100%, 0 70%);
+      border-radius: 4px;
+      animation: beam-pulse 1.1s ease-in-out infinite alternate;
+      z-index: 6;
+    }
+    @keyframes beam-pulse {
+      from { opacity: 0.5; width: 44px; }
+      to   { opacity: 0.9; width: 54px; }
+    }
+
+    /* Speed lines */
+    .speed-lines {
+      position: absolute;
+      bottom: 68px; left: 0; right: 0;
+      height: 20px;
+      z-index: 4;
+      overflow: hidden;
+    }
+    .speed-line {
+      position: absolute;
+      height: 1.5px;
+      border-radius: 2px;
+      background: linear-gradient(90deg, transparent 0%, rgba(180,215,245,0.6) 60%, transparent 100%);
+      animation: speed-streak linear infinite;
+    }
+    .speed-line:nth-child(1) { width:60px; top:2px;  left:-60px; animation-duration:0.5s; animation-delay:0s; }
+    .speed-line:nth-child(2) { width:40px; top:8px;  left:-40px; animation-duration:0.65s; animation-delay:0.1s; }
+    .speed-line:nth-child(3) { width:80px; top:14px; left:-80px; animation-duration:0.42s; animation-delay:0.22s; }
+    .speed-line:nth-child(4) { width:50px; top:5px;  left:-50px; animation-duration:0.58s; animation-delay:0.35s; }
+    .speed-line:nth-child(5) { width:35px; top:11px; left:-35px; animation-duration:0.7s;  animation-delay:0.15s; }
+    @keyframes speed-streak {
+      from { transform: translateX(0); opacity: 1; }
+      to   { transform: translateX(500px); opacity: 0; }
+    }
+
+    /* ── Exhaust Smoke ── */
+    .smoke-container {
+      position: absolute;
+      bottom: 62px; left: calc(50% - 118px);
+      z-index: 6;
+      width: 30px; height: 40px;
+      overflow: visible;
+    }
+    .smoke-puff {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(200,225,245,0.5);
+      filter: blur(3px);
+      animation: smoke-rise ease-out infinite;
+    }
+    .smoke-puff:nth-child(1) { width:10px; height:10px; bottom:0; left:5px;  animation-duration:1.2s; animation-delay:0s; }
+    .smoke-puff:nth-child(2) { width:14px; height:14px; bottom:0; left:2px;  animation-duration:1.4s; animation-delay:0.35s; }
+    .smoke-puff:nth-child(3) { width:8px;  height:8px;  bottom:0; left:8px;  animation-duration:1s;   animation-delay:0.65s; }
+    .smoke-puff:nth-child(4) { width:12px; height:12px; bottom:0; left:0px;  animation-duration:1.3s; animation-delay:0.9s; }
+    @keyframes smoke-rise {
+      0%   { transform: translate(0,0) scale(0.4); opacity:0.7; }
+      40%  { opacity: 0.45; }
+      100% { transform: translate(-30px,-38px) scale(2.2); opacity:0; }
+    }
+
+    /* ── Brand Content ── */
+    .brand-content {
+      padding: 38px 32px 14px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      position: relative;
+      z-index: 10;
+    }
+    .brand-label {
+      font-size: 10px; font-weight: 500;
+      letter-spacing: 0.16em; color: var(--blue-main);
+      text-transform: uppercase; margin-bottom: 10px;
+      opacity: 0.85;
+    }
+    .brand-title {
+      font-family: 'DM Serif Display', serif;
+      font-size: 38px; line-height: 1.08;
+      color: var(--blue-deep); font-weight: 400; margin-bottom: 10px;
+    }
+    .brand-sub {
+      font-size: 12px; color: var(--blue-mid);
+      font-weight: 300; line-height: 1.65; margin-bottom: 22px;
+    }
+    .brand-metrics { display: flex; flex-direction: column; gap: 8px; }
+    .metric-pill { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--blue-mid); }
+    .metric-dot {
+      width: 5px; height: 5px; border-radius: 50%;
+      background: var(--blue-light); flex-shrink: 0;
+      box-shadow: 0 0 0 2px rgba(55,138,221,0.25);
+    }
+
+    /* ══════════════════════════════════
+       FORM SIDE
+    ══════════════════════════════════ */
+    .form-side {
+      padding: 52px 48px;
+      display: flex; flex-direction: column; justify-content: center;
+      background: #fff;
+    }
+    .form-heading {
+      font-family: 'DM Serif Display', serif;
+      font-size: 28px; font-weight: 400; color: #111; margin-bottom: 5px;
+    }
+    .form-sub { font-size: 12px; color: #999; margin-bottom: 30px; font-weight: 300; }
+
+    .msg-error {
+      background: #fff5f5;
+      border-left: 3px solid #E24B4A;
+      color: #A32D2D;
+      padding: 10px 14px;
+      border-radius: 0 8px 8px 0;
+      font-size: 13px;
+      margin-bottom: 18px;
+    }
+
+    .field { margin-bottom: 20px; }
+    .field label {
+      display: block; font-size: 10px; font-weight: 500;
+      letter-spacing: 0.09em; color: #aaa; text-transform: uppercase; margin-bottom: 8px;
+    }
+    .field-wrap { position: relative; }
+    .field-wrap svg {
+      position: absolute; left: 12px; top: 50%;
+      transform: translateY(-50%); opacity: 0.3;
+      width: 14px; height: 14px; pointer-events: none;
+    }
+    .field input {
+      width: 100%; padding: 12px 14px 12px 38px;
+      border: 1px solid #e4e8ed; border-radius: 10px;
+      background: #f7fafd;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px; color: #111;
+      transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+    }
+    .field input:focus {
+      outline: none;
+      border-color: var(--blue-light);
+      box-shadow: 0 0 0 3px rgba(55,138,221,0.12);
+      background: #fff;
+    }
+    .field input::placeholder { color: #bbb; font-weight: 300; }
+
+    .btn-submit {
+      width: 100%; padding: 14px;
+      background: var(--blue-main);
+      color: var(--blue-bg);
+      border: none; border-radius: 10px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px; font-weight: 500; cursor: pointer;
+      letter-spacing: 0.04em;
+      transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+      margin-top: 6px;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .btn-submit:hover {
+      background: var(--blue-mid);
+      transform: translateY(-1px);
+      box-shadow: 0 8px 20px rgba(12,68,124,0.18);
+    }
+    .btn-submit:active { transform: translateY(0); background: var(--blue-deep); box-shadow: none; }
+    .btn-submit:disabled { opacity:0.6; cursor:not-allowed; transform:none; }
+    .btn-arrow { transition: transform 0.2s; }
+    .btn-submit:hover .btn-arrow { transform: translateX(3px); }
+
+    .divider { height:1px; background:#f0f0f0; margin:22px 0 14px; }
+    .footer-note { font-size:11px; color:#ccc; text-align:center; font-weight:300; }
+
+    @media (max-width: 580px) {
+      .wrap { grid-template-columns: 1fr; }
+      .brand { display: none; }
+      .form-side { padding: 36px 24px; }
+    }
+  </style>
+</head>
+<body>
+<!-- Blob background -->
+<div class="bg-canvas">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+  <div class="blob blob-4"></div>
+</div>
+<div class="bg-noise"></div>
+
+<div class="wrap">
+
+  <!-- ══ Brand Panel ══ -->
+  <div class="brand">
+
+    <!-- Sky -->
+    <div class="sky"></div>
+
+    <!-- Sun -->
+    <div class="sun"></div>
+
+    <!-- Clouds -->
+    <div class="clouds">
+      <div class="cloud c1"></div>
+      <div class="cloud c2"></div>
+      <div class="cloud c3"></div>
+      <div class="cloud c4"></div>
+    </div>
+
+    <!-- Hills -->
+    <div class="hills">
+      <div class="hill hill-far"></div>
+      <div class="hill hill-mid"></div>
+      <div class="hill hill-near"></div>
+    </div>
+
+    <!-- Brand text -->
+    <div class="brand-content">
+      <div>
+        <p class="brand-label">Business Intelligence</p>
+        <h1 class="brand-title">Dashboard<br>KPIs</h1>
+        <p class="brand-sub">Monitoreo en tiempo real<br>de indicadores de desempeño.</p>
+      </div>
+      <div class="brand-metrics">
+        <div class="metric-pill"><span class="metric-dot"></span>Ventas &amp; conversión</div>
+        <div class="metric-pill"><span class="metric-dot"></span>Rendimiento por agente</div>
+        <div class="metric-pill"><span class="metric-dot"></span>Tendencias históricas</div>
+        <div class="metric-pill"><span class="metric-dot"></span>Reportes exportables</div>
+      </div>
+    </div>
+
+    <!-- Trees (parallax layers) -->
+    <div class="trees-layer">
+      <!-- Slow far layer -->
+      <div class="tree-track slow">
+        <div class="tree"><div class="tree-top"></div><div class="tree-trunk"></div></div>
+        <div class="tree"><div class="tree-top"></div><div class="tree-trunk"></div></div>
+        <div class="tree"><div class="tree-top"></div><div class="tree-trunk"></div></div>
+        <div class="tree"><div class="tree-top"></div><div class="tree-trunk"></div></div>
+        <div class="tree"><div class="tree-top"></div><div class="tree-trunk"></div></div>
+        <div class="tree"><div class="tree-top"></div><div class="tree-trunk"></div></div>
+        <div class="tree"><div class="tree-top"></div><div class="tree-trunk"></div></div>
+        <div class="tree"><div class="tree-top"></div><div class="tree-trunk"></div></div>
+        <!-- duplicate for seamless loop -->
+        <div class="tree"><div class="tree-top"></div><div class="tree-trunk"></div></div>
+        <div class="tree"><div class="tree-top"></div><div class="tree-trunk"></div></div>
+        <div class="tree"><div class="tree-top"></div><div class="tree-trunk"></div></div>
+        <div class="tree"><div class="tree-top"></div><div class="tree-trunk"></div></div>
+        <div class="tree"><div class="tree-top"></div><div class="tree-trunk"></div></div>
+        <div class="tree"><div class="tree-top"></div><div class="tree-trunk"></div></div>
+        <div class="tree"><div class="tree-top"></div><div class="tree-trunk"></div></div>
+        <div class="tree"><div class="tree-top"></div><div class="tree-trunk"></div></div>
+      </div>
+      <!-- Fast near layer -->
+      <div class="tree-track">
+        <div class="tree"><div class="tree-top"></div><div class="tree-trunk"></div></div>
+        <div class="tree"><div class="tree-top"></div><div class="tree-trunk"></div></div>
+        <div class="tree"><div class="tree-top"></div><div class="tree-trunk"></div></div>
+        <div class="tree"><div class="tree-top"></div><div class="tree-trunk"></div></div>
+        <div class="tree"><div class="tree-top"></div><div class="tree-trunk"></div></div>
+        <div class="tree"><div class="tree-top"></div><div class="tree-trunk"></div></div>
+        <div class="tree"><div class="tree-top"></div><div class="tree-trunk"></div></div>
+        <div class="tree"><div class="tree-top"></div><div class="tree-trunk"></div></div>
+        <!-- duplicate -->
+        <div class="tree"><div class="tree-top"></div><div class="tree-trunk"></div></div>
+        <div class="tree"><div class="tree-top"></div><div class="tree-trunk"></div></div>
+        <div class="tree"><div class="tree-top"></div><div class="tree-trunk"></div></div>
+        <div class="tree"><div class="tree-top"></div><div class="tree-trunk"></div></div>
+        <div class="tree"><div class="tree-top"></div><div class="tree-trunk"></div></div>
+        <div class="tree"><div class="tree-top"></div><div class="tree-trunk"></div></div>
+        <div class="tree"><div class="tree-top"></div><div class="tree-trunk"></div></div>
+        <div class="tree"><div class="tree-top"></div><div class="tree-trunk"></div></div>
+      </div>
+    </div>
+
+    <!-- Speed lines -->
+    <div class="speed-lines">
+      <div class="speed-line"></div>
+      <div class="speed-line"></div>
+      <div class="speed-line"></div>
+      <div class="speed-line"></div>
+      <div class="speed-line"></div>
+    </div>
+
+    <!-- Road -->
+    <div class="road-layer">
+      <div class="road-surface"></div>
+      <div class="dashes">
+        <div class="dash"></div><div class="dash"></div><div class="dash"></div>
+        <div class="dash"></div><div class="dash"></div><div class="dash"></div>
+        <div class="dash"></div><div class="dash"></div><div class="dash"></div>
+        <div class="dash"></div><div class="dash"></div><div class="dash"></div>
+        <div class="dash"></div><div class="dash"></div><div class="dash"></div>
+      </div>
+    </div>
+
+    <!-- Smoke -->
+    <div class="smoke-container">
+      <div class="smoke-puff"></div>
+      <div class="smoke-puff"></div>
+      <div class="smoke-puff"></div>
+      <div class="smoke-puff"></div>
+    </div>
+
+    <!-- Car -->
+    <div class="car-wrap">
+      <!-- Headlight beam -->
+      <div class="headlight-beam"></div>
+
+      <div class="car-body">
+        <svg viewBox="0 0 180 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Body -->
+          <rect x="10" y="34" width="160" height="26" rx="7" fill="#185FA5"/>
+          <!-- Roof -->
+          <path d="M34 34 Q44 12 66 9 L120 9 Q142 9 152 34Z" fill="#378ADD"/>
+          <!-- Windows -->
+          <rect x="50" y="13" width="30" height="18" rx="3" fill="#E6F1FB" opacity="0.9"/>
+          <rect x="86" y="13" width="30" height="18" rx="3" fill="#E6F1FB" opacity="0.9"/>
+          <!-- Window shine -->
+          <rect x="52" y="15" width="8" height="4" rx="1" fill="white" opacity="0.5"/>
+          <rect x="88" y="15" width="8" height="4" rx="1" fill="white" opacity="0.5"/>
+          <!-- Headlight -->
+          <rect x="157" y="40" width="14" height="8" rx="2" fill="#fff9c0" opacity="0.95"/>
+          <!-- Taillight -->
+          <rect x="9"   y="40" width="12" height="8" rx="2" fill="#E24B4A" opacity="0.9"/>
+          <!-- Bumpers -->
+          <rect x="1"   y="45" width="16" height="7" rx="2" fill="#F09595"/>
+          <rect x="163" y="45" width="16" height="7" rx="2" fill="#FAC775"/>
+          <!-- Door line -->
+          <line x1="100" y1="34" x2="100" y2="58" stroke="#0C447C" stroke-width="1" opacity="0.35"/>
+          <rect x="38" y="44" width="104" height="4" rx="2" fill="#0C447C" opacity="0.4"/>
+          <!-- Body highlight -->
+          <rect x="14" y="37" width="152" height="2" rx="1" fill="#B5D4F4" opacity="0.35"/>
+
+          <!-- Left wheel (spinning) — use <g> to rotate around wheel center -->
+          <!-- Wheel rim -->
+          <circle cx="44" cy="62" r="10" fill="#0C447C" stroke="#B5D4F4" stroke-width="2.5"/>
+          <circle cx="44" cy="62" r="4"  fill="#85B7EB"/>
+          <!-- Spokes (rotated by JS) -->
+          <g id="spokes-left" class="wheel-spin" style="transform-origin:44px 62px">
+            <line x1="44" y1="52" x2="44" y2="72" stroke="#85B7EB" stroke-width="1.5" opacity="0.6"/>
+            <line x1="34" y1="62" x2="54" y2="62" stroke="#85B7EB" stroke-width="1.5" opacity="0.6"/>
+            <line x1="37" y1="55" x2="51" y2="69" stroke="#85B7EB" stroke-width="1.5" opacity="0.4"/>
+            <line x1="51" y1="55" x2="37" y2="69" stroke="#85B7EB" stroke-width="1.5" opacity="0.4"/>
+          </g>
+
+          <!-- Right wheel -->
+          <circle cx="136" cy="62" r="10" fill="#0C447C" stroke="#B5D4F4" stroke-width="2.5"/>
+          <circle cx="136" cy="62" r="4"  fill="#85B7EB"/>
+          <g id="spokes-right" class="wheel-spin" style="transform-origin:136px 62px">
+            <line x1="136" y1="52" x2="136" y2="72" stroke="#85B7EB" stroke-width="1.5" opacity="0.6"/>
+            <line x1="126" y1="62" x2="146" y2="62" stroke="#85B7EB" stroke-width="1.5" opacity="0.6"/>
+            <line x1="129" y1="55" x2="143" y2="69" stroke="#85B7EB" stroke-width="1.5" opacity="0.4"/>
+            <line x1="143" y1="55" x2="129" y2="69" stroke="#85B7EB" stroke-width="1.5" opacity="0.4"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+
+  </div><!-- /brand -->
+
+  <!-- ══ Form Panel ══ -->
+  <div class="form-side">
+    <h2 class="form-heading">Bienvenido</h2>
+    <p class="form-sub">Ingresa tus credenciales para continuar</p>
+
+    <? if (typeof message !== 'undefined' && message && message !== "") { ?>
+      <div class="msg-error"><?= message ?></div>
+    <? } ?>
+
+    <form id="loginForm" method="post" action="<?= ScriptApp.getService().getUrl() ?>">
+      <div class="field">
+        <label for="id">BMS ID</label>
+        <div class="field-wrap">
+          <svg viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1.2"/>
+            <path d="M2 14c0-3.314 2.686-5 6-5s6 1.686 6 5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+          </svg>
+          <input type="text" id="id" name="id" placeholder="Tu identificador BMS" required autocomplete="username">
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="password">Contraseña</label>
+        <div class="field-wrap">
+          <svg viewBox="0 0 16 16" fill="none">
+            <rect x="3" y="7" width="10" height="8" rx="1.5" stroke="currentColor" stroke-width="1.2"/>
+            <path d="M5 7V5a3 3 0 016 0v2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+          </svg>
+          <input type="password" id="password" name="password" placeholder="••••••••" required autocomplete="current-password">
+        </div>
+      </div>
+
+      <button type="submit" class="btn-submit" id="btnLogin">
+        Iniciar sesión <span class="btn-arrow">&#x2192;</span>
+      </button>
+    </form>
+
+    <div class="divider"></div>
+    <p class="footer-note">¿Problemas para ingresar? Contacta a tu administrador.</p>
+  </div>
+
+</div>
+
+<script>
+  document.getElementById('loginForm').addEventListener('submit', function() {
+    var btn = document.getElementById('btnLogin');
+    btn.disabled = true;
+    btn.innerHTML = '&#x23F3; Verificando...';
+  });
+</script>
+</body>
+</html>

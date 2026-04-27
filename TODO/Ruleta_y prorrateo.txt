@@ -1,0 +1,1261 @@
+// ========================================
+// PARTE 1: FUNCIONES PARA .gs (Google Apps Script)
+// ========================================
+// Agregar estas funciones al final de tu archivo .gs
+
+/**
+ * Guarda el ganador de la ruleta en la hoja "Incentivos"
+ */
+/**
+ * Guarda el ganador de la ruleta en la hoja "Incentivos"
+ * Incluye validación de duplicados, manejo de nulos y formato completo.
+ */
+function guardarGanadorRuleta(ganadorActual, fecha, kpi, porcentaje, mensaje) {
+  return withLock(function() {
+    try {
+      const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+      let hoja = ss.getSheetByName('Incentivos');
+      // 1. Crear hoja si no existe
+      if (!hoja) {
+        hoja = ss.insertSheet('Incentivos');
+        hoja.appendRow([
+          'Fecha Registro', 'Fecha KPI', 'KPI', 'BMS ID', 'Nombre Ganador', 
+          'LOB', 'Bono Original', '% Adicional', 'Bono Adicional', 
+          'Bono Total', 'Mensaje', 'Registrado Por', 'Estado'
+        ]);
+        const headerRange = hoja.getRange(1, 1, 1, 13);
+        headerRange.setBackground('#f39c12');
+        headerRange.setFontColor('#FFFFFF');
+        headerRange.setFontWeight('bold');
+        headerRange.setHorizontalAlignment('center');
+      }
+      // 2. Validación de parámetros
+      if (!ganadorActual || !fecha || !kpi) {
+        return { success: false, error: 'Faltan parámetros requeridos' };
+      }
+      const mesAnio = fecha.substring(0, 7);
+      const lob = ganadorActual.lob;
+      const bmsId = ganadorActual.bmsId;
+      // 3. Validar duplicados (Lectura dentro del lock para asegurar consistencia)
+      const datosExistentes = hoja.getDataRange().getValues();
+      for (let i = 1; i < datosExistentes.length; i++) {
+        const filaFecha = datosExistentes[i][1];
+        const filaLob = datosExistentes[i][5];
+        const filaBmsId = datosExistentes[i][3];
+        const filaMes = filaFecha ? filaFecha.toString().substring(0, 7) : '';
+        if (filaMes === mesAnio && filaLob === lob && filaBmsId === bmsId) {
+          return { success: false, error: `⚠️ Este agente ya tiene un registro en ${mesAnio} para la LOB ${lob}` };
+        }
+      }
+      // 4. Cálculos
+      const bonoOriginal = ganadorActual.bono || 0;
+      const porc = parseFloat(porcentaje) || 0;
+      const bonoAdicional = bonoOriginal * (porc / 100);
+      const bonoTotal = bonoOriginal + bonoAdicional;
+      const usuario = Session.getActiveUser().getEmail();
+      const nombreUsuario = obtenerNombreUsuario(usuario);
+      // 5. Agregar fila
+      const nuevaFila = [
+        new Date(), fecha, kpi, bmsId, ganadorActual.nombre, lob,
+        bonoOriginal, porc, bonoAdicional, bonoTotal, mensaje || '', 
+        nombreUsuario, 'Activo'
+      ];
+      hoja.appendRow(nuevaFila);
+      
+      // Formatos
+      const lastRow = hoja.getLastRow();
+      hoja.getRange(lastRow, 1).setNumberFormat('dd/mm/yyyy hh:mm:ss');
+      hoja.getRange(lastRow, 2).setNumberFormat('yyyy-mm-dd');
+      hoja.getRange(lastRow, 7).setNumberFormat('$#,##0.00');
+      hoja.getRange(lastRow, 8).setNumberFormat('0.00"%"');
+      hoja.getRange(lastRow, 9).setNumberFormat('$#,##0.00');
+      hoja.getRange(lastRow, 10).setNumberFormat('$#,##0.00');
+      return { success: true, mensaje: 'Ganador registrado exitosamente', bonoTotal: bonoTotal };
+    } catch (error) {
+      Logger.log('❌ Error en guardarGanadorRuleta: ' + error.toString());
+      return { success: false, error: error.toString() };
+    }
+  });
+}
+
+
+
+/**
+ * Guarda todos los participantes de la ruleta
+ */
+function guardarParticipantesRuleta(participantes, fecha, kpi) {
+  return withLock(function() {
+    try {
+      const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+      let hoja = ss.getSheetByName('Incentivos_Participantes');
+      
+      if (!hoja) {
+        hoja = ss.insertSheet('Incentivos_Participantes');
+        hoja.appendRow(['Fecha Registro', 'Fecha KPI', 'KPI', 'BMS ID', 'Nombre', 'LOB', 'Bono', 'Posición', 'Estado']);
+        hoja.getRange(1, 1, 1, 9).setBackground('#3498db').setFontColor('#FFFFFF').setFontWeight('bold');
+      }
+      
+      // Preparar lote de datos para escritura masiva (más eficiente)
+      const filas = participantes.map((p, index) => [
+        new Date(), fecha, kpi, p.bmsId, p.nombre, p.lob, p.bono, index + 1, 'Participante'
+      ]);
+      
+      if (filas.length > 0) {
+        hoja.getRange(hoja.getLastRow() + 1, 1, filas.length, 9).setValues(filas);
+      }
+      
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.toString() };
+    }
+  });
+}
+
+
+/**
+ * Obtiene ganadores previos para un mes y KPI específico
+ */
+
+
+
+function obtenerGanadoresPrevios(fecha, kpi) {
+  try {
+    const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+    const hoja = ss.getSheetByName('Incentivos');
+    
+    // ⭐ IMPORTANTE: Si no existe la hoja, retornar array vacío
+    if (!hoja) {
+      Logger.log('⚠️ Hoja "Incentivos" no encontrada');
+      return []; // ⭐ Retornar array vacío explícitamente
+    }
+    
+    const data = hoja.getDataRange().getValues();
+    const ganadores = [];
+    
+    // ⭐ Validar que hay datos
+    if (!data || data.length <= 1) {
+      Logger.log('ℹ️ No hay datos en la hoja Incentivos');
+      return [];
+    }
+    
+    for (let i = 1; i < data.length; i++) {
+      const fechaKPI = data[i][1];
+      const kpiRegistro = data[i][2];
+      const bmsId = data[i][3];
+      const estado = data[i][11];
+      
+      let fechaTxt = '';
+      if (fechaKPI instanceof Date) {
+        fechaTxt = Utilities.formatDate(fechaKPI, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      } else {
+        fechaTxt = fechaKPI ? fechaKPI.toString().trim() : '';
+      }
+      
+      if (fechaTxt === fecha && kpiRegistro === kpi && estado === 'Activo') {
+        ganadores.push({
+          bmsId: String(bmsId).trim(),
+          nombre: data[i][4],
+          lob: data[i][5],
+          fechaRegistro: data[i][0]
+        });
+      }
+    }
+    
+    Logger.log('📋 Ganadores previos encontrados: ' + ganadores.length);
+    
+    return ganadores; // ⭐ Siempre retorna array (vacío o con datos)
+    
+  } catch (error) {
+    Logger.log('❌ Error en obtenerGanadoresPrevios: ' + error.toString());
+    return []; // ⭐ En caso de error, retornar array vacío
+  }
+}
+
+/**
+ * Obtiene todos los ganadores de un mes específico
+ */
+function obtenerGanadoresDelMes(fecha) {
+  try {
+    const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+    const hoja = ss.getSheetByName('Incentivos');
+    
+    if (!hoja || hoja.getLastRow() <= 1) {
+      return [];
+    }
+    
+    const data = hoja.getDataRange().getValues();
+    const ganadores = [];
+    
+    for (let i = 1; i < data.length; i++) {
+      const fechaKPI = data[i][1];
+      const estado = data[i][11];
+      
+      let fechaTxt = '';
+      if (fechaKPI instanceof Date) {
+        fechaTxt = Utilities.formatDate(fechaKPI, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      } else {
+        fechaTxt = fechaKPI.toString().trim();
+      }
+      
+      if (fechaTxt === fecha && estado === 'Activo') {
+        ganadores.push({
+          fechaRegistro: data[i][0],
+          fechaKPI: data[i][1],
+          kpi: data[i][2],
+          bmsId: data[i][3],
+          nombre: data[i][4],
+          lob: data[i][5],
+          bonoOriginal: data[i][6],
+          porcentajeAdicional: data[i][7],
+          bonoAdicional: data[i][8],
+          bonoTotal: data[i][9],
+          registradoPor: data[i][10]
+        });
+      }
+    }
+    
+    Logger.log('🏆 Ganadores del mes ' + fecha + ': ' + ganadores.length);
+    
+    return ganadores;
+    
+  } catch (error) {
+    Logger.log('❌ Error en obtenerGanadoresDelMes: ' + error.toString());
+    return [];
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+////////////////////////////////////////// Recalculo
+
+
+
+function recalcularAgentesConOtraLob(recalculos) {
+  try {
+    Logger.log('🔄 Recalculando ' + recalculos.length + ' agentes');
+    
+    const resultados = [];
+    
+    recalculos.forEach(function(recalc) {
+      const bmsId = recalc.bmsId;
+      const lobNueva = recalc.lobNueva;
+      const fecha = recalc.fecha;
+      const mes = recalc.mes;
+      
+      // Obtener datos del agente en HC
+      const agente = obtenerAgentePorBMS(bmsId, recalc.lobOriginal, fecha);
+      
+      if (!agente) {
+        Logger.log('⚠️ Agente ' + bmsId + ' no encontrado');
+        return;
+      }
+      
+      // Validar KPIs con la nueva LOB
+      const kpisRecalculados = validarKPIsAgente(agente, lobNueva, fecha, mes);
+      
+      resultados.push({
+        bmsId: bmsId,
+        nombre: agente.nombre,
+        lobOriginal: recalc.lobOriginal,
+        lobNueva: lobNueva,
+        kpis: kpisRecalculados
+      });
+      
+      Logger.log('✅ BMS ' + bmsId + ' recalculado con LOB ' + lobNueva);
+    });
+    
+    return { success: true, resultados: resultados };
+    
+  } catch (error) {
+    Logger.log('❌ Error en recalcularAgentesConOtraLob: ' + error);
+    return { error: error.toString() };
+  }
+}
+
+function obtenerAgentePorBMS(bmsId, lob, fecha) {
+  const hc = obtenerHCPorLob(lob, fecha);
+  return hc.find(function(agente) {
+    return agente.bmsId === bmsId;
+  });
+}
+
+function guardarAjustesEnHoja(recalculos) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sheet = ss.getSheetByName('Ajustes HC');
+    
+    // Crear hoja si no existe
+    if (!sheet) {
+      sheet = ss.insertSheet('Ajustes HC');
+      sheet.appendRow(['Fecha Registro', 'Fecha HC', 'BMS ID', 'Nombre', 'LOB Original', 'LOB Cálculo', 'Mes CDM']);
+      sheet.getRange(1, 1, 1, 7).setBackground('#3498db').setFontColor('#ffffff').setFontWeight('bold');
+    }
+    
+    const ahora = new Date();
+    
+    recalculos.forEach(function(recalc) {
+      sheet.appendRow([
+        ahora,
+        new Date(recalc.fecha),
+        recalc.bmsId,
+        '', // Nombre se puede agregar después
+        recalc.lobOriginal,
+        recalc.lobNueva,
+        recalc.mes || 'General'
+      ]);
+    });
+    
+    Logger.log('✅ ' + recalculos.length + ' ajustes guardados en hoja');
+    return { success: true, registros: recalculos.length };
+    
+  } catch (error) {
+    Logger.log('❌ Error al guardar ajustes: ' + error);
+    return { error: error.toString() };
+  }
+}
+
+
+/**
+ * Obtiene TODAS las LOBs disponibles en el sistema (OM + ACCM)
+ */
+/**
+ * Obtiene TODAS las LOBs del sistema (para recálculo)
+ * Filtra por rol del usuario (OM, ACCM, Supervisor)
+ */
+function obtenerTodasLasLobsDelSistema() {
+  try {
+    const usuario = obtenerDatosUsuarioActivo();
+    
+    if (!usuario) {
+      Logger.log('❌ Usuario no encontrado');
+      return [];
+    }
+    
+    Logger.log(`👤 Obteniendo LOBs para: ${usuario.nombre}, Rol: ${usuario.rol}`);
+    
+    let todasLasLobs = [];
+    
+    // ⭐ Según el rol, obtener las LOBs correspondientes
+    if (usuario.rol === 'Reporting Analyst') {
+      // Reporting Analyst ve TODAS las LOBs
+      todasLasLobs = obtenerTodasLasLobs();
+      
+    } else if (usuario.rol === 'OM') {
+      // OM ve solo sus LOBs asignadas
+      todasLasLobs = obtenerLobsPorOM(usuario.nombre);
+      
+    } else if (usuario.rol === 'ACCM') {
+      // ACCM ve solo sus LOBs asignadas
+      todasLasLobs = obtenerLobsPorACCM(usuario.nombre);
+      
+    } else if (usuario.rol === 'Supervisor') {
+      // Supervisor ve solo sus LOBs asignadas
+      todasLasLobs = obtenerLobsPorSupervisor(usuario.nombre);
+      
+    } else {
+      Logger.log(`⚠️ Rol "${usuario.rol}" no soportado`);
+      return [];
+    }
+    
+    Logger.log(`✅ Total LOBs para recálculo: ${todasLasLobs.length}`);
+    Logger.log(`📋 Lista: ${JSON.stringify(todasLasLobs)}`);
+    
+    return todasLasLobs;
+    
+  } catch (error) {
+    Logger.log(`❌ Error en obtenerTodasLasLobsDelSistema: ${error.message}`);
+    return [];
+  }
+}
+
+
+
+
+/**
+ * Obtiene el HC (Head Count) de una LOB específica en una fecha
+ */
+function obtenerHCPorLob(lob, fecha) {
+  try {
+    const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+    const hojaHC = ss.getSheetByName('H_C');
+    
+    if (!hojaHC) {
+      Logger.log('❌ Hoja H_C no encontrada');
+      return [];
+    }
+    
+    const data = hojaHC.getDataRange().getValues();
+    const agentes = [];
+    
+    const normalizar = s => {
+      if (!s) return "";
+      return s.toString()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, ' ');
+    };
+    
+    const lobNorm = normalizar(lob);
+    
+    Logger.log(`🔍 Buscando agentes de LOB="${lob}" en H_C`);
+    
+    for (let i = 1; i < data.length; i++) {
+      const bmsId = String(data[i][0]).trim();
+      const lobFila = data[i][1];
+      const nombre = String(data[i][2]).trim();
+      
+      if (!bmsId || !lobFila || !nombre) continue;
+      
+      const lobFilaNorm = normalizar(lobFila);
+      
+      if (lobFilaNorm === lobNorm) {
+        agentes.push({
+          bmsId: bmsId,
+          nombre: nombre,
+          lob: lobFila
+        });
+      }
+    }
+    
+    Logger.log(`✅ Encontrados ${agentes.length} agentes en LOB ${lob}`);
+    return agentes;
+    
+  } catch (error) {
+    Logger.log(`❌ Error en obtenerHCPorLob: ${error.message}`);
+    return [];
+  }
+}
+
+/**
+ * Obtiene un agente específico por BMS ID desde H_C
+ */
+function obtenerAgentePorBMS(bmsId, lobOriginal, fecha) {
+  try {
+    const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+    const hojaHC = ss.getSheetByName('H_C');
+    
+    if (!hojaHC) {
+      Logger.log('❌ Hoja H_C no encontrada');
+      return null;
+    }
+    
+    const data = hojaHC.getDataRange().getValues();
+    
+    Logger.log(`🔍 Buscando agente BMS=${bmsId} en LOB="${lobOriginal}"`);
+    
+    for (let i = 1; i < data.length; i++) {
+      const bmsIdFila = String(data[i][0]).trim();
+      
+      if (bmsIdFila === bmsId) {
+        const agente = {
+          bmsId: bmsIdFila,
+          lob: String(data[i][1]).trim(),
+          nombre: String(data[i][2]).trim(),
+          director: String(data[i][3] || '').trim(),
+          supervisor: String(data[i][4] || '').trim(),
+          accm: String(data[i][5] || '').trim(),
+          om: String(data[i][6] || '').trim()
+        };
+        
+        Logger.log(`✅ Agente encontrado: ${agente.nombre}`);
+        return agente;
+      }
+    }
+    
+    Logger.log(`⚠️ Agente BMS=${bmsId} no encontrado`);
+    return null;
+    
+  } catch (error) {
+    Logger.log(`❌ Error en obtenerAgentePorBMS: ${error.message}`);
+    return null;
+  }
+}
+
+/**
+ * Recalcula agentes con otra LOB
+ */
+function recalcularAgentesConOtraLob(recalculos) {
+  try {
+    Logger.log('🔄 Recalculando ' + recalculos.length + ' agentes');
+    
+    const resultados = [];
+    
+    recalculos.forEach(function(recalc) {
+      const bmsId = recalc.bmsId;
+      const lobNueva = recalc.lobNueva;
+      const fecha = recalc.fecha;
+      const mes = recalc.mes;
+      
+      // 1. Obtener datos del agente
+      const agente = obtenerAgentePorBMS(bmsId, recalc.lobOriginal, fecha);
+      
+      if (!agente) {
+        Logger.log('⚠️ Agente ' + bmsId + ' no encontrado');
+        resultados.push({
+          bmsId: bmsId,
+          error: 'Agente no encontrado'
+        });
+        return;
+      }
+      
+      // 2. Obtener métricas con la nueva LOB
+      // Aquí deberías validar los KPIs con las metas de lobNueva
+      // Por ahora solo guardamos el cambio
+      
+      Logger.log(`✅ BMS ${bmsId}: ${recalc.lobOriginal} → ${lobNueva}`);
+      
+      resultados.push({
+        bmsId: bmsId,
+        nombre: agente.nombre,
+        lobOriginal: recalc.lobOriginal,
+        lobNueva: lobNueva,
+        mensaje: 'Recálculo registrado'
+      });
+    });
+    
+    // Guardar en hoja de ajustes
+    guardarAjustesEnHoja(recalculos);
+    
+    return { 
+      success: true, 
+      resultados: resultados,
+      mensaje: recalculos.length + ' agente(s) marcado(s) para recálculo'
+    };
+    
+  } catch (error) {
+    Logger.log('❌ Error en recalcularAgentesConOtraLob: ' + error);
+    return { error: error.toString() };
+  }
+}
+
+/**
+ * Guarda los ajustes de recálculo en una hoja
+ */
+function guardarAjustesEnHoja(recalculos) {
+  try {
+    const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+    let sheet = ss.getSheetByName('Ajustes_Recalculo');
+    
+    // Crear hoja si no existe
+    if (!sheet) {
+      sheet = ss.insertSheet('Ajustes_Recalculo');
+      sheet.appendRow([
+        'Fecha Registro', 
+        'BMS ID', 
+        'Nombre', 
+        'LOB Original', 
+        'LOB Cálculo', 
+        'Fecha HC',
+        'Mes CDM',
+        'Usuario'
+      ]);
+      
+      const headerRange = sheet.getRange(1, 1, 1, 8);
+      headerRange.setBackground('#3498db')
+                .setFontColor('#ffffff')
+                .setFontWeight('bold');
+    }
+    
+    const usuario = Session.getActiveUser().getEmail();
+    const ahora = new Date();
+    
+    recalculos.forEach(function(recalc) {
+      // Obtener nombre del agente
+      const agente = obtenerAgentePorBMS(recalc.bmsId, recalc.lobOriginal, recalc.fecha);
+      const nombre = agente ? agente.nombre : 'No encontrado';
+      
+      sheet.appendRow([
+        ahora,
+        recalc.bmsId,
+        nombre,
+        recalc.lobOriginal,
+        recalc.lobNueva,
+        recalc.fecha,
+        recalc.mes || 'General',
+        usuario
+      ]);
+    });
+    
+    Logger.log('✅ ' + recalculos.length + ' ajustes guardados');
+    return { success: true };
+    
+  } catch (error) {
+    Logger.log('❌ Error al guardar ajustes: ' + error);
+    return { error: error.toString() };
+  }
+}
+
+// ========================================
+// SISTEMA DE TRASLADO TEMPORAL DE AGENTES
+// ========================================
+
+/**
+ * Guarda el traslado temporal de un agente a otra LOB
+ */
+// MODIFICAR guardarTrasladoAgente para usar fecha segura:
+
+function guardarTrasladoAgente(traslado) {
+  return withLock(function() {
+    try {
+      const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+      let hoja = ss.getSheetByName('Traslados_Temporales');
+      
+      if (!hoja) {
+        hoja = ss.insertSheet('Traslados_Temporales');
+        hoja.appendRow(['Fecha Traslado', 'BMS ID', 'Nombre', 'LOB Original', 'LOB Destino', 'Fecha KPI', 'Mes CDM', 'Usuario', 'Estado', 'Fecha Fin']);
+        hoja.getRange(1, 1, 1, 10).setBackground('#e67e22').setFontColor('#FFFFFF').setFontWeight('bold');
+      }
+      
+      const usuario = Session.getActiveUser().getEmail();
+      const nombreUsuario = obtenerNombreUsuario(usuario);
+      const fechaKPISegura = formatearFechaSegura(traslado.fecha);
+      const fechaFin = calcularFinDeMes(fechaKPISegura);
+      
+      hoja.appendRow([
+        new Date(), traslado.bmsId, traslado.nombre, traslado.lobOriginal, 
+        traslado.lobDestino, fechaKPISegura, traslado.mes, nombreUsuario, 'Activo', fechaFin
+      ]);
+      
+      return { success: true, mensaje: 'Agente trasladado temporalmente', fechaFin: fechaFin };
+    } catch (error) {
+      return { success: false, error: error.toString() };
+    }
+  });
+}
+
+
+
+
+/**
+ * Calcula el fin de mes basado en la fecha KPI
+ */
+// REEMPLAZAR la función calcularFinDeMes con esta versión robusta:
+
+function calcularFinDeMes(fechaKPI) {
+  try {
+    let fecha;
+    
+    if (fechaKPI instanceof Date) {
+      fecha = new Date(fechaKPI);
+    } else if (typeof fechaKPI === 'string') {
+      // Intentar parsear diferentes formatos de fecha
+      if (fechaKPI.includes('-')) {
+        // Formato YYYY-MM-DD
+        const [year, month, day] = fechaKPI.split('-').map(Number);
+        fecha = new Date(year, month - 1, day || 1);
+      } else if (fechaKPI.includes('/')) {
+        // Formato DD/MM/YYYY o MM/DD/YYYY
+        const parts = fechaKPI.split('/').map(Number);
+        if (parts.length === 3) {
+          // Asumir formato DD/MM/YYYY
+          fecha = new Date(parts[2], parts[1] - 1, parts[0]);
+        }
+      }
+    }
+    
+    // Si no se pudo parsear, usar fecha actual
+    if (!fecha || isNaN(fecha.getTime())) {
+      Logger.log('⚠️ No se pudo parsear fecha, usando fecha actual: ' + fechaKPI);
+      fecha = new Date();
+    }
+    
+    // Último día del mes
+    const ultimoDia = new Date(fecha.getFullYear(), fecha.getMonth() + 1, 0);
+    
+    Logger.log(`✅ Fin de mes calculado: ${fechaKPI} -> ${ultimoDia}`);
+    
+    return ultimoDia;
+    
+  } catch (error) {
+    Logger.log('❌ Error en calcularFinDeMes, usando fin de mes actual: ' + error.toString());
+    // Si hay error, usar fin del mes actual
+    const hoy = new Date();
+    return new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
+  }
+}
+
+// Y AGREGAR esta función de utilidad para formatear fechas seguras:
+function formatearFechaSegura(fecha) {
+  try {
+    if (!fecha) return '';
+    
+    if (fecha instanceof Date) {
+      return Utilities.formatDate(fecha, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    }
+    
+    // Si es string, intentar normalizar
+    const str = String(fecha).trim();
+    if (str.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return str; // Ya está en formato YYYY-MM-DD
+    }
+    
+    return str;
+    
+  } catch (error) {
+    Logger.log('❌ Error en formatearFechaSegura: ' + error.toString());
+    return String(fecha || '');
+  }
+}
+
+/**
+ * Obtiene los agentes trasladados para una LOB y fecha específica
+ */
+function obtenerAgentesTrasladados(lob, fecha, mesCDM) {
+  try {
+    const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+    const hoja = ss.getSheetByName('Traslados_Temporales');
+    
+    if (!hoja || hoja.getLastRow() <= 1) {
+      return {
+        salientes: [],
+        entrantes: []
+      };
+    }
+    
+    const data = hoja.getDataRange().getValues();
+    const salientes = []; // Agentes que SALIERON de esta LOB
+    const entrantes = []; // Agentes que LLEGARON a esta LOB
+    
+    const hoy = new Date();
+    
+    for (let i = 1; i < data.length; i++) {
+      const estado = data[i][8];
+      const fechaFin = data[i][9];
+      
+      // Solo considerar traslados activos y vigentes
+      if (estado !== 'Activo' || (fechaFin && fechaFin < hoy)) {
+        continue;
+      }
+      
+      const bmsId = String(data[i][1]).trim();
+      const nombre = data[i][2];
+      const lobOriginal = data[i][3];
+      const lobDestino = data[i][4];
+      const fechaKPI = data[i][5];
+      const mes = data[i][6];
+      
+      // Verificar coincidencia de fecha/mes
+      let fechaCoincide = false;
+      
+      if (fechaKPI instanceof Date) {
+        const fechaKPITxt = Utilities.formatDate(fechaKPI, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+        fechaCoincide = (fechaKPITxt === fecha);
+      } else {
+        fechaCoincide = (String(fechaKPI).trim() === fecha);
+      }
+      
+      const mesCoincide = (!mesCDM || mes == mesCDM);
+      
+      if (!fechaCoincide || !mesCoincide) {
+        continue;
+      }
+      
+      // Agentes que SALIERON de esta LOB
+      if (lobOriginal === lob) {
+        salientes.push({
+          bmsId: bmsId,
+          nombre: nombre,
+          lobDestino: lobDestino,
+          fechaTraslado: data[i][0],
+          usuario: data[i][7]
+        });
+      }
+      
+      // Agentes que LLEGARON a esta LOB
+      if (lobDestino === lob) {
+        entrantes.push({
+          bmsId: bmsId,
+          nombre: nombre,
+          lobOrigen: lobOriginal,
+          fechaTraslado: data[i][0],
+          usuario: data[i][7]
+        });
+      }
+    }
+    
+    Logger.log(`🔀 Traslados para LOB "${lob}": ${salientes.length} salientes, ${entrantes.length} entrantes`);
+    
+    return {
+      salientes: salientes,
+      entrantes: entrantes
+    };
+    
+  } catch (error) {
+    Logger.log('❌ Error en obtenerAgentesTrasladados: ' + error.toString());
+    return {
+      salientes: [],
+      entrantes: []
+    };
+  }
+}
+
+/**
+ * Reemplaza la función recalcularAgentesConOtraLob con esta nueva versión
+ */
+function trasladarAgentesTemporalmente(traslados) {
+  try {
+    Logger.log('🔄 Trasladando ' + traslados.length + ' agentes temporalmente');
+    
+    const resultados = [];
+    
+    for (const traslado of traslados) {
+      // 1. Guardar el traslado
+      const resultado = guardarTrasladoAgente(traslado);
+      
+      if (resultado.success) {
+        resultados.push({
+          bmsId: traslado.bmsId,
+          nombre: traslado.nombre,
+          lobOriginal: traslado.lobOriginal,
+          lobDestino: traslado.lobDestino,
+          mensaje: 'Agente trasladado temporalmente',
+          fechaFin: resultado.fechaFin
+        });
+        
+        Logger.log(`✅ ${traslado.bmsId} trasladado a ${traslado.lobDestino}`);
+      } else {
+        resultados.push({
+          bmsId: traslado.bmsId,
+          error: resultado.error
+        });
+      }
+    }
+    
+    return { 
+      success: true, 
+      resultados: resultados,
+      mensaje: `${resultados.length} agente(s) trasladado(s) temporalmente`
+    };
+    
+  } catch (error) {
+    Logger.log('❌ Error en trasladarAgentesTemporalmente: ' + error);
+    return { error: error.toString() };
+  }
+}
+
+/**
+ * Traslada agentes temporalmente modificando H_C
+ */
+function trasladarAgentesTemporalmente(traslados) {
+  try {
+    Logger.log('🔄 Trasladando ' + traslados.length + ' agentes');
+    
+    const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+    const hojaHC = ss.getSheetByName('H_C');
+    
+    if (!hojaHC) {
+      return { success: false, error: 'No se encontró la hoja H_C' };
+    }
+    
+    const dataHC = hojaHC.getDataRange().getValues();
+    const cambiosRealizados = [];
+    
+    // ⭐ Para cada agente a trasladar
+    traslados.forEach(function(traslado) {
+      const bmsId = traslado.bmsId;
+      const lobDestino = traslado.lobDestino;
+      
+      Logger.log(`📤 Buscando BMS ${bmsId} en H_C...`);
+      
+      // Buscar el agente en H_C
+      for (let i = 1; i < dataHC.length; i++) {
+        const bmsIdFila = String(dataHC[i][0]).trim();
+        
+        if (bmsIdFila === bmsId) {
+          const lobAnterior = dataHC[i][1]; // Columna B - LOB
+          
+          // ⭐ CAMBIAR LOB EN H_C
+          hojaHC.getRange(i + 1, 2).setValue(lobDestino); // Columna B (índice 2)
+          
+          Logger.log(`✅ BMS ${bmsId}: ${lobAnterior} → ${lobDestino}`);
+          
+          cambiosRealizados.push({
+            bmsId: bmsId,
+            nombre: traslado.nombre,
+            lobAnterior: lobAnterior,
+            lobNueva: lobDestino,
+            fecha: traslado.fecha,
+            mes: traslado.mes
+          });
+          
+          break;
+        }
+      }
+    });
+    
+    if (cambiosRealizados.length === 0) {
+      return { success: false, error: 'No se encontraron los agentes en H_C' };
+    }
+    
+    // ⭐ REGISTRAR en hoja de auditoría
+    registrarTrasladosEnHoja(ss, cambiosRealizados);
+    
+    return {
+      success: true,
+      mensaje: cambiosRealizados.length + ' agente(s) trasladado(s) exitosamente',
+      cambios: cambiosRealizados
+    };
+    
+  } catch (error) {
+    Logger.log('❌ Error: ' + error);
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Registra los traslados en una hoja de auditoría
+ */
+function registrarTrasladosEnHoja(ss, cambios) {
+  try {
+    let sheet = ss.getSheetByName('Ajustes_Traslados');
+    
+    if (!sheet) {
+      sheet = ss.insertSheet('Ajustes_Traslados');
+      sheet.appendRow([
+        'Fecha Traslado',
+        'Fecha HC',
+        'Mes CDM',
+        'BMS ID',
+        'Nombre',
+        'LOB Anterior',
+        'LOB Nueva',
+        'Usuario',
+        'Nota'
+      ]);
+      
+      const headerRange = sheet.getRange(1, 1, 1, 9);
+      headerRange.setBackground('#e67e22')
+                .setFontColor('#ffffff')
+                .setFontWeight('bold');
+    }
+    
+    const usuario = Session.getActiveUser().getEmail();
+    const ahora = new Date();
+    
+    cambios.forEach(function(cambio) {
+      sheet.appendRow([
+        ahora,
+        cambio.fecha,
+        cambio.mes || 'General',
+        cambio.bmsId,
+        cambio.nombre,
+        cambio.lobAnterior,
+        cambio.lobNueva,
+        usuario,
+        'Traslado temporal'
+      ]);
+    });
+    
+    Logger.log('✅ Registrados ' + cambios.length + ' traslados');
+    
+  } catch (error) {
+    Logger.log('❌ Error al registrar traslados: ' + error);
+  }
+}
+
+/**
+ * Revierte traslados temporales (opcional)
+ */
+function revertirTraslado(bmsId) {
+  try {
+    const ss = SpreadsheetApp.openById('1nzXCGsp8emRdDXphPWU75Ms5c_GfXiC7_TMODBS2ed4');
+    const sheetAjustes = ss.getSheetByName('Ajustes_Traslados');
+    
+    if (!sheetAjustes) {
+      return { success: false, error: 'No se encontró hoja de traslados' };
+    }
+    
+    const data = sheetAjustes.getDataRange().getValues();
+    
+    // Buscar el último traslado del agente
+    for (let i = data.length - 1; i >= 1; i--) {
+      if (String(data[i][3]).trim() === bmsId) {
+        const lobAnterior = data[i][5];
+        
+        // Revertir en H_C
+        const hojaHC = ss.getSheetByName('H_C');
+        const dataHC = hojaHC.getDataRange().getValues();
+        
+        for (let j = 1; j < dataHC.length; j++) {
+          if (String(dataHC[j][0]).trim() === bmsId) {
+            hojaHC.getRange(j + 1, 2).setValue(lobAnterior);
+            
+            Logger.log(`✅ BMS ${bmsId} revertido a ${lobAnterior}`);
+            return { success: true, mensaje: 'Traslado revertido' };
+          }
+        }
+      }
+    }
+    
+    return { success: false, error: 'No se encontró traslado para revertir' };
+    
+  } catch (error) {
+    Logger.log('❌ Error: ' + error);
+    return { success: false, error: error.toString() };
+  }
+}
+
+
+/**
+ * Obtiene las horas trabajadas de un agente en un mes específico
+ */
+// ========================================
+// FUNCIONES PARA PRORRATEO DE HORAS
+// ========================================
+
+
+
+
+
+
+// ========================================
+// FUNCIÓN SIMPLIFICADA: SIN H_C, SOLO HORAS_X
+// ========================================
+
+function obtenerHorasPorAgente(lob, mes) {
+  try {
+    Logger.log('⏱️ ========== OBTENER HORAS POR AGENTE ==========');
+    Logger.log('📍 LOB: ' + lob);
+    Logger.log('📍 Mes: ' + mes);
+    
+    const ss = SpreadsheetApp.openById('1PtYuAb5C2kIoX8sE7dOvt1nVS-aLamZLOJQUSbTBBCw');
+    
+    // Si no hay mes, retornar objeto vacío
+    if (!mes) {
+      Logger.log('⚠️ No se especificó mes, retornando vacío');
+      return {};
+    }
+    
+    // Determinar nombre de la hoja según el mes
+    const nombresMeses = {
+      1: 'HORAS_1',   2: 'HORAS_2',   3: 'HORAS_3',   4: 'HORAS_4',
+      5: 'HORAS_5',   6: 'HORAS_6',   7: 'HORAS_7',   8: 'HORAS_8',
+      9: 'HORAS_9',   10: 'HORAS_10', 11: 'HORAS_11', 12: 'HORAS_12'
+    };
+    
+    const nombreHoja = nombresMeses[mes];
+    
+    if (!nombreHoja) {
+      Logger.log('⚠️ Mes inválido: ' + mes);
+      return {};
+    }
+    
+    const hojaHoras = ss.getSheetByName(nombreHoja);
+    
+    if (!hojaHoras) {
+      Logger.log('⚠️ No se encontró la hoja: ' + nombreHoja);
+      return {};
+    }
+    
+    Logger.log('✅ Hoja ' + nombreHoja + ' encontrada');
+    
+    // ========================================
+    // LEER DATOS DE HORAS_X Y FILTRAR POR LOB
+    // ========================================
+    const ultimaFilaHoras = hojaHoras.getLastRow();
+    
+    if (ultimaFilaHoras <= 1) {
+      Logger.log('⚠️ Hoja ' + nombreHoja + ' vacía o solo con encabezados');
+      return {};
+    }
+    
+    Logger.log('📊 Leyendo ' + ultimaFilaHoras + ' filas de ' + nombreHoja);
+    
+    // Leer columnas: fecha(A), CCMSID(B), NombreAgente(C), SubLOB(D), horas(E), Ausencias(F)
+    const datosHoras = hojaHoras.getRange(1, 1, ultimaFilaHoras, 6).getValues();
+    
+    const headersHoras = datosHoras[0];
+    Logger.log('📋 Headers: ' + headersHoras.join(', '));
+    
+    // ⭐ FILTRAR directamente por LOB y crear mapa
+    const horasPorAgente = {};
+    let registrosProcesados = 0;
+    let registrosConLOB = 0;
+    
+    for (let i = 1; i < datosHoras.length; i++) {
+      registrosProcesados++;
+      
+      const fecha = datosHoras[i][0];              // Columna A
+      const bmsId = String(datosHoras[i][1]).trim(); // Columna B (CCMSID)
+      const nombre = String(datosHoras[i][2]).trim(); // Columna C (NombreAgente)
+      const subLob = String(datosHoras[i][3]).trim(); // Columna D (SubLOB)
+      const horas = parseFloat(datosHoras[i][4]) || 0; // Columna E (horas)
+      const ausencias = parseFloat(datosHoras[i][5]) || 0; // Columna F (Ausencias)
+      
+      // ⭐ FILTRO: Solo agentes de la LOB solicitada
+      if (subLob === lob && bmsId && horas > 0) {
+        registrosConLOB++;
+        
+        horasPorAgente[bmsId] = {
+          nombre: nombre,
+          subLob: subLob,
+          horas: horas,
+          ausencias: ausencias
+        };
+        
+        if (registrosConLOB <= 5) {
+          Logger.log(`✅ BMS ${bmsId}: ${horas}h - ${nombre} (${subLob})`);
+        }
+      }
+    }
+    
+    Logger.log('\n📊 ========== RESUMEN ==========');
+    Logger.log('📋 Total filas procesadas: ' + registrosProcesados);
+    Logger.log('🔍 Registros que coinciden con LOB "' + lob + '": ' + registrosConLOB);
+    Logger.log('✅ Agentes únicos con horas: ' + Object.keys(horasPorAgente).length);
+    
+    if (Object.keys(horasPorAgente).length === 0) {
+      Logger.log('⚠️ NO SE ENCONTRARON HORAS para la LOB: ' + lob);
+      Logger.log('💡 Verifica que el nombre de la LOB sea exacto (sensible a mayúsculas y espacios)');
+      
+      // Mostrar LOBs únicas encontradas
+      const lobsEncontradas = new Set();
+      for (let i = 1; i < Math.min(50, datosHoras.length); i++) {
+        const subLob = String(datosHoras[i][3]).trim();
+        if (subLob) lobsEncontradas.add(subLob);
+      }
+      Logger.log('📋 LOBs encontradas en las primeras filas:');
+      Array.from(lobsEncontradas).slice(0, 10).forEach((l, i) => {
+        Logger.log(`  ${i+1}. "${l}"`);
+      });
+    }
+    
+    return horasPorAgente;
+    
+  } catch (error) {
+    Logger.log('❌ Error en obtenerHorasPorAgente: ' + error.message);
+    Logger.log('Stack trace: ' + error.stack);
+    return {};
+  }
+}
+
+
+
+function obtenerAgentesConProrrateo(lob, fecha, mes) {
+  try {
+    const ss = SpreadsheetApp.openById('1PtYuAb5C2kIoX8sE7dOvt1nVS-aLamZLOJQUSbTBBCw');
+    let hojaProrrateo = ss.getSheetByName('Ajustes_Prorrateo');
+    
+    if (!hojaProrrateo) {
+      Logger.log('⚠️ No existe hoja Ajustes_Prorrateo');
+      return {};
+    }
+    
+    const datos = hojaProrrateo.getDataRange().getValues();
+    const headers = datos[0];
+    
+    const colBmsId = headers.indexOf('BMS ID');
+    const colLOB = headers.indexOf('LOB');
+    const colFecha = headers.indexOf('Fecha');
+    const colMes = headers.indexOf('Mes');
+    const colBonoOriginal = headers.indexOf('Bono Original');
+    const colBonoProrateado = headers.indexOf('Bono Prorrateado');
+    const colHoras = headers.indexOf('Horas Trabajadas');
+    const colActivo = headers.indexOf('Activo');
+    
+    const agentesProrrateo = {};
+    
+    for (let i = 1; i < datos.length; i++) {
+      const bmsId = String(datos[i][colBmsId]).trim();
+      const lobReg = String(datos[i][colLOB]).trim();
+      const fechaReg = String(datos[i][colFecha]).trim();
+      const mesReg = datos[i][colMes];
+      const activo = datos[i][colActivo];
+      
+      // Filtrar por LOB, fecha, mes y que esté activo
+      if (bmsId && lobReg === lob && fechaReg === fecha && mesReg === mes && activo === true) {
+        agentesProrrateo[bmsId] = {
+          bonoOriginal: datos[i][colBonoOriginal],
+          bonoProrateado: datos[i][colBonoProrateado],
+          horas: datos[i][colHoras],
+          fila: i + 1 // Para poder actualizar después
+        };
+      }
+    }
+    
+    Logger.log(`✅ Encontrados ${Object.keys(agentesProrrateo).length} agentes con prorrateo activo`);
+    
+    return agentesProrrateo;
+    
+  } catch (error) {
+    Logger.log('❌ Error en obtenerAgentesConProrrateo: ' + error.message);
+    return {};
+  }
+}
+
+function desactivarProrrateo(bmsId, lob, fecha, mes) {
+  return withLock(function() {
+    try {
+      const ss = SpreadsheetApp.openById('1PtYuAb5C2kIoX8sE7dOvt1nVS-aLamZLOJQUSbTBBCw');
+      let hojaProrrateo = ss.getSheetByName('Ajustes_Prorrateo');
+      
+      if (!hojaProrrateo) return { success: false, error: 'No existe hoja Ajustes_Prorrateo' };
+      
+      const datos = hojaProrrateo.getDataRange().getValues();
+      
+      for (let i = 1; i < datos.length; i++) {
+        if (String(datos[i][0]).trim() === String(bmsId).trim() && 
+            String(datos[i][1]).trim() === lob && 
+            String(datos[i][2]).trim() === fecha) {
+          
+          hojaProrrateo.getRange(i + 1, 8).setValue(false); // Columna H
+          return { success: true, mensaje: 'Prorrateo desactivado exitosamente' };
+        }
+      }
+      return { success: false, error: 'No se encontró registro' };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+}
+
+function guardarProrrateo(bmsId, lob, fecha, mes, bonoOriginal, bonoProrateado, horas, activo) {
+  return withLock(function() {
+    try {
+      const ss = SpreadsheetApp.openById('1PtYuAb5C2kIoX8sE7dOvt1nVS-aLamZLOJQUSbTBBCw');
+      let hojaProrrateo = ss.getSheetByName('Ajustes_Prorrateo');
+      
+      if (!hojaProrrateo) {
+        hojaProrrateo = ss.insertSheet('Ajustes_Prorrateo');
+        hojaProrrateo.appendRow(['BMS ID', 'LOB', 'Fecha', 'Mes', 'Bono Original', 'Bono Prorrateado', 'Horas Trabajadas', 'Activo', 'Fecha Registro']);
+      }
+      
+      const datos = hojaProrrateo.getDataRange().getValues();
+      
+      // Buscar si ya existe
+      let filaExistente = -1;
+      for (let i = 1; i < datos.length; i++) {
+        if (String(datos[i][0]).trim() === String(bmsId).trim() && 
+            String(datos[i][1]).trim() === lob && 
+            String(datos[i][2]).trim() === fecha) {
+          filaExistente = i + 1;
+          break;
+        }
+      }
+      
+      const nuevoRegistro = [bmsId, lob, fecha, mes, bonoOriginal, bonoProrateado, horas, activo, new Date()];
+      
+      if (filaExistente > 0) {
+        hojaProrrateo.getRange(filaExistente, 1, 1, nuevoRegistro.length).setValues([nuevoRegistro]);
+      } else {
+        hojaProrrateo.appendRow(nuevoRegistro);
+      }
+      
+      return { success: true, mensaje: 'Prorrateo guardado exitosamente' };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+}
