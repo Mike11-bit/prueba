@@ -1,0 +1,1153 @@
+import os, sys, re, shutil, zipfile, subprocess, threading, queue
+import tkinter as tk
+from tkinter import ttk, messagebox, simpledialog, filedialog, colorchooser
+from pathlib import Path
+from datetime import datetime
+
+try:
+    from PIL import Image, ImageTk
+    PIL_OK = True
+except ImportError:
+    PIL_OK = False
+
+# ── Paleta ───────────────────────────────────────────────────────────
+BG      = "#1e1e2e"; PANEL  = "#2a2a3e"; SIDEBAR = "#16161f"
+ACCENT  = "#7c6af7"; ACC2   = "#5a4fcf"; TEXT    = "#cdd6f4"
+DIM     = "#6c7086"; SUC    = "#a6e3a1"; DNG     = "#f38ba8"
+WARN    = "#f9e2af"; HOVER  = "#313145"; SEL     = "#45475a"
+BRD     = "#313244"; TERM   = "#0d0d14"; TTEXT   = "#50fa7b"
+
+ICONOS = {
+    "folder":"📁","file":"📄","image":"🖼️","python":"🐍","excel":"📊",
+    "pdf":"📕","zip":"📦","video":"🎬","audio":"🎵","text":"📝",
+    "back":"⬅","forward":"➡","up":"⬆","refresh":"🔄","home":"🏠",
+    "new_folder":"📂","new_file":"➕","delete":"🗑️","rename":"✏️",
+    "copy":"📋","cut":"✂️","paste":"📌","search":"🔍","drive":"💾",
+    "edit":"🖊️","view":"👁️","zip_ico":"📦","props":"ℹ️","term":"🖥️",
+    "dual":"⊞","batch":"🔢",
+}
+EXT_ICO = {
+    ".png":"image",".jpg":"image",".jpeg":"image",".gif":"image",".bmp":"image",
+    ".py":"python",".pyw":"python",
+    ".xlsx":"excel",".xls":"excel",".csv":"excel",
+    ".pdf":"pdf",".zip":"zip",".rar":"zip",".7z":"zip",
+    ".mp4":"video",".avi":"video",".mkv":"video",
+    ".mp3":"audio",".wav":"audio",".flac":"audio",
+    ".txt":"text",".md":"text",".log":"text",".ini":"text",
+}
+IMG_EXT = {".png",".jpg",".jpeg",".gif",".bmp"}
+TXT_EXT = {".txt",".py",".pyw",".md",".log",".ini",".csv",".json",
+           ".js",".html",".css",".xml",".bat",".sh",".yaml",".toml"}
+
+def icono(nombre, es_dir):
+    if es_dir: return ICONOS["folder"]
+    return ICONOS.get(EXT_ICO.get(Path(nombre).suffix.lower(),"file"),"📄")
+
+def fmt_size(b):
+    for u in ["B","KB","MB","GB"]:
+        if b < 1024: return f"{b:.1f} {u}"
+        b /= 1024
+    return f"{b:.1f} TB"
+
+def btn(parent, text, cmd, bg=PANEL, fg=TEXT, font=("Segoe UI",11),
+        pad=(8,6), **kw):
+    b = tk.Button(parent, text=text, command=cmd, bg=bg, fg=fg,
+                  activebackground=HOVER, activeforeground=TEXT,
+                  relief="flat", font=font, cursor="hand2",
+                  padx=pad[0], pady=pad[1], bd=0, **kw)
+    b.pack(side="left", padx=1)
+    return b
+
+# ═══════════════════════════════════════════════════════════════════
+#  EDITOR DE TEXTO
+# ═══════════════════════════════════════════════════════════════════
+class EditorTexto(tk.Toplevel):
+    SYNTAX = {
+        "keyword": (r'\b(def|class|import|from|return|if|elif|else|for|while|'
+                    r'in|not|and|or|True|False|None|try|except|finally|with|as|'
+                    r'pass|break|continue|lambda|yield|global|nonlocal|del|raise|'
+                    r'assert|is|print)\b', "#ff79c6"),
+        "string":  (r'(\"\"\"[\s\S]*?\"\"\"|\'\'\'[\s\S]*?\'\'\'|'
+                    r'\"[^\"\\]*(?:\\.[^\"\\]*)*\"|\'[^\'\\]*(?:\\.[^\'\\]*)*\')',
+                    "#f1fa8c"),
+        "comment": (r'(#[^\n]*)', "#6272a4"),
+        "number":  (r'\b(\d+\.?\d*)\b', "#bd93f9"),
+        "builtin": (r'\b(len|range|print|input|type|int|str|float|list|dict|'
+                    r'set|tuple|open|map|filter|zip|enumerate|sorted|reversed|'
+                    r'min|max|sum|abs|round)\b', "#8be9fd"),
+    }
+
+    def __init__(self, master, ruta=None):
+        super().__init__(master)
+        self.ruta = Path(ruta) if ruta else None
+        self.modificado = False
+        titulo = self.ruta.name if self.ruta else "Nuevo archivo"
+        self.title(f"Editor — {titulo}")
+        self.geometry("860x620")
+        self.configure(bg=BG)
+        self._ui()
+        if self.ruta and self.ruta.exists():
+            self._cargar()
+        self.protocol("WM_DELETE_WINDOW", self._cerrar)
+
+    def _ui(self):
+        tb = tk.Frame(self, bg=SIDEBAR)
+        tb.pack(fill="x")
+        for txt, cmd in [("💾 Guardar", self._guardar),
+                         ("💾 Guardar como", self._guardar_como),
+                         ("🔍 Buscar", self._buscar_dlg),
+                         ("📋 Copiar todo", self._copiar_todo)]:
+            btn(tb, txt, cmd, bg=SIDEBAR)
+        self.lbl_info = tk.Label(tb, text="", bg=SIDEBAR, fg=DIM,
+                                 font=("Segoe UI",9))
+        self.lbl_info.pack(side="right", padx=10)
+
+        body = tk.Frame(self, bg=BG)
+        body.pack(fill="both", expand=True, padx=4, pady=4)
+
+        self.nums = tk.Text(body, width=4, state="disabled",
+                            bg=SIDEBAR, fg=DIM, relief="flat",
+                            font=("Consolas",11), bd=4,
+                            selectbackground=SIDEBAR)
+        self.nums.pack(side="left", fill="y")
+
+        sb = tk.Scrollbar(body)
+        sb.pack(side="right", fill="y")
+
+        self.txt = tk.Text(body, bg="#282a36", fg="#f8f8f2",
+                           insertbackground=ACCENT, relief="flat",
+                           font=("Consolas",11), bd=6, wrap="none",
+                           undo=True, yscrollcommand=sb.set,
+                           selectbackground=SEL)
+        self.txt.pack(fill="both", expand=True)
+        sb.config(command=self._scroll_ambos)
+
+        self.txt.bind("<KeyRelease>", self._on_key)
+        self.txt.bind("<MouseWheel>", self._on_scroll)
+        self.bind("<Control-s>", lambda e: self._guardar())
+        self.bind("<Control-f>", lambda e: self._buscar_dlg())
+
+        bar = tk.Frame(self, bg=SIDEBAR, height=22)
+        bar.pack(fill="x")
+        bar.pack_propagate(False)
+        self.lbl_estado = tk.Label(bar, text="Listo", bg=SIDEBAR,
+                                   fg=DIM, font=("Segoe UI",9), anchor="w",
+                                   padx=10)
+        self.lbl_estado.pack(side="left")
+
+    def _scroll_ambos(self, *args):
+        self.txt.yview(*args)
+        self._update_nums()
+
+    def _on_scroll(self, *args):
+        self._update_nums()
+
+    def _on_key(self, event=None):
+        self.modificado = True
+        self._update_nums()
+        self._highlight()
+        linea, col = self.txt.index("insert").split(".")
+        self.lbl_estado.configure(text=f"Línea {linea}  Col {int(col)+1}")
+
+    def _update_nums(self):
+        self.nums.configure(state="normal")
+        self.nums.delete("1.0", "end")
+        total = int(self.txt.index("end-1c").split(".")[0])
+        self.nums.insert("1.0", "\n".join(str(i) for i in range(1, total+1)))
+        self.nums.configure(state="disabled")
+
+    def _highlight(self):
+        if not self.ruta or self.ruta.suffix.lower() != ".py":
+            return
+        for tag in self.SYNTAX:
+            self.txt.tag_remove(tag, "1.0", "end")
+        content = self.txt.get("1.0", "end")
+        for tag, (pat, color) in self.SYNTAX.items():
+            self.txt.tag_configure(tag, foreground=color)
+            for m in re.finditer(pat, content, re.MULTILINE):
+                s = f"1.0+{m.start()}c"
+                e = f"1.0+{m.end()}c"
+                self.txt.tag_add(tag, s, e)
+
+    def _cargar(self):
+        try:
+            with open(self.ruta, "r", encoding="utf-8", errors="replace") as f:
+                self.txt.insert("1.0", f.read())
+            self._on_key()
+            self.modificado = False
+        except Exception as ex:
+            messagebox.showerror("Error", str(ex), parent=self)
+
+    def _guardar(self):
+        if not self.ruta:
+            self._guardar_como(); return
+        try:
+            with open(self.ruta, "w", encoding="utf-8") as f:
+                f.write(self.txt.get("1.0","end-1c"))
+            self.modificado = False
+            self.lbl_estado.configure(text=f"Guardado: {self.ruta.name}")
+        except Exception as ex:
+            messagebox.showerror("Error", str(ex), parent=self)
+
+    def _guardar_como(self):
+        p = filedialog.asksaveasfilename(parent=self,
+            defaultextension=".txt",
+            filetypes=[("Texto","*.txt"),("Python","*.py"),("Todos","*.*")])
+        if p:
+            self.ruta = Path(p)
+            self.title(f"Editor — {self.ruta.name}")
+            self._guardar()
+
+    def _buscar_dlg(self):
+        term = simpledialog.askstring("Buscar","Texto a buscar:", parent=self)
+        if not term: return
+        self.txt.tag_remove("buscar","1.0","end")
+        self.txt.tag_configure("buscar", background=WARN, foreground="#000")
+        idx = "1.0"
+        count = 0
+        while True:
+            idx = self.txt.search(term, idx, nocase=True, stopindex="end")
+            if not idx: break
+            end = f"{idx}+{len(term)}c"
+            self.txt.tag_add("buscar", idx, end)
+            idx = end; count += 1
+        self.lbl_estado.configure(text=f"{count} ocurrencia(s) de '{term}'")
+
+    def _copiar_todo(self):
+        self.clipboard_clear()
+        self.clipboard_append(self.txt.get("1.0","end-1c"))
+        self.lbl_estado.configure(text="Contenido copiado al portapapeles")
+
+    def _cerrar(self):
+        if self.modificado:
+            if messagebox.askyesno("Guardar", "¿Guardar antes de cerrar?",
+                                   parent=self):
+                self._guardar()
+        self.destroy()
+
+# ═══════════════════════════════════════════════════════════════════
+#  VISOR DE IMÁGENES
+# ═══════════════════════════════════════════════════════════════════
+class VisorImagenes(tk.Toplevel):
+    def __init__(self, master, ruta):
+        super().__init__(master)
+        self.ruta    = Path(ruta)
+        self.zoom    = 1.0
+        self.orig    = None
+        self.title(f"Imagen — {self.ruta.name}")
+        self.geometry("900x660")
+        self.configure(bg=BG)
+        self._ui()
+        self._cargar()
+
+    def _ui(self):
+        tb = tk.Frame(self, bg=SIDEBAR)
+        tb.pack(fill="x")
+        for txt, cmd in [("🔍+  Acercar",  self._zoom_in),
+                         ("🔍-  Alejar",   self._zoom_out),
+                         ("↺  Restablecer", self._zoom_reset),
+                         ("💾  Guardar copia", self._guardar_copia)]:
+            btn(tb, txt, cmd, bg=SIDEBAR)
+        self.lbl_info = tk.Label(tb, text="", bg=SIDEBAR, fg=DIM,
+                                 font=("Segoe UI",9))
+        self.lbl_info.pack(side="right", padx=10)
+
+        frame = tk.Frame(self, bg=BG)
+        frame.pack(fill="both", expand=True)
+        self.canvas = tk.Canvas(frame, bg="#111", highlightthickness=0)
+        sbx = tk.Scrollbar(frame, orient="horizontal",
+                           command=self.canvas.xview)
+        sby = tk.Scrollbar(frame, orient="vertical",
+                           command=self.canvas.yview)
+        self.canvas.configure(xscrollcommand=sbx.set,
+                              yscrollcommand=sby.set)
+        sbx.pack(side="bottom", fill="x")
+        sby.pack(side="right",  fill="y")
+        self.canvas.pack(fill="both", expand=True)
+        self.canvas.bind("<MouseWheel>",
+            lambda e: self._zoom_in() if e.delta>0 else self._zoom_out())
+
+    def _cargar(self):
+        try:
+            if PIL_OK:
+                self.orig = Image.open(str(self.ruta))
+                w, h = self.orig.size
+                self.lbl_info.configure(
+                    text=f"{w}×{h} px  ·  {self.orig.mode}  ·  "
+                         f"{fmt_size(self.ruta.stat().st_size)}")
+            else:
+                self.orig = tk.PhotoImage(file=str(self.ruta))
+            self._mostrar()
+        except Exception as ex:
+            messagebox.showerror("Error", str(ex), parent=self)
+
+    def _mostrar(self):
+        self.canvas.delete("all")
+        if PIL_OK:
+            w = int(self.orig.width  * self.zoom)
+            h = int(self.orig.height * self.zoom)
+            img = self.orig.resize((w,h), Image.LANCZOS)
+            self._tk_img = ImageTk.PhotoImage(img)
+        else:
+            self._tk_img = self.orig
+            w = self._tk_img.width()
+            h = self._tk_img.height()
+        self.canvas.create_image(w//2, h//2, image=self._tk_img)
+        self.canvas.configure(scrollregion=(0,0,w,h))
+
+    def _zoom_in(self):
+        self.zoom = min(self.zoom * 1.2, 10)
+        self._mostrar()
+
+    def _zoom_out(self):
+        self.zoom = max(self.zoom / 1.2, 0.05)
+        self._mostrar()
+
+    def _zoom_reset(self):
+        self.zoom = 1.0
+        self._mostrar()
+
+    def _guardar_copia(self):
+        p = filedialog.asksaveasfilename(parent=self,
+            initialfile=self.ruta.name,
+            filetypes=[("PNG","*.png"),("JPEG","*.jpg"),("Todos","*.*")])
+        if p:
+            try:
+                shutil.copy2(self.ruta, p)
+                messagebox.showinfo("OK", f"Guardado en:\n{p}", parent=self)
+            except Exception as ex:
+                messagebox.showerror("Error", str(ex), parent=self)
+
+# ═══════════════════════════════════════════════════════════════════
+#  TERMINAL INTEGRADA
+# ═══════════════════════════════════════════════════════════════════
+class Terminal(tk.Frame):
+    def __init__(self, parent, cwd):
+        super().__init__(parent, bg=TERM)
+        self.cwd   = str(cwd)
+        self.queue = queue.Queue()
+        self.proc  = None
+        self._ui()
+        self._iniciar()
+
+    def _ui(self):
+        tb = tk.Frame(self, bg=TERM)
+        tb.pack(fill="x")
+        tk.Label(tb, text=f"  {ICONOS['term']}  TERMINAL", bg=TERM,
+                 fg=TTEXT, font=("Segoe UI",9,"bold")).pack(side="left")
+        btn(tb, "✕ Cerrar", self._destruir, bg=TERM, fg=DNG, pad=(6,2))
+        btn(tb, "🔄 Reiniciar", self._reiniciar, bg=TERM, fg=WARN, pad=(6,2))
+
+        self.out = tk.Text(self, bg=TERM, fg=TTEXT, insertbackground=TTEXT,
+                           relief="flat", font=("Consolas",10), bd=4,
+                           state="disabled", wrap="word")
+        self.out.pack(fill="both", expand=True)
+        self.out.tag_configure("err", foreground=DNG)
+        self.out.tag_configure("in",  foreground="#8be9fd")
+
+        row = tk.Frame(self, bg=TERM)
+        row.pack(fill="x")
+        tk.Label(row, text="❯", bg=TERM, fg=ACCENT,
+                 font=("Consolas",11)).pack(side="left", padx=4)
+        self.entry = tk.Entry(row, bg="#0a0a12", fg=TTEXT,
+                              insertbackground=TTEXT, relief="flat",
+                              font=("Consolas",11), bd=4)
+        self.entry.pack(fill="x", expand=True)
+        self.entry.bind("<Return>", self._enviar)
+        self.entry.focus()
+        self._poll()
+
+    def _iniciar(self):
+        shell = "cmd.exe" if sys.platform == "win32" else "/bin/bash"
+        try:
+            self.proc = subprocess.Popen(
+                shell, stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                cwd=self.cwd, text=True, bufsize=1,
+                shell=False,
+                creationflags=subprocess.CREATE_NO_WINDOW
+                              if sys.platform=="win32" else 0)
+            threading.Thread(target=self._leer, args=(self.proc.stdout,""),
+                             daemon=True).start()
+            threading.Thread(target=self._leer, args=(self.proc.stderr,"err"),
+                             daemon=True).start()
+        except Exception as ex:
+            self._write(f"[Error al iniciar terminal: {ex}]\n", "err")
+
+    def _leer(self, stream, tag):
+        try:
+            for line in stream:
+                self.queue.put((line, tag))
+        except Exception:
+            pass
+
+    def _poll(self):
+        try:
+            while True:
+                line, tag = self.queue.get_nowait()
+                self._write(line, tag)
+        except queue.Empty:
+            pass
+        self.after(100, self._poll)
+
+    def _write(self, text, tag=""):
+        self.out.configure(state="normal")
+        self.out.insert("end", text, tag)
+        self.out.see("end")
+        self.out.configure(state="disabled")
+
+    def _enviar(self, event=None):
+        cmd = self.entry.get().strip()
+        if not cmd: return
+        self._write(f"❯ {cmd}\n", "in")
+        self.entry.delete(0, "end")
+        if self.proc and self.proc.poll() is None:
+            try:
+                self.proc.stdin.write(cmd + "\n")
+                self.proc.stdin.flush()
+            except Exception as ex:
+                self._write(f"[{ex}]\n", "err")
+
+    def _reiniciar(self):
+        if self.proc:
+            try: self.proc.terminate()
+            except: pass
+        self.out.configure(state="normal")
+        self.out.delete("1.0","end")
+        self.out.configure(state="disabled")
+        self._iniciar()
+
+    def _destruir(self):
+        if self.proc:
+            try: self.proc.terminate()
+            except: pass
+        self.pack_forget()
+
+    def cambiar_dir(self, ruta):
+        self.cwd = str(ruta)
+        cmd = f"cd /d {ruta}" if sys.platform=="win32" else f"cd {ruta}"
+        self._enviar_cmd(cmd)
+
+    def _enviar_cmd(self, cmd):
+        self._write(f"❯ {cmd}\n", "in")
+        if self.proc and self.proc.poll() is None:
+            try:
+                self.proc.stdin.write(cmd + "\n")
+                self.proc.stdin.flush()
+            except: pass
+
+# ═══════════════════════════════════════════════════════════════════
+#  DIÁLOGOS AUXILIARES
+# ═══════════════════════════════════════════════════════════════════
+class Propiedades(tk.Toplevel):
+    def __init__(self, master, ruta):
+        super().__init__(master)
+        self.title("Propiedades")
+        self.configure(bg=BG)
+        self.resizable(False, False)
+        p = Path(ruta)
+        try: st = p.stat()
+        except: st = None
+        filas = [
+            ("Nombre",     p.name),
+            ("Ruta",       str(p.parent)),
+            ("Tipo",       "Carpeta" if p.is_dir() else p.suffix.upper() or "Archivo"),
+            ("Tamaño",     fmt_size(st.st_size) if st and p.is_file() else "—"),
+            ("Creado",     datetime.fromtimestamp(st.st_ctime).strftime("%d/%m/%Y %H:%M:%S") if st else "—"),
+            ("Modificado", datetime.fromtimestamp(st.st_mtime).strftime("%d/%m/%Y %H:%M:%S") if st else "—"),
+            ("Accedido",   datetime.fromtimestamp(st.st_atime).strftime("%d/%m/%Y %H:%M:%S") if st else "—"),
+        ]
+        if p.is_dir():
+            try:
+                n_arch = sum(1 for _ in p.rglob("*") if _.is_file())
+                n_carp = sum(1 for _ in p.rglob("*") if _.is_dir())
+                filas.append(("Contenido", f"{n_arch} archivo(s), {n_carp} carpeta(s)"))
+            except: pass
+        for i, (k, v) in enumerate(filas):
+            tk.Label(self, text=k, bg=BG, fg=DIM,
+                     font=("Segoe UI",10,"bold"), anchor="e",
+                     padx=16, pady=4).grid(row=i, column=0, sticky="e")
+            tk.Label(self, text=v, bg=BG, fg=TEXT,
+                     font=("Segoe UI",10), anchor="w",
+                     padx=10, pady=4, wraplength=340).grid(row=i, column=1, sticky="w")
+        tk.Button(self, text="Cerrar", command=self.destroy,
+                  bg=ACCENT, fg="white", relief="flat",
+                  font=("Segoe UI",10), padx=20, pady=6,
+                  cursor="hand2").grid(row=len(filas), column=0,
+                                       columnspan=2, pady=12)
+
+
+class RenombrarMasivo(tk.Toplevel):
+    def __init__(self, master, rutas):
+        super().__init__(master)
+        self.rutas = [Path(r) for r in rutas]
+        self.title("Renombrar en masa")
+        self.geometry("520x420")
+        self.configure(bg=BG)
+        self._ui()
+
+    def _ui(self):
+        tk.Label(self, text="Renombrar en masa", bg=BG, fg=ACCENT,
+                 font=("Segoe UI",13,"bold")).pack(pady=12)
+
+        ops = tk.LabelFrame(self, text="Operación", bg=BG, fg=DIM,
+                            font=("Segoe UI",9))
+        ops.pack(fill="x", padx=16, pady=4)
+
+        self.var_op = tk.StringVar(value="prefix")
+        for val, txt in [("prefix","Agregar prefijo"),
+                         ("suffix","Agregar sufijo"),
+                         ("replace","Reemplazar texto"),
+                         ("number","Numeración automática")]:
+            tk.Radiobutton(ops, text=txt, variable=self.var_op, value=val,
+                           bg=BG, fg=TEXT, selectcolor=PANEL,
+                           activebackground=BG, font=("Segoe UI",10),
+                           command=self._actualizar).pack(anchor="w", padx=8)
+
+        f = tk.Frame(self, bg=BG)
+        f.pack(fill="x", padx=16, pady=4)
+        tk.Label(f, text="Texto 1:", bg=BG, fg=DIM,
+                 font=("Segoe UI",10), width=10).grid(row=0,column=0,sticky="w")
+        self.e1 = tk.Entry(f, bg=PANEL, fg=TEXT, insertbackground=ACCENT,
+                           relief="flat", font=("Segoe UI",10), bd=4)
+        self.e1.grid(row=0, column=1, sticky="ew", padx=4)
+        tk.Label(f, text="Texto 2:", bg=BG, fg=DIM,
+                 font=("Segoe UI",10), width=10).grid(row=1,column=0,sticky="w",pady=4)
+        self.e2 = tk.Entry(f, bg=PANEL, fg=TEXT, insertbackground=ACCENT,
+                           relief="flat", font=("Segoe UI",10), bd=4)
+        self.e2.grid(row=1, column=1, sticky="ew", padx=4)
+        f.columnconfigure(1, weight=1)
+
+        tk.Label(self, text="Vista previa:", bg=BG, fg=DIM,
+                 font=("Segoe UI",9,"bold")).pack(anchor="w", padx=16)
+        self.preview = tk.Text(self, bg=PANEL, fg=TEXT, relief="flat",
+                               font=("Consolas",9), height=7, bd=4)
+        self.preview.pack(fill="both", expand=True, padx=16, pady=4)
+
+        brow = tk.Frame(self, bg=BG)
+        brow.pack(pady=8)
+        tk.Button(brow, text="👁 Vista previa", command=self._actualizar,
+                  bg=PANEL, fg=TEXT, relief="flat", font=("Segoe UI",10),
+                  padx=12, pady=6, cursor="hand2").pack(side="left", padx=6)
+        tk.Button(brow, text="✅ Aplicar", command=self._aplicar,
+                  bg=ACCENT, fg="white", relief="flat", font=("Segoe UI",10),
+                  padx=12, pady=6, cursor="hand2").pack(side="left", padx=6)
+
+    def _nuevo_nombre(self, p, idx):
+        op = self.var_op.get()
+        stem, ext = p.stem, p.suffix
+        t1 = self.e1.get(); t2 = self.e2.get()
+        if op == "prefix":  return f"{t1}{stem}{ext}"
+        if op == "suffix":  return f"{stem}{t1}{ext}"
+        if op == "replace": return f"{stem.replace(t1,t2)}{ext}"
+        if op == "number":  return f"{t1}{idx:03d}{ext}"
+        return p.name
+
+    def _actualizar(self):
+        self.preview.delete("1.0","end")
+        for i, p in enumerate(self.rutas, 1):
+            nuevo = self._nuevo_nombre(p, i)
+            self.preview.insert("end", f"{p.name}  →  {nuevo}\n")
+
+    def _aplicar(self):
+        errores = []
+        for i, p in enumerate(self.rutas, 1):
+            nuevo = self._nuevo_nombre(p, i)
+            try: p.rename(p.parent / nuevo)
+            except Exception as ex: errores.append(str(ex))
+        if errores:
+            messagebox.showerror("Errores", "\n".join(errores), parent=self)
+        else:
+            messagebox.showinfo("Listo",
+                f"{len(self.rutas)} archivo(s) renombrado(s)", parent=self)
+        self.destroy()
+
+
+class BuscarContenido(tk.Toplevel):
+    def __init__(self, master, ruta_base):
+        super().__init__(master)
+        self.ruta_base = Path(ruta_base)
+        self.title("Buscar en archivos")
+        self.geometry("680x480")
+        self.configure(bg=BG)
+        self._ui()
+
+    def _ui(self):
+        tk.Label(self, text="Buscar dentro de archivos", bg=BG, fg=ACCENT,
+                 font=("Segoe UI",13,"bold")).pack(pady=10)
+
+        row = tk.Frame(self, bg=BG)
+        row.pack(fill="x", padx=16, pady=4)
+        self.var_term = tk.StringVar()
+        tk.Entry(row, textvariable=self.var_term, bg=PANEL, fg=TEXT,
+                 insertbackground=ACCENT, relief="flat",
+                 font=("Segoe UI",11), bd=6).pack(side="left",
+                                                    fill="x", expand=True)
+        tk.Button(row, text=f"{ICONOS['search']} Buscar",
+                  command=self._buscar, bg=ACCENT, fg="white",
+                  relief="flat", font=("Segoe UI",10), padx=10,
+                  cursor="hand2").pack(side="left", padx=6)
+
+        self.lbl_status = tk.Label(self, text="", bg=BG, fg=DIM,
+                                    font=("Segoe UI",9))
+        self.lbl_status.pack()
+
+        cols = ("archivo","linea","texto")
+        self.tree = ttk.Treeview(self, columns=cols, show="headings",
+                                 selectmode="browse")
+        self.tree.heading("archivo", text="Archivo")
+        self.tree.heading("linea",   text="Línea")
+        self.tree.heading("texto",   text="Contenido")
+        self.tree.column("archivo", width=200)
+        self.tree.column("linea",   width=60,  anchor="center")
+        self.tree.column("texto",   width=360)
+        sb = ttk.Scrollbar(self, command=self.tree.yview)
+        self.tree.configure(yscrollcommand=sb.set)
+        self.tree.pack(fill="both", expand=True, padx=8, pady=4)
+        sb.pack(side="right", fill="y")
+        self.tree.bind("<Double-1>", self._abrir_resultado)
+        self._estilo_tree()
+
+    def _estilo_tree(self):
+        s = ttk.Style(self)
+        s.configure("Treeview", background=PANEL, foreground=TEXT,
+                    fieldbackground=PANEL, rowheight=24, font=("Segoe UI",9))
+        s.configure("Treeview.Heading", background=SIDEBAR, foreground=ACCENT,
+                    font=("Segoe UI",9,"bold"))
+
+    def _buscar(self):
+        term = self.var_term.get().strip()
+        if not term: return
+        for i in self.tree.get_children():
+            self.tree.delete(i)
+        self.lbl_status.configure(text="Buscando...")
+        self.update()
+        encontrados = 0
+        for p in self.ruta_base.rglob("*"):
+            if not p.is_file(): continue
+            if p.suffix.lower() not in TXT_EXT: continue
+            try:
+                with open(p,"r",encoding="utf-8",errors="ignore") as f:
+                    for n, linea in enumerate(f, 1):
+                        if term.lower() in linea.lower():
+                            rel = str(p.relative_to(self.ruta_base))
+                            self.tree.insert("","end",
+                                values=(rel, n, linea.strip()[:120]),
+                                iid=f"{p}|{n}")
+                            encontrados += 1
+                            if encontrados >= 500: break
+            except: pass
+        self.lbl_status.configure(
+            text=f"{encontrados} resultado(s) para '{term}'"
+                 + (" (límite 500)" if encontrados>=500 else ""))
+
+    def _abrir_resultado(self, event=None):
+        sel = self.tree.selection()
+        if not sel: return
+        ruta_str, linea = sel[0].rsplit("|", 1)
+        ed = EditorTexto(self, ruta_str)
+        ed.txt.see(f"{linea}.0")
+        ed.txt.mark_set("insert", f"{linea}.0")
+
+# ═══════════════════════════════════════════════════════════════════
+#  PANEL DE ARCHIVOS (reutilizable para modo dual)
+# ═══════════════════════════════════════════════════════════════════
+class PanelArchivos(tk.Frame):
+    def __init__(self, parent, app, ruta=None):
+        super().__init__(parent, bg=BG)
+        self.app  = app
+        self.portapapeles = None
+        self._ui()
+        self.listar(ruta or Path.home())
+
+    def _ui(self):
+        nav = tk.Frame(self, bg=SIDEBAR)
+        nav.pack(fill="x")
+        self.var_ruta = tk.StringVar()
+        e = tk.Entry(nav, textvariable=self.var_ruta, bg="#12121a",
+                     fg=TEXT, insertbackground=ACCENT, relief="flat",
+                     font=("Segoe UI",9), bd=3)
+        e.pack(fill="x", padx=4, pady=3)
+        e.bind("<Return>", lambda ev: self.listar(Path(self.var_ruta.get())))
+
+        frame = tk.Frame(self, bg=BG)
+        frame.pack(fill="both", expand=True)
+        cols = ("nombre","tipo","tamanio","modificado")
+        self.tree = ttk.Treeview(frame, columns=cols, show="headings",
+                                 selectmode="extended")
+        for col, txt, w, anc in [
+            ("nombre","Nombre",300,"w"),("tipo","Tipo",90,"w"),
+            ("tamanio","Tamaño",80,"e"),("modificado","Modificado",130,"w")]:
+            self.tree.heading(col, text=txt, anchor=anc)
+            self.tree.column(col, width=w, anchor=anc)
+        sb = ttk.Scrollbar(frame, command=self.tree.yview)
+        self.tree.configure(yscrollcommand=sb.set)
+        self.tree.pack(side="left", fill="both", expand=True)
+        sb.pack(side="right", fill="y")
+        self.tree.tag_configure("carpeta", foreground="#89b4fa")
+        self.tree.bind("<Double-1>", self._abrir)
+        self.tree.bind("<Return>",   self._abrir)
+        self.tree.bind("<BackSpace>",lambda e: self.subir())
+        self.tree.bind("<Button-3>", self._menu_ctx)
+
+        # ── BUG FIX: eliminados los bind_all con focus_displayof() que
+        #    nunca disparaban. Los atajos globales se manejan en
+        #    GestorArchivos._atajos() apuntando a panel_activo().
+
+        self.lbl_st = tk.Label(self, text="", bg=SIDEBAR, fg=DIM,
+                                font=("Segoe UI",8), anchor="w", padx=6)
+        self.lbl_st.pack(fill="x")
+
+    def listar(self, ruta: Path):
+        if not ruta.exists(): return
+        self.ruta = ruta
+        self.var_ruta.set(str(ruta))
+        for i in self.tree.get_children():
+            self.tree.delete(i)
+        try:
+            entradas = sorted(ruta.iterdir(),
+                key=lambda p: (not p.is_dir(), p.name.lower()))
+        except PermissionError:
+            self.lbl_st.configure(text="Sin permisos"); return
+        dirs = archs = 0
+        for e in entradas:
+            try:
+                st  = e.stat()
+                mod = datetime.fromtimestamp(st.st_mtime).strftime("%d/%m/%Y %H:%M")
+                tam = fmt_size(st.st_size) if e.is_file() else ""
+                tipo = "Carpeta" if e.is_dir() else (
+                    e.suffix.upper().lstrip(".")+(" Archivo" if e.suffix else "Archivo"))
+            except: mod=tam=tipo=""
+            ico = icono(e.name, e.is_dir())
+            tag = "carpeta" if e.is_dir() else ""
+            self.tree.insert("","end",
+                values=(f"  {ico}  {e.name}", tipo, tam, mod),
+                tags=(tag,), iid=str(e))
+            if e.is_dir(): dirs+=1
+            else: archs+=1
+        self.lbl_st.configure(
+            text=f"  {dirs} carpeta(s) · {archs} archivo(s)")
+
+    def subir(self):
+        p = self.ruta.parent
+        if p != self.ruta: self.listar(p)
+
+    def sel_rutas(self):
+        return [Path(s) for s in self.tree.selection()]
+
+    def _abrir(self, event=None):
+        for ruta in self.sel_rutas():
+            if ruta.is_dir():
+                self.listar(ruta)
+            elif ruta.suffix.lower() in IMG_EXT:
+                VisorImagenes(self.app, ruta)
+            elif ruta.suffix.lower() in TXT_EXT or (ruta.exists() and ruta.stat().st_size < 2_000_000):
+                EditorTexto(self.app, ruta)
+            else:
+                try: os.startfile(str(ruta))
+                except: subprocess.Popen(["xdg-open",str(ruta)])
+
+    # ── BUG FIX: copiar/cortar ahora sincronizan portapapeles_global ──
+    def copiar(self):
+        sel = self.sel_rutas()
+        if sel:
+            self.portapapeles = ("copy", sel)
+            self.app.portapapeles_global = ("copy", sel)
+
+    def cortar(self):
+        sel = self.sel_rutas()
+        if sel:
+            self.portapapeles = ("cut", sel)
+            self.app.portapapeles_global = ("cut", sel)
+
+    # ── BUG FIX: pegar refresca ambos paneles en modo dual ────────────
+    def pegar(self):
+        pb = self.portapapeles or self.app.portapapeles_global
+        if not pb: return
+        modo, rutas = pb
+        for origen in rutas:
+            dst = self.ruta / origen.name
+            try:
+                if modo == "copy":
+                    if origen.is_dir():
+                        shutil.copytree(origen, dst)
+                    else:
+                        shutil.copy2(origen, dst)
+                else:
+                    shutil.move(str(origen), dst)
+            except Exception as ex:
+                messagebox.showerror("Error", str(ex))
+        if modo == "cut":
+            self.portapapeles = None
+            self.app.portapapeles_global = None
+        self.listar(self.ruta)
+        # refrescar el panel opuesto si está visible en modo dual
+        if self.app.dual_mode:
+            otro = self.app.panel2 if self is self.app.panel1 else self.app.panel1
+            otro.listar(otro.ruta)
+
+    def nueva_carpeta(self):
+        n = simpledialog.askstring("Nueva carpeta","Nombre:", parent=self)
+        if n:
+            try: (self.ruta/n).mkdir(parents=True,exist_ok=True)
+            except Exception as ex: messagebox.showerror("Error",str(ex))
+            self.listar(self.ruta)
+
+    def nuevo_archivo(self):
+        n = simpledialog.askstring("Nuevo archivo","Nombre (con extensión):", parent=self)
+        if n:
+            try: (self.ruta/n).touch()
+            except Exception as ex: messagebox.showerror("Error",str(ex))
+            self.listar(self.ruta)
+
+    def eliminar(self):
+        sel = self.sel_rutas()
+        if not sel: return
+        if not messagebox.askyesno("Eliminar",
+            f"¿Eliminar {len(sel)} elemento(s)?"): return
+        for p in sel:
+            try:
+                shutil.rmtree(p) if p.is_dir() else p.unlink()
+            except Exception as ex: messagebox.showerror("Error",str(ex))
+        self.listar(self.ruta)
+
+    def renombrar(self):
+        sel = self.sel_rutas()
+        if not sel: return
+        if len(sel) > 1:
+            RenombrarMasivo(self.app, sel)
+        else:
+            p = sel[0]
+            n = simpledialog.askstring("Renombrar","Nuevo nombre:",
+                                       initialvalue=p.name, parent=self)
+            if n:
+                try: p.rename(p.parent/n)
+                except Exception as ex: messagebox.showerror("Error",str(ex))
+        self.listar(self.ruta)
+
+    def comprimir(self):
+        sel = self.sel_rutas()
+        if not sel: return
+        nombre = simpledialog.askstring("Comprimir","Nombre del ZIP:", parent=self)
+        if not nombre: return
+        if not nombre.endswith(".zip"): nombre += ".zip"
+        dst = self.ruta / nombre
+        try:
+            with zipfile.ZipFile(dst,"w",zipfile.ZIP_DEFLATED) as z:
+                for p in sel:
+                    if p.is_dir():
+                        for f in p.rglob("*"):
+                            z.write(f, f.relative_to(p.parent))
+                    else:
+                        z.write(p, p.name)
+            messagebox.showinfo("OK", f"ZIP creado:\n{dst}")
+        except Exception as ex:
+            messagebox.showerror("Error", str(ex))
+        self.listar(self.ruta)
+
+    def descomprimir(self):
+        sel = self.sel_rutas()
+        for p in sel:
+            if p.suffix.lower() == ".zip":
+                try:
+                    with zipfile.ZipFile(p,"r") as z:
+                        z.extractall(p.parent / p.stem)
+                    messagebox.showinfo("OK",
+                        f"Extraído en:\n{p.parent / p.stem}")
+                except Exception as ex:
+                    messagebox.showerror("Error", str(ex))
+        self.listar(self.ruta)
+
+    def propiedades(self):
+        sel = self.sel_rutas()
+        if sel: Propiedades(self.app, sel[0])
+
+    def _menu_ctx(self, event):
+        m = tk.Menu(self, tearoff=0, bg=PANEL, fg=TEXT,
+                    activebackground=SEL, activeforeground=TEXT,
+                    relief="flat", bd=0, font=("Segoe UI",10))
+        m.add_command(label=f"{ICONOS['new_folder']}  Nueva carpeta",  command=self.nueva_carpeta)
+        m.add_command(label=f"{ICONOS['new_file']}   Nuevo archivo",   command=self.nuevo_archivo)
+        m.add_separator()
+        m.add_command(label=f"{ICONOS['edit']}  Editar",              command=self._abrir)
+        m.add_command(label=f"{ICONOS['view']}  Ver imagen",          command=self._abrir)
+        m.add_separator()
+        m.add_command(label=f"{ICONOS['copy']}  Copiar",              command=self.copiar)
+        m.add_command(label=f"{ICONOS['cut']}   Cortar",              command=self.cortar)
+        m.add_command(label=f"{ICONOS['paste']} Pegar",               command=self.pegar)
+        m.add_separator()
+        m.add_command(label=f"{ICONOS['rename']}  Renombrar",         command=self.renombrar)
+        m.add_command(label=f"{ICONOS['delete']}  Eliminar",          command=self.eliminar)
+        m.add_separator()
+        m.add_command(label=f"{ICONOS['zip_ico']}  Comprimir a ZIP",  command=self.comprimir)
+        m.add_command(label=f"{ICONOS['zip_ico']}  Descomprimir ZIP", command=self.descomprimir)
+        m.add_separator()
+        m.add_command(label=f"{ICONOS['props']}  Propiedades",        command=self.propiedades)
+        try: m.tk_popup(event.x_root, event.y_root)
+        finally: m.grab_release()
+
+# ═══════════════════════════════════════════════════════════════════
+#  VENTANA PRINCIPAL
+# ═══════════════════════════════════════════════════════════════════
+class GestorArchivos(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("Gestor de Archivos Pro")
+        self.geometry("1200x760")
+        self.configure(bg=BG)
+        self.minsize(800, 520)
+        self.portapapeles_global = None
+        self.dual_mode  = False
+        self.term_vis   = False
+        self.terminal   = None
+
+        self._estilo()
+        self._ui()
+        self._atajos()
+
+    def _estilo(self):
+        s = ttk.Style(self)
+        s.theme_use("clam")
+        s.configure("Treeview", background=PANEL, foreground=TEXT,
+                    fieldbackground=PANEL, borderwidth=0,
+                    rowheight=26, font=("Segoe UI",10))
+        s.configure("Treeview.Heading", background=SIDEBAR,
+                    foreground=ACCENT, font=("Segoe UI",9,"bold"),
+                    borderwidth=0, relief="flat")
+        s.map("Treeview", background=[("selected",SEL)],
+              foreground=[("selected",TEXT)])
+        s.configure("Vertical.TScrollbar", background=PANEL,
+                    troughcolor=BG, arrowcolor=DIM, borderwidth=0)
+        s.configure("TPanedwindow", background=BG)
+
+    def _ui(self):
+        top = tk.Frame(self, bg=SIDEBAR, height=48)
+        top.pack(fill="x")
+        top.pack_propagate(False)
+        self._barra_top(top)
+
+        self.body = tk.Frame(self, bg=BG)
+        self.body.pack(fill="both", expand=True)
+
+        sidebar = tk.Frame(self.body, bg=SIDEBAR, width=180)
+        sidebar.pack(fill="y", side="left")
+        sidebar.pack_propagate(False)
+        self._sidebar(sidebar)
+
+        tk.Frame(self.body, bg=BRD, width=1).pack(fill="y", side="left")
+
+        right = tk.Frame(self.body, bg=BG)
+        right.pack(fill="both", expand=True, side="left")
+
+        self._toolbar(right)
+
+        self.content_frame = tk.Frame(right, bg=BG)
+        self.content_frame.pack(fill="both", expand=True)
+
+        self.panel1 = PanelArchivos(self.content_frame, self)
+        self.panel1.pack(fill="both", expand=True, side="left")
+
+        self.panel2 = PanelArchivos(self.content_frame, self)
+
+        self._statusbar()
+
+    def _barra_top(self, parent):
+        for ico, cmd in [
+            (ICONOS["back"],    lambda: self.panel_activo().subir()),
+            (ICONOS["up"],      lambda: self.panel_activo().subir()),
+            (ICONOS["home"],    lambda: self.panel_activo().listar(Path.home())),
+            (ICONOS["refresh"], lambda: self.panel_activo().listar(
+                                        self.panel_activo().ruta)),
+        ]:
+            b = tk.Button(parent, text=ico, command=cmd, bg=SIDEBAR, fg=TEXT,
+                          activebackground=HOVER, activeforeground=TEXT,
+                          relief="flat", font=("Segoe UI",13), cursor="hand2",
+                          padx=6, pady=4, bd=0)
+            b.pack(side="left", padx=2, pady=6)
+
+        rf = tk.Frame(parent, bg="#12121a", highlightthickness=1,
+                      highlightbackground=BRD)
+        rf.pack(side="left", fill="x", expand=True, padx=8, pady=10)
+        self.var_ruta = tk.StringVar()
+        e = tk.Entry(rf, textvariable=self.var_ruta, bg="#12121a", fg=TEXT,
+                     insertbackground=ACCENT, relief="flat",
+                     font=("Segoe UI",10), bd=4)
+        e.pack(fill="x")
+        e.bind("<Return>", lambda ev: self.panel_activo().listar(
+                                      Path(self.var_ruta.get())))
+
+        sf = tk.Frame(parent, bg="#12121a", highlightthickness=1,
+                      highlightbackground=BRD)
+        sf.pack(side="right", padx=8, pady=10)
+        tk.Label(sf, text=ICONOS["search"], bg="#12121a",
+                 fg=DIM, font=("Segoe UI",10)).pack(side="left", padx=4)
+        self.var_buscar = tk.StringVar()
+        self.var_buscar.trace("w", self._filtrar)
+        tk.Entry(sf, textvariable=self.var_buscar, bg="#12121a", fg=TEXT,
+                 insertbackground=ACCENT, relief="flat",
+                 font=("Segoe UI",10), width=16, bd=2).pack(side="left")
+
+    def _sidebar(self, parent):
+        def hdr(txt):
+            tk.Label(parent, text=txt, bg=SIDEBAR, fg=DIM,
+                     font=("Segoe UI",8,"bold"),
+                     anchor="w", padx=14).pack(fill="x", pady=(12,2))
+
+        def enlace(ico, txt, ruta):
+            f = tk.Frame(parent, bg=SIDEBAR, cursor="hand2")
+            f.pack(fill="x")
+            lbl = tk.Label(f, text=f"  {ico}  {txt}", bg=SIDEBAR, fg=TEXT,
+                           font=("Segoe UI",10), anchor="w", padx=8, pady=5)
+            lbl.pack(fill="x")
+            for w in (f, lbl):
+                w.bind("<Button-1>",
+                    lambda e, r=ruta: self.panel_activo().listar(Path(r)))
+                w.bind("<Enter>", lambda e, w=f: w.configure(bg=HOVER))
+                w.bind("<Leave>", lambda e, w=f: w.configure(bg=SIDEBAR))
+
+        tk.Label(parent, text=f"  📂  GESTOR PRO", bg=SIDEBAR, fg=ACCENT,
+                 font=("Segoe UI",12,"bold"), anchor="w",
+                 pady=12, padx=8).pack(fill="x")
+        tk.Frame(parent, bg=BRD, height=1).pack(fill="x")
+
+        hdr("ACCESOS RÁPIDOS")
+        enlace(ICONOS["home"], "Inicio",     Path.home())
+        enlace("🖥️",          "Escritorio", Path.home()/"Desktop")
+        enlace("⬇️",          "Descargas",  Path.home()/"Downloads")
+        enlace("📄",          "Documentos", Path.home()/"Documents")
+        enlace("🖼️",          "Imágenes",   Path.home()/"Pictures")
+
+        hdr("UNIDADES")
+        import string
+        for d in string.ascii_uppercase:
+            if os.path.exists(f"{d}:\\"):
+                enlace(ICONOS["drive"], f"{d}:\\", f"{d}:\\")
+
+    def _toolbar(self, parent):
+        bar = tk.Frame(parent, bg=PANEL, height=40)
+        bar.pack(fill="x")
+        bar.pack_propagate(False)
+
+        def tb(ico, label, cmd, fg=TEXT):
+            b = tk.Button(bar, text=f"{ico} {label}", command=cmd,
+                          bg=PANEL, fg=fg, activebackground=HOVER,
+                          activeforeground=TEXT, relief="flat",
+                          font=("Segoe UI",10), cursor="hand2",
+                          padx=7, pady=5, bd=0)
+            b.pack(side="left", padx=1)
+            return b
+
+        def sep():
+            tk.Frame(bar, bg=BRD, width=1).pack(side="left", fill="y", pady=5)
+
+        tb(ICONOS["new_folder"], "Carpeta",  lambda: self.panel_activo().nueva_carpeta(), ACCENT)
+        tb(ICONOS["new_file"],   "Archivo",  lambda: self.panel_activo().nuevo_archivo(), SUC)
+        sep()
+        tb(ICONOS["edit"],   "Editor",   self._abrir_editor,   TEXT)
+        tb(ICONOS["view"],   "Imagen",   self._abrir_visor,    TEXT)
+        tb(ICONOS["term"],   "Terminal", self._toggle_terminal, WARN)
+        tb(ICONOS["dual"],   "Dual",     self._toggle_dual,    TEXT)
+        sep()
+        tb(ICONOS["search"], "En archivos", self._buscar_contenido, TEXT)
+        tb(ICONOS["batch"],  "Renombrar",   lambda: self.panel_activo().renombrar(), TEXT)
+        tb(ICONOS["zip_ico"],"ZIP",         lambda: self.panel_activo().comprimir(), TEXT)
+        sep()
+        tb(ICONOS["delete"], "Eliminar", lambda: self.panel_activo().eliminar(), DNG)
+        tb(ICONOS["props"],  "Info",     lambda: self.panel_activo().propiedades(), TEXT)
+
+    def _statusbar(self):
+        bar = tk.Frame(self, bg=SIDEBAR, height=24)
+        bar.pack(fill="x", side="bottom")
+        bar.pack_propagate(False)
+        self.lbl_status = tk.Label(bar, text="Listo", bg=SIDEBAR, fg=DIM,
+                                   font=("Segoe UI",8), anchor="w", padx=12)
+        self.lbl_status.pack(side="left")
+        if not PIL_OK:
+            tk.Label(bar,
+                text="  ⚠ Instala Pillow para soporte JPG completo: pip install Pillow",
+                bg=SIDEBAR, fg=WARN, font=("Segoe UI",8)).pack(side="right", padx=8)
+
+    # ── Helpers ──────────────────────────────────────────────────────
+    def panel_activo(self):
+        return self.panel1
+
+    def _filtrar(self, *args):
+        term = self.var_buscar.get()
+        p = self.panel_activo()
+        if hasattr(p, 'ruta'):
+            for i in p.tree.get_children():
+                p.tree.delete(i)
+            try:
+                entradas = sorted(p.ruta.iterdir(),
+                    key=lambda x: (not x.is_dir(), x.name.lower()))
+            except: return
+            for e in entradas:
+                if term and term.lower() not in e.name.lower(): continue
+                try:
+                    st  = e.stat()
+                    mod = datetime.fromtimestamp(st.st_mtime).strftime("%d/%m/%Y %H:%M")
+                    tam = fmt_size(st.st_size) if e.is_file() else ""
+                    tipo = "Carpeta" if e.is_dir() else e.suffix.upper().lstrip(".")
+                except: mod=tam=tipo=""
+                ico = icono(e.name, e.is_dir())
+                tag = "carpeta" if e.is_dir() else ""
+                p.tree.insert("","end",
+                    values=(f"  {ico}  {e.name}", tipo, tam, mod),
+                    tags=(tag,), iid=str(e))
+
+    def _toggle_dual(self):
+        self.dual_mode = not self.dual_mode
+        if self.dual_mode:
+            sep = tk.Frame(self.content_frame, bg=BRD, width=2)
+            sep.pack(fill="y", side="left")
+            self.panel2.pack(fill="both", expand=True, side="left")
+            self.panel2.listar(self.panel1.ruta)
+        else:
+            self.panel2.pack_forget()
+
+    def _toggle_terminal(self):
+        self.term_vis = not self.term_vis
+        if self.term_vis:
+            if not self.terminal:
+                self.terminal = Terminal(self, self.panel1.ruta)
+            self.terminal.pack(fill="x", side="bottom", in_=self.body)
+            self.terminal.configure(height=180)
+        else:
+            if self.terminal:
+                self.terminal.pack_forget()
+
+    def _abrir_editor(self):
+        sel = self.panel_activo().sel_rutas()
+        if sel: EditorTexto(self, sel[0])
+        else:   EditorTexto(self)
+
+    def _abrir_visor(self):
+        sel = self.panel_activo().sel_rutas()
+        if sel: VisorImagenes(self, sel[0])
+
+    def _buscar_contenido(self):
+        BuscarContenido(self, self.panel_activo().ruta)
+
+    def _atajos(self):
+        self.bind("<F5>",        lambda e: self.panel_activo().listar(
+                                            self.panel_activo().ruta))
+        self.bind("<Delete>",    lambda e: self.panel_activo().eliminar())
+        self.bind("<Control-c>", lambda e: self.panel_activo().copiar())
+        self.bind("<Control-x>", lambda e: self.panel_activo().cortar())
+        self.bind("<Control-v>", lambda e: self.panel_activo().pegar())
+        self.bind("<F2>",        lambda e: self.panel_activo().renombrar())
+        self.bind("<Control-n>", lambda e: EditorTexto(self))
+        self.bind("<F12>",       lambda e: self._toggle_terminal())
+        self.bind("<F8>",        lambda e: self._toggle_dual())
+
+if __name__ == "__main__":
+    app = GestorArchivos()
+    app.mainloop()
+
+# -------------------------------------------------------------
+# INSTALAR PILLOW (opcional, para soporte completo de imágenes JPG):
+# C:/Users/angel/AppData/Local/Python/pythoncore-3.14-64/python.exe -m pip install Pillow
+#
+# EJECUTAR:
+# & C:/Users/angel/AppData/Local/Python/pythoncore-3.14-64/python.exe gestor_completo.py
+# -------------------------------------------------------------

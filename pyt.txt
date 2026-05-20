@@ -1,0 +1,119 @@
+import os
+import struct
+import shutil
+import openpyxl
+from pathlib import Path
+from datetime import datetime
+
+# Configuracion
+ARCHIVO_ORIGINAL = r"C:\Users\angel\Downloads\hola123.xlsx"
+CARPETA_COPIA    = r"C:\Users\angel\OneDrive\Documentos\estuda"
+NOMBRE_COPIA     = "hola123_copia.xlsx"
+ARCHIVO_SALIDA   = "hola123.bin"
+
+
+def hacer_copia(original, carpeta_destino, nombre_copia):
+    Path(carpeta_destino).mkdir(parents=True, exist_ok=True)
+    ruta_copia = os.path.join(carpeta_destino, nombre_copia)
+    shutil.copy2(original, ruta_copia)
+    return ruta_copia
+
+
+def leer_excel(ruta):
+    wb = openpyxl.load_workbook(ruta, data_only=True)
+    ws = wb.active
+    encabezados = []
+    filas = []
+    for i, row in enumerate(ws.iter_rows(values_only=True)):
+        if i == 2:
+            encabezados = [str(c) if c is not None else "" for c in row]
+        elif i >= 3 and any(c is not None for c in row):
+            filas.append([str(c) if c is not None else "" for c in row])
+    wb.close()
+    return encabezados, filas
+
+
+def serializar_campo(valor):
+    encoded = valor.encode("utf-8")
+    return struct.pack("<I", len(encoded)) + encoded
+
+
+def convertir_a_binario(encabezados, filas):
+    buffer = bytearray()
+    buffer += b"FT8B"
+    buffer += struct.pack("<H", 1)
+    buffer += struct.pack("<q", int(datetime.now().timestamp()))
+    buffer += struct.pack("<H", len(encabezados))
+    buffer += struct.pack("<I", len(filas))
+    for h in encabezados:
+        buffer += serializar_campo(h)
+    for fila in filas:
+        for celda in fila:
+            buffer += serializar_campo(celda)
+    return bytes(buffer)
+
+
+def guardar_binario(datos, carpeta, nombre):
+    Path(carpeta).mkdir(parents=True, exist_ok=True)
+    ruta_completa = os.path.join(carpeta, nombre)
+    with open(ruta_completa, "wb") as f:
+        f.write(datos)
+    return ruta_completa
+
+
+def main():
+    print("=" * 55)
+    print("  Conversor FT8 -> Binario")
+    print("=" * 55)
+
+    if not os.path.exists(ARCHIVO_ORIGINAL):
+        print(f"[ERROR] No se encontro el original: {ARCHIVO_ORIGINAL}")
+        return
+
+    print(f"[1] Copiando archivo original...")
+    ruta_copia = hacer_copia(ARCHIVO_ORIGINAL, CARPETA_COPIA, NOMBRE_COPIA)
+    print(f"    Original : {ARCHIVO_ORIGINAL}")
+    print(f"    Copia    : {ruta_copia}")
+    print(f"    OK  El archivo original NO fue modificado.")
+
+    print(f"[2] Leyendo copia: {ruta_copia}")
+    encabezados, filas = leer_excel(ruta_copia)
+    print(f"    Columnas : {len(encabezados)}")
+    print(f"    Filas    : {len(filas)}")
+
+    print("[3] Serializando a binario...")
+    datos_bin = convertir_a_binario(encabezados, filas)
+    print(f"    Tamanio  : {len(datos_bin):,} bytes")
+
+    print(f"[4] Guardando binario en: {CARPETA_COPIA}")
+    ruta_final = guardar_binario(datos_bin, CARPETA_COPIA, ARCHIVO_SALIDA)
+    print(f"    OK  Archivo guardado: {ruta_final}")
+
+    print("[5] Verificando magic bytes...")
+    with open(ruta_final, "rb") as f:
+        magic = f.read(4)
+    if magic == b"FT8B":
+        print("    OK  Magic FT8B confirmado - archivo valido.")
+    else:
+        print("    ERROR  Magic incorrecto - revisar.")
+
+    print("=" * 55)
+    print("  Proceso completado exitosamente.")
+    print("=" * 55)
+
+
+if __name__ == "__main__":
+    main()
+
+
+# -------------------------------------------------------------
+# COMANDOS PARA INSTALAR DEPENDENCIAS Y EJECUTAR EL SCRIPT
+# -------------------------------------------------------------
+#
+# 1. Instalar openpyxl (solo la primera vez):
+#    C:/Users/angel/AppData/Local/Python/pythoncore-3.14-64/python.exe -m pip install openpyxl
+#
+# 2. Ejecutar el script:
+#    & C:/Users/angel/AppData/Local/Python/pythoncore-3.14-64/python.exe c:/Users/angel/OneDrive/Escritorio/Imagenes/123.py
+#
+# -------------------------------------------------------------
