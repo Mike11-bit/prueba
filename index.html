@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reporte Power BI</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<style>
+:root{--bg:#0f0f11;--surface:#17171a;--surface2:#1e1e22;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f0f0;--muted:#888;--accent:#F2C811;--green:#22c55e;--red:#ef4444;--blue:#3b82f6}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+header{display:flex;align-items:center;justify-content:space-between;padding:18px 40px;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:100}
+.logo{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:500}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.meta{font-size:12px;color:var(--muted);font-family:'DM Mono',monospace}
+.btn-pdf{display:flex;align-items:center;gap:8px;background:var(--accent);color:#1a1a1a;border:none;padding:10px 22px;border-radius:8px;font-size:14px;font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all .2s}
+.btn-pdf:hover{background:#ffd000;transform:translateY(-1px)}
+.btn-pdf.loading{background:#555;color:#999;pointer-events:none}
+.spinner{display:none;width:16px;height:16px;border:2px solid #666;border-top-color:#999;border-radius:50%;animation:spin .7s linear infinite}
+.btn-pdf.loading .spinner{display:block}
+.btn-pdf.loading .bicon{display:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+main{padding:32px 40px;max-width:1400px;margin:0 auto}
+.title{font-size:26px;font-weight:600;margin-bottom:4px;letter-spacing:-.5px}
+.sub{font-size:14px;color:var(--muted);margin-bottom:32px}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:32px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 22px}
+.kpi-label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px}
+.kpi-value{font-size:28px;font-weight:600;letter-spacing:-1px;margin-bottom:6px}
+.kpi-change{font-size:12px}
+.up{color:var(--green)}.down{color:var(--red)}
+.charts-row{display:grid;grid-template-columns:2fr 1fr;gap:20px;margin-bottom:28px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px 24px}
+.card-title{font-size:13px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:20px}
+.bar-chart{display:flex;flex-direction:column;gap:12px}
+.bar-row{display:flex;align-items:center;gap:12px}
+.bar-label{font-size:12px;color:var(--muted);width:28px;text-align:right;flex-shrink:0}
+.bar-track{flex:1;height:8px;background:var(--surface2);border-radius:4px;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px;background:var(--accent);transition:width 1s cubic-bezier(.4,0,.2,1)}
+.bar-val{font-size:12px;font-family:'DM Mono',monospace;width:52px;flex-shrink:0}
+.donut-wrap{display:flex;align-items:center;gap:24px}
+.legend{display:flex;flex-direction:column;gap:10px}
+.legend-item{display:flex;align-items:center;gap:8px;font-size:13px}
+.ldot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{text-align:left;padding:10px 14px;font-size:11px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;border-bottom:1px solid var(--border)}
+tbody td{padding:12px 14px;border-bottom:1px solid var(--border)}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:var(--surface2)}
+.badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:500}
+.bg{background:rgba(34,197,94,.1);color:#22c55e}
+.by{background:rgba(242,200,17,.12);color:#F2C811}
+.bb{background:rgba(59,130,246,.1);color:#3b82f6}
+footer{text-align:center;padding:24px 40px;font-size:12px;color:var(--muted);border-top:1px solid var(--border);margin-top:20px}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo"><div class="dot"></div>Reporte Power BI</div>
+  <span class="meta" id="fh"></span>
+  <button class="btn-pdf" id="btnPDF" onclick="descargarPDF()">
+    <span class="bicon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3m0 12-4-4m4 4 4-4M2 17l.621 2.485A2 2 0 004.561 21h14.878a2 2 0 001.94-1.515L22 17"/></svg></span>
+    <div class="spinner"></div>
+    <span id="btxt">Descargar PDF</span>
+  </button>
+</header>
+<main id="contenido">
+  <div class="title">Dashboard Ejecutivo</div>
+  <p class="sub" id="fs">Actualizado: —</p>
+  <div class="kpi-grid">
+    <div class="kpi"><div class="kpi-label">Ventas totales</div><div class="kpi-value">$284.5M</div><div class="kpi-change up">▲ 12.4% vs mes anterior</div></div>
+    <div class="kpi"><div class="kpi-label">Clientes activos</div><div class="kpi-value">18,340</div><div class="kpi-change up">▲ 8.1% vs mes anterior</div></div>
+    <div class="kpi"><div class="kpi-label">Margen bruto</div><div class="kpi-value">43.2%</div><div class="kpi-change down">▼ 1.3% vs mes anterior</div></div>
+    <div class="kpi"><div class="kpi-label">NPS</div><div class="kpi-value">71</div><div class="kpi-change up">▲ 5 pts vs mes anterior</div></div>
+  </div>
+  <div class="charts-row">
+    <div class="card">
+      <div class="card-title">Ventas por mes</div>
+      <div class="bar-chart" id="barras"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Mix de productos</div>
+      <div class="donut-wrap">
+        <svg width="110" height="110" viewBox="0 0 110 110">
+          <circle cx="55" cy="55" r="42" fill="none" stroke="#1e1e22" stroke-width="14"/>
+          <circle cx="55" cy="55" r="42" fill="none" stroke="#F2C811" stroke-width="14" stroke-dasharray="105 159" stroke-dashoffset="0" stroke-linecap="round"/>
+          <circle cx="55" cy="55" r="42" fill="none" stroke="#3b82f6" stroke-width="14" stroke-dasharray="69 195" stroke-dashoffset="-105" stroke-linecap="round"/>
+          <circle cx="55" cy="55" r="42" fill="none" stroke="#22c55e" stroke-width="14" stroke-dasharray="50 214" stroke-dashoffset="-174" stroke-linecap="round"/>
+          <text x="55" y="51" text-anchor="middle" fill="#f0f0f0" font-size="14" font-weight="600" font-family="DM Sans">43%</text>
+          <text x="55" y="65" text-anchor="middle" fill="#888" font-size="10" font-family="DM Sans">Prod. A</text>
+        </svg>
+        <div class="legend">
+          <div class="legend-item"><div class="ldot" style="background:#F2C811"></div>Producto A · 43%</div>
+          <div class="legend-item"><div class="ldot" style="background:#3b82f6"></div>Producto B · 27%</div>
+          <div class="legend-item"><div class="ldot" style="background:#22c55e"></div>Producto C · 20%</div>
+          <div class="legend-item"><div class="ldot" style="background:#555"></div>Otros · 10%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Top productos</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Producto</th><th>Región</th><th>Ventas</th><th>Unidades</th><th>Variación</th><th>Estado</th></tr></thead>
+        <tbody>
+          <tr><td>Producto A - Premium</td><td>Bogotá</td><td>$84.2M</td><td>12,400</td><td class="up">+14.3%</td><td><span class="badge bg">Activo</span></td></tr>
+          <tr><td>Producto B - Standard</td><td>Medellín</td><td>$62.1M</td><td>9,800</td><td class="up">+9.1%</td><td><span class="badge bg">Activo</span></td></tr>
+          <tr><td>Producto C - Enterprise</td><td>Cali</td><td>$51.8M</td><td>3,200</td><td class="down">-2.4%</td><td><span class="badge by">Revisión</span></td></tr>
+          <tr><td>Producto A - Lite</td><td>Barranquilla</td><td>$48.3M</td><td>18,700</td><td class="up">+21.0%</td><td><span class="badge bg">Activo</span></td></tr>
+          <tr><td>Producto D - Nuevo</td><td>Nacional</td><td>$38.1M</td><td>5,100</td><td class="up">+67.2%</td><td><span class="badge bb">Lanzamiento</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</main>
+<footer>Reporte automático · <span id="ff"></span></footer>
+<script>
+const f = new Date().toLocaleDateString('es-CO',{year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'});
+document.getElementById('fh').textContent = f;
+document.getElementById('fs').textContent = 'Actualizado: ' + f;
+document.getElementById('ff').textContent = f;
+const datos=[{m:'Ene',v:38.2,p:55},{m:'Feb',v:41.5,p:62},{m:'Mar',v:44.0,p:67},{m:'Abr',v:39.8,p:58},{m:'May',v:52.3,p:79},{m:'Jun',v:68.7,p:100}];
+const c=document.getElementById('barras');
+datos.forEach(d=>{c.innerHTML+=`<div class="bar-row"><span class="bar-label">${d.m}</span><div class="bar-track"><div class="bar-fill" style="width:0%" data-p="${d.p}"></div></div><span class="bar-val">$${d.v}M</span></div>`;});
+setTimeout(()=>document.querySelectorAll('.bar-fill').forEach(b=>b.style.width=b.dataset.p+'%'),200);
+function descargarPDF(){
+  const btn=document.getElementById('btnPDF'),txt=document.getElementById('btxt');
+  btn.classList.add('loading');txt.textContent='Generando...';
+  const hoy=new Date().toISOString().slice(0,10);
+  html2pdf().set({margin:[10,10,10,10],filename:`Reporte_PowerBI_${hoy}.pdf`,image:{type:'jpeg',quality:.98},html2canvas:{scale:2,useCORS:true,backgroundColor:'#0f0f11'},jsPDF:{unit:'mm',format:'a4',orientation:'landscape'}}).from(document.getElementById('contenido')).save().then(()=>{btn.classList.remove('loading');txt.textContent='✓ Descargado';setTimeout(()=>txt.textContent='Descargar PDF',2500);});
+}
+</script>
+</body>
+</html>
