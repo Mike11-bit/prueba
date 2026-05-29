@@ -1,0 +1,1578 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Power BI HTML Visual — Filtros Completos</title>
+  <!--
+  ============================================================
+    POWER BI HTML VISUAL — TODAS LAS FORMAS DE FILTRAR
+    Autor     : Mike (adaptado para Power BI HTML extension)
+    Versión   : 1.0.0
+    Repo      : github.com/tu-usuario/powerbi-html-filtros
+  ------------------------------------------------------------
+    ÍNDICE DE SECCIONES
+    1. HTML  — Estructura y datos con atributos data-*
+    2. JS    — Motor de filtros (al final del body)
+    3. CSS   — Estilos (al final del archivo, antes de </html>)
+  ------------------------------------------------------------
+    TIPOS DE FILTRO INCLUIDOS
+    A) Pills / botones de selección única
+    B) Tabs de canal
+    C) Buscador de texto en tiempo real
+    D) Select dropdown (LOB)
+    E) Range slider (score NPS mínimo)
+    F) Checkboxes multi-selección (agentes)
+    G) Toggle switch (solo con alertas)
+    H) Combinación simultánea de todos los filtros
+  ============================================================
+  -->
+</head>
+<body>
+
+<!-- ============================================================
+     HEADER
+     ============================================================ -->
+<header class="site-header">
+  <div class="header-inner">
+    <div>
+      <h1 class="site-title">Filtros HTML en Power BI</h1>
+      <p class="site-sub">Todas las formas de filtrar tablas · CSS + HTML + JS · Listo para Power BI HTML Visual</p>
+    </div>
+    <div class="header-meta">
+      <span class="pill-meta">v1.0.0</span>
+      <span class="pill-meta">Power BI</span>
+      <span class="pill-meta">GitHub Ready</span>
+    </div>
+  </div>
+</header>
+
+<!-- ============================================================
+     KPIs EN TIEMPO REAL
+     Se actualizan automáticamente con cada filtro aplicado
+     ============================================================ -->
+<section class="section">
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <span class="kpi-label">Total visible</span>
+      <span class="kpi-value" id="kTotal">—</span>
+    </div>
+    <div class="kpi-card kpi-green">
+      <span class="kpi-label">Promotores</span>
+      <span class="kpi-value" id="kPro">—</span>
+    </div>
+    <div class="kpi-card kpi-amber">
+      <span class="kpi-label">Pasivos</span>
+      <span class="kpi-value" id="kPas">—</span>
+    </div>
+    <div class="kpi-card kpi-red">
+      <span class="kpi-label">Detractores</span>
+      <span class="kpi-value" id="kDet">—</span>
+    </div>
+    <div class="kpi-card kpi-purple">
+      <span class="kpi-label">NPS calculado</span>
+      <span class="kpi-value" id="kNPS">—</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SECCIÓN A — PILLS (botones de selección única)
+     Cómo funciona:
+       1. Cada botón llama filtrarTipo('valor', this)
+       2. JS guarda el valor en la variable activoTipo
+       3. JS recorre las filas y compara data-tipo con activoTipo
+       4. CSS clase .on marca el botón activo
+     ============================================================ -->
+<section class="section">
+  <div class="filter-block">
+    <div class="filter-label">
+      <span class="filter-icon">A</span>
+      Pills — selección única por tipo NPS
+      <span class="filter-tip">Cada botón filtra una categoría. "Todos" resetea.</span>
+    </div>
+    <div class="pill-group" id="pillTipo">
+      <button class="pill on" onclick="filtrarTipo('todos', this)">Todos</button>
+      <button class="pill pill-green" onclick="filtrarTipo('promotor', this)">● Promotores</button>
+      <button class="pill pill-amber" onclick="filtrarTipo('pasivo', this)">● Pasivos</button>
+      <button class="pill pill-red" onclick="filtrarTipo('detractor', this)">● Detractores</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SECCIÓN B — TABS (pestañas de canal)
+     Cómo funciona:
+       Igual que pills pero con apariencia de pestaña contigua.
+       Ideal para categorías mutuamente excluyentes con pocas opciones.
+     ============================================================ -->
+<section class="section">
+  <div class="filter-block">
+    <div class="filter-label">
+      <span class="filter-icon">B</span>
+      Tabs — canal de contacto
+      <span class="filter-tip">Pestañas contiguas. Mejor para 3–6 opciones fijas.</span>
+    </div>
+    <div class="tab-group" id="tabCanal">
+      <button class="tab on" onclick="filtrarCanal('todos', this)">Todos</button>
+      <button class="tab" onclick="filtrarCanal('chat', this)">Chat</button>
+      <button class="tab" onclick="filtrarCanal('email', this)">Email</button>
+      <button class="tab" onclick="filtrarCanal('telefono', this)">Teléfono</button>
+      <button class="tab" onclick="filtrarCanal('app', this)">App</button>
+      <button class="tab" onclick="filtrarCanal('tienda', this)">Tienda</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SECCIÓN C — BUSCADOR DE TEXTO EN TIEMPO REAL
+     Cómo funciona:
+       El evento oninput dispara buscar() en cada letra.
+       JS hace .toLowerCase() a fila.textContent y lo compara
+       con el término buscado. No requiere atributos data-.
+     ============================================================ -->
+<section class="section">
+  <div class="filter-block">
+    <div class="filter-label">
+      <span class="filter-icon">C</span>
+      Buscador — texto en tiempo real
+      <span class="filter-tip">Busca en TODO el contenido de la fila: nombre, agente, canal, LOB.</span>
+    </div>
+    <div class="search-wrap">
+      <svg class="search-icon" viewBox="0 0 16 16" fill="none">
+        <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.3"/>
+        <path d="M10 10l3 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+      </svg>
+      <input
+        type="text"
+        id="searchInput"
+        class="input-text"
+        placeholder="Nombre, agente, LOB..."
+        oninput="buscar()"
+        autocomplete="off"
+      />
+      <button class="btn-clear" onclick="limpiarBusqueda()" title="Limpiar búsqueda">✕</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SECCIÓN D — SELECT DROPDOWN (LOB)
+     Cómo funciona:
+       El evento onchange dispara filtrarLOB(this.value).
+       Útil cuando hay muchas opciones (10+) y pills ocuparían
+       demasiado espacio horizontal.
+     ============================================================ -->
+<section class="section">
+  <div class="filter-block">
+    <div class="filter-label">
+      <span class="filter-icon">D</span>
+      Select dropdown — línea de negocio (LOB)
+      <span class="filter-tip">Ideal para muchas opciones. Nativo del browser, accesible.</span>
+    </div>
+    <select id="selectLOB" class="input-select" onchange="filtrarLOB(this.value)">
+      <option value="todos">Todas las LOB</option>
+      <option value="retail">Retail</option>
+      <option value="b2b">B2B</option>
+      <option value="premium">Premium</option>
+      <option value="gobierno">Gobierno</option>
+      <option value="ecomm">E-commerce</option>
+    </select>
+  </div>
+</section>
+
+<!-- ============================================================
+     SECCIÓN E — RANGE SLIDER (score mínimo NPS)
+     Cómo funciona:
+       El input[type=range] dispara filtrarScore(this.value).
+       JS filtra filas cuyo data-score >= valor del slider.
+       CSS del slider: ver sección de estilos al final.
+     IMPORTANTE en Power BI:
+       El HTML Visual sí soporta input[type=range].
+       El CSS del thumb/track usa ::-webkit-slider-thumb y
+       ::-moz-range-thumb para compatibilidad cross-browser.
+     ============================================================ -->
+<section class="section">
+  <div class="filter-block">
+    <div class="filter-label">
+      <span class="filter-icon">E</span>
+      Range slider — score NPS mínimo
+      <span class="filter-tip">Arrastra para ver solo encuestas con score igual o mayor.</span>
+    </div>
+    <div class="slider-wrap">
+      <div class="slider-labels">
+        <span>Score mínimo:</span>
+        <span class="slider-value-badge" id="sliderVal">0</span>
+      </div>
+      <div class="slider-track-wrap">
+        <span class="slider-min-lbl">0</span>
+        <input
+          type="range"
+          id="scoreSlider"
+          class="slider"
+          min="0"
+          max="10"
+          value="0"
+          step="1"
+          oninput="filtrarScore(this.value)"
+        />
+        <span class="slider-max-lbl">10</span>
+      </div>
+      <div class="slider-ticks">
+        <span>0</span><span>1</span><span>2</span><span>3</span><span>4</span>
+        <span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span>
+      </div>
+      <!--
+        EXPLICACIÓN CSS DEL SLIDER PARA POWER BI
+        ==========================================
+        En Power BI HTML Visual el slider es un <input type="range">.
+        Para estilizarlo necesitas tres bloques de CSS:
+
+        1. El track (línea de fondo):
+           input[type=range]::-webkit-slider-runnable-track { ... }
+           input[type=range]::-moz-range-track { ... }
+
+        2. El thumb (círculo que arrastra):
+           input[type=range]::-webkit-slider-thumb { ... }
+           input[type=range]::-moz-range-thumb { ... }
+
+        3. El elemento base (quita el estilo por defecto del browser):
+           input[type=range] {
+             -webkit-appearance: none;
+             appearance: none;
+             background: transparent;
+           }
+
+        El CSS completo está en la sección <style> al final del archivo.
+      -->
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SECCIÓN F — CHECKBOXES MULTI-SELECCIÓN (agentes)
+     Cómo funciona:
+       onchange dispara filtrarAgentes().
+       JS recopila todos los checkboxes marcados con querySelectorAll,
+       los mete en un Set y filtra filas cuyo data-agente esté en ese Set.
+       "Todos" seleccionados = mostrar todo (no filtrar).
+     ============================================================ -->
+<section class="section">
+  <div class="filter-block">
+    <div class="filter-label">
+      <span class="filter-icon">F</span>
+      Checkboxes — selección múltiple de agentes
+      <span class="filter-tip">Puedes seleccionar varios agentes al mismo tiempo.</span>
+    </div>
+    <div class="checkbox-group" id="checkAgentes">
+      <label class="check-label">
+        <input type="checkbox" value="todos" checked onchange="toggleTodosAgentes(this)" />
+        <span class="check-box"></span>
+        Todos los agentes
+      </label>
+      <label class="check-label">
+        <input type="checkbox" value="luis" checked onchange="filtrarAgentes()" />
+        <span class="check-box"></span>
+        Luis M.
+      </label>
+      <label class="check-label">
+        <input type="checkbox" value="sofia" checked onchange="filtrarAgentes()" />
+        <span class="check-box"></span>
+        Sofía P.
+      </label>
+      <label class="check-label">
+        <input type="checkbox" value="jorge" checked onchange="filtrarAgentes()" />
+        <span class="check-box"></span>
+        Jorge A.
+      </label>
+      <label class="check-label">
+        <input type="checkbox" value="andrea" checked onchange="filtrarAgentes()" />
+        <span class="check-box"></span>
+        Andrea R.
+      </label>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SECCIÓN G — TOGGLE SWITCH (solo alertas / detractores)
+     Cómo funciona:
+       El toggle es un checkbox estilizado con CSS puro (sin JS extra).
+       El JS lee si está chequeado y activa/desactiva un filtro especial.
+     ============================================================ -->
+<section class="section">
+  <div class="filter-block">
+    <div class="filter-label">
+      <span class="filter-icon">G</span>
+      Toggle switch — mostrar solo alertas (score ≤ 5)
+      <span class="filter-tip">Switch CSS puro. Al activar, muestra solo filas con score menor o igual a 5.</span>
+    </div>
+    <label class="toggle-wrap">
+      <input type="checkbox" id="toggleAlertas" onchange="filtrarAlertas()" />
+      <span class="toggle-track">
+        <span class="toggle-thumb"></span>
+      </span>
+      <span class="toggle-text" id="toggleLabel">Desactivado — mostrando todo</span>
+    </label>
+  </div>
+</section>
+
+<!-- ============================================================
+     SECCIÓN H — ORDENAMIENTO DE COLUMNAS
+     Cómo funciona:
+       Clic en <th> llama ordenarCol('campo').
+       JS extrae el texto o data-atributo de la columna,
+       ordena el array de filas y las re-inserta en el tbody.
+     ============================================================ -->
+<section class="section">
+  <div class="filter-block">
+    <div class="filter-label">
+      <span class="filter-icon">H</span>
+      Ordenamiento por columna — clic en cabecera
+      <span class="filter-tip">Clic en Score o Nombre para ordenar ascendente/descendente.</span>
+    </div>
+  </div>
+
+  <!-- TABLA PRINCIPAL con TODOS los data- atributos -->
+  <div class="table-wrap">
+    <table class="data-table" id="mainTable">
+      <thead>
+        <tr>
+          <!-- Columnas ordenables tienen onclick -->
+          <th onclick="ordenarCol('nombre')" data-col="nombre">
+            Cliente <span class="sort-icon" id="sort-nombre">↕</span>
+          </th>
+          <th onclick="ordenarCol('agente')" data-col="agente">
+            Agente <span class="sort-icon" id="sort-agente">↕</span>
+          </th>
+          <th onclick="ordenarCol('score')" data-col="score">
+            Score <span class="sort-icon" id="sort-score">↕</span>
+          </th>
+          <th>Tipo</th>
+          <th>Canal</th>
+          <th>LOB</th>
+          <th>Mes</th>
+        </tr>
+      </thead>
+      <tbody id="tablaBody">
+        <!--
+          ESTRUCTURA DE UNA FILA:
+          data-tipo     → promotor | pasivo | detractor
+          data-canal    → chat | email | telefono | app | tienda
+          data-lob      → retail | b2b | premium | gobierno | ecomm
+          data-agente   → luis | sofia | jorge | andrea
+          data-score    → número 0-10
+          data-mes      → 2025-01 a 2025-06
+        -->
+        <tr data-tipo="promotor"  data-canal="chat"     data-lob="retail"   data-agente="luis"   data-score="10" data-nombre="Ana García">
+          <td>Ana García</td><td>Luis M.</td><td>10</td><td><span class="badge badge-pro">Promotor</span></td><td>Chat</td><td>Retail</td><td>Ene</td>
+        </tr>
+        <tr data-tipo="promotor"  data-canal="app"      data-lob="b2b"      data-agente="sofia"  data-score="9"  data-nombre="Carlos Ruiz">
+          <td>Carlos Ruiz</td><td>Sofía P.</td><td>9</td><td><span class="badge badge-pro">Promotor</span></td><td>App</td><td>B2B</td><td>Ene</td>
+        </tr>
+        <tr data-tipo="pasivo"    data-canal="email"    data-lob="retail"   data-agente="jorge"  data-score="8"  data-nombre="María López">
+          <td>María López</td><td>Jorge A.</td><td>8</td><td><span class="badge badge-pas">Pasivo</span></td><td>Email</td><td>Retail</td><td>Feb</td>
+        </tr>
+        <tr data-tipo="promotor"  data-canal="chat"     data-lob="premium"  data-agente="luis"   data-score="10" data-nombre="Diego Torres">
+          <td>Diego Torres</td><td>Luis M.</td><td>10</td><td><span class="badge badge-pro">Promotor</span></td><td>Chat</td><td>Premium</td><td>Feb</td>
+        </tr>
+        <tr data-tipo="detractor" data-canal="telefono" data-lob="retail"   data-agente="andrea" data-score="4"  data-nombre="Valentina Cruz">
+          <td>Valentina Cruz</td><td>Andrea R.</td><td>4</td><td><span class="badge badge-det">Detractor</span></td><td>Teléfono</td><td>Retail</td><td>Feb</td>
+        </tr>
+        <tr data-tipo="pasivo"    data-canal="app"      data-lob="b2b"      data-agente="sofia"  data-score="7"  data-nombre="Sebastián Mora">
+          <td>Sebastián Mora</td><td>Sofía P.</td><td>7</td><td><span class="badge badge-pas">Pasivo</span></td><td>App</td><td>B2B</td><td>Mar</td>
+        </tr>
+        <tr data-tipo="detractor" data-canal="email"    data-lob="retail"   data-agente="jorge"  data-score="3"  data-nombre="Camila Vargas">
+          <td>Camila Vargas</td><td>Jorge A.</td><td>3</td><td><span class="badge badge-det">Detractor</span></td><td>Email</td><td>Retail</td><td>Mar</td>
+        </tr>
+        <tr data-tipo="promotor"  data-canal="chat"     data-lob="b2b"      data-agente="luis"   data-score="9"  data-nombre="Andrés Ríos">
+          <td>Andrés Ríos</td><td>Luis M.</td><td>9</td><td><span class="badge badge-pro">Promotor</span></td><td>Chat</td><td>B2B</td><td>Abr</td>
+        </tr>
+        <tr data-tipo="pasivo"    data-canal="telefono" data-lob="premium"  data-agente="andrea" data-score="7"  data-nombre="Laura Peña">
+          <td>Laura Peña</td><td>Andrea R.</td><td>7</td><td><span class="badge badge-pas">Pasivo</span></td><td>Teléfono</td><td>Premium</td><td>Abr</td>
+        </tr>
+        <tr data-tipo="detractor" data-canal="app"      data-lob="retail"   data-agente="sofia"  data-score="2"  data-nombre="Mateo Silva">
+          <td>Mateo Silva</td><td>Sofía P.</td><td>2</td><td><span class="badge badge-det">Detractor</span></td><td>App</td><td>Retail</td><td>May</td>
+        </tr>
+        <tr data-tipo="promotor"  data-canal="tienda"   data-lob="gobierno" data-agente="andrea" data-score="9"  data-nombre="Paula Méndez">
+          <td>Paula Méndez</td><td>Andrea R.</td><td>9</td><td><span class="badge badge-pro">Promotor</span></td><td>Tienda</td><td>Gobierno</td><td>May</td>
+        </tr>
+        <tr data-tipo="detractor" data-canal="chat"     data-lob="ecomm"    data-agente="jorge"  data-score="1"  data-nombre="Roberto Díaz">
+          <td>Roberto Díaz</td><td>Jorge A.</td><td>1</td><td><span class="badge badge-det">Detractor</span></td><td>Chat</td><td>E-comm</td><td>Jun</td>
+        </tr>
+        <tr data-tipo="promotor"  data-canal="email"    data-lob="ecomm"    data-agente="sofia"  data-score="10" data-nombre="Sandra Leal">
+          <td>Sandra Leal</td><td>Sofía P.</td><td>10</td><td><span class="badge badge-pro">Promotor</span></td><td>Email</td><td>E-comm</td><td>Jun</td>
+        </tr>
+        <tr data-tipo="pasivo"    data-canal="tienda"   data-lob="gobierno" data-agente="luis"   data-score="8"  data-nombre="Fernando Vera">
+          <td>Fernando Vera</td><td>Luis M.</td><td>8</td><td><span class="badge badge-pas">Pasivo</span></td><td>Tienda</td><td>Gobierno</td><td>Jun</td>
+        </tr>
+        <tr data-tipo="detractor" data-canal="telefono" data-lob="b2b"      data-agente="andrea" data-score="5"  data-nombre="Isabel Castro">
+          <td>Isabel Castro</td><td>Andrea R.</td><td>5</td><td><span class="badge badge-det">Detractor</span></td><td>Teléfono</td><td>B2B</td><td>Jun</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pie de tabla: conteo + botón reset -->
+  <div class="table-footer">
+    <span id="noResults" class="no-results-msg" style="display:none">
+      Sin resultados con los filtros aplicados.
+    </span>
+    <span id="countMsg" class="count-msg"></span>
+    <button class="btn-reset" onclick="resetearTodo()">↺ Limpiar todos los filtros</button>
+  </div>
+</section>
+
+<!-- ============================================================
+     SECCIÓN EXPLICATIVA — CSS DEL SLIDER EN POWER BI
+     ============================================================ -->
+<section class="section doc-section">
+  <h2 class="doc-title">¿Cómo se aplica CSS a los sliders en Power BI?</h2>
+
+  <div class="doc-grid">
+
+    <div class="doc-card">
+      <div class="doc-card-num">01</div>
+      <h3 class="doc-card-title">Quitar el estilo por defecto del browser</h3>
+      <p class="doc-card-text">El primer paso es eliminar el aspecto nativo. Sin esto, el resto del CSS no funciona.</p>
+      <pre class="code">input[type=range] {
+  -webkit-appearance: none; /* Chrome, Safari, Edge */
+  appearance: none;         /* Firefox moderno      */
+  background: transparent;  /* sin fondo por defecto*/
+  width: 100%;
+  cursor: pointer;
+}</pre>
+    </div>
+
+    <div class="doc-card">
+      <div class="doc-card-num">02</div>
+      <h3 class="doc-card-title">Estilizar el track (línea de fondo)</h3>
+      <p class="doc-card-text">Necesitas dos selectores: uno para Webkit (Chrome/Edge/Safari) y otro para Firefox.</p>
+      <pre class="code">/* Chrome, Safari, Edge */
+input[type=range]::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: #1e2640;
+}
+
+/* Firefox */
+input[type=range]::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: #1e2640;
+}</pre>
+    </div>
+
+    <div class="doc-card">
+      <div class="doc-card-num">03</div>
+      <h3 class="doc-card-title">Estilizar el thumb (círculo que arrastra)</h3>
+      <p class="doc-card-text">El thumb también necesita dos selectores. En Webkit hay que compensar la altura manualmente.</p>
+      <pre class="code">/* Chrome, Safari, Edge */
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #3b82f6;
+  margin-top: -6px; /* centra en el track */
+  cursor: pointer;
+  border: 2px solid #0d1117;
+  transition: background 0.2s;
+}
+
+/* Firefox */
+input[type=range]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #3b82f6;
+  cursor: pointer;
+  border: 2px solid #0d1117;
+}</pre>
+    </div>
+
+    <div class="doc-card">
+      <div class="doc-card-num">04</div>
+      <h3 class="doc-card-title">Track de progreso (parte izquierda coloreada)</h3>
+      <p class="doc-card-text">Chrome no soporta <code>::-webkit-slider-fill</code>. El truco es usar JS para cambiar un gradiente en línea según el valor actual.</p>
+      <pre class="code">/* Firefox: parte llena del track */
+input[type=range]::-moz-range-progress {
+  background: #3b82f6;
+  height: 6px;
+  border-radius: 3px;
+}
+
+/* Chrome: se hace con JS al mover */
+function actualizarTrack(el) {
+  const pct = (el.value - el.min)
+              / (el.max - el.min) * 100;
+  el.style.background =
+    `linear-gradient(to right,
+      #3b82f6 ${pct}%,
+      #1e2640 ${pct}%)`;
+}</pre>
+    </div>
+
+    <div class="doc-card">
+      <div class="doc-card-num">05</div>
+      <h3 class="doc-card-title">Estado :focus y :hover en Power BI</h3>
+      <p class="doc-card-text">Power BI HTML Visual corre en un iframe. Los pseudo-estados funcionan igual que en el browser normal.</p>
+      <pre class="code">input[type=range]::-webkit-slider-thumb:hover {
+  background: #60a5fa;
+  transform: scale(1.15);
+}
+
+input[type=range]:focus {
+  outline: none;
+}
+
+input[type=range]:focus::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.3);
+}</pre>
+    </div>
+
+    <div class="doc-card">
+      <div class="doc-card-num">06</div>
+      <h3 class="doc-card-title">Errores comunes en Power BI</h3>
+      <p class="doc-card-text">Tres cosas que rompen el slider específicamente en el HTML Visual de Power BI.</p>
+      <ul class="doc-list">
+        <li><strong>Olvidar <code>-webkit-appearance: none</code></strong> — el thumb de Chrome queda sin estilo.</li>
+        <li><strong>No poner <code>margin-top</code> negativo</strong> en <code>::-webkit-slider-thumb</code> — queda descentrado del track.</li>
+        <li><strong>Usar <code>width</code> y <code>height</code> sin <code>box-sizing: border-box</code></strong> — el thumb se deforma si tiene border.</li>
+      </ul>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================================================
+     SECCIÓN REFERENCIA RÁPIDA
+     ============================================================ -->
+<section class="section doc-section">
+  <h2 class="doc-title">Referencia rápida — todos los tipos de filtro</h2>
+  <div class="ref-grid">
+    <div class="ref-row ref-header">
+      <span>Tipo</span><span>Cuándo usarlo</span><span>Evento JS</span><span>Atributo data-</span>
+    </div>
+    <div class="ref-row"><span><strong>Pills</strong></span><span>Pocas categorías (3–6), excluyentes</span><span><code>onclick</code></span><span><code>data-tipo</code></span></div>
+    <div class="ref-row"><span><strong>Tabs</strong></span><span>Categorías contiguas, pocas opciones</span><span><code>onclick</code></span><span><code>data-canal</code></span></div>
+    <div class="ref-row"><span><strong>Buscador</strong></span><span>Búsqueda libre en cualquier columna</span><span><code>oninput</code></span><span>textContent</span></div>
+    <div class="ref-row"><span><strong>Select</strong></span><span>Muchas opciones (7+), poco espacio</span><span><code>onchange</code></span><span><code>data-lob</code></span></div>
+    <div class="ref-row"><span><strong>Range slider</strong></span><span>Rangos numéricos continuos</span><span><code>oninput</code></span><span><code>data-score</code></span></div>
+    <div class="ref-row"><span><strong>Checkboxes</strong></span><span>Selección múltiple simultánea</span><span><code>onchange</code></span><span><code>data-agente</code></span></div>
+    <div class="ref-row"><span><strong>Toggle</strong></span><span>Activar/desactivar un filtro on/off</span><span><code>onchange</code></span><span><code>data-score</code></span></div>
+    <div class="ref-row"><span><strong>Ordenar col.</strong></span><span>Reordenar filas por columna</span><span><code>onclick</code> en th</span><span><code>data-nombre</code></span></div>
+  </div>
+</section>
+
+<!-- ============================================================
+     JAVASCRIPT — Motor de filtros
+     REGLA: siempre AL FINAL del body, después de todos los elementos.
+     Si va arriba, querySelectorAll devuelve 0 elementos.
+     ============================================================ -->
+<script>
+  // ─── ESTADO GLOBAL ──────────────────────────────────────────
+  // Todas las variables de filtro activo en un solo objeto.
+  // Así es fácil resetear y combinar filtros.
+  const estado = {
+    tipo:      'todos',
+    canal:     'todos',
+    lob:       'todos',
+    agentes:   new Set(['luis','sofia','jorge','andrea']),
+    scoreMin:  0,
+    alerta:    false,
+    busqueda:  ''
+  };
+
+  // Dirección de orden por columna
+  const sortDir = { nombre: 1, agente: 1, score: 1 };
+
+  // ─── FUNCIÓN CENTRAL ────────────────────────────────────────
+  // Esta función se llama después de CUALQUIER cambio de filtro.
+  // Lee el estado, recorre las filas y decide cuáles son visibles.
+  function aplicarFiltros() {
+    const filas = document.querySelectorAll('#tablaBody tr');
+    let total = 0, pros = 0, pas = 0, dets = 0;
+
+    filas.forEach(function(fila) {
+      const tipo    = fila.dataset.tipo;
+      const canal   = fila.dataset.canal;
+      const lob     = fila.dataset.lob;
+      const agente  = fila.dataset.agente;
+      const score   = parseInt(fila.dataset.score, 10);
+      const texto   = fila.textContent.toLowerCase();
+
+      // Evaluar TODOS los filtros simultáneamente
+      const okTipo    = estado.tipo    === 'todos' || tipo  === estado.tipo;
+      const okCanal   = estado.canal   === 'todos' || canal === estado.canal;
+      const okLOB     = estado.lob     === 'todos' || lob   === estado.lob;
+      const okAgente  = estado.agentes.has(agente);
+      const okScore   = score >= estado.scoreMin;
+      const okAlerta  = !estado.alerta || score <= 5;
+      const okBuscar  = estado.busqueda === '' || texto.includes(estado.busqueda);
+
+      const visible = okTipo && okCanal && okLOB && okAgente && okScore && okAlerta && okBuscar;
+
+      fila.classList.toggle('hidden', !visible);
+
+      if (visible) {
+        total++;
+        if (tipo === 'promotor')  pros++;
+        if (tipo === 'pasivo')    pas++;
+        if (tipo === 'detractor') dets++;
+      }
+    });
+
+    // Actualizar KPIs
+    document.getElementById('kTotal').textContent = total;
+    document.getElementById('kPro').textContent   = pros;
+    document.getElementById('kPas').textContent   = pas;
+    document.getElementById('kDet').textContent   = dets;
+
+    // NPS = (promotores - detractores) / total * 100
+    const nps = total > 0 ? Math.round((pros - dets) / total * 100) : 0;
+    document.getElementById('kNPS').textContent = (nps >= 0 ? '+' : '') + nps;
+
+    // Mensaje de resultados
+    document.getElementById('noResults').style.display = total === 0 ? 'block' : 'none';
+    document.getElementById('countMsg').textContent = total > 0
+      ? total + ' registro' + (total !== 1 ? 's' : '') + ' visible' + (total !== 1 ? 's' : '')
+      : '';
+  }
+
+  // ─── A. PILLS — TIPO NPS ────────────────────────────────────
+  function filtrarTipo(val, el) {
+    estado.tipo = val;
+    document.querySelectorAll('#pillTipo .pill').forEach(function(b) {
+      b.classList.remove('on');
+    });
+    el.classList.add('on');
+    aplicarFiltros();
+  }
+
+  // ─── B. TABS — CANAL ────────────────────────────────────────
+  function filtrarCanal(val, el) {
+    estado.canal = val;
+    document.querySelectorAll('#tabCanal .tab').forEach(function(b) {
+      b.classList.remove('on');
+    });
+    el.classList.add('on');
+    aplicarFiltros();
+  }
+
+  // ─── C. BUSCADOR ────────────────────────────────────────────
+  function buscar() {
+    estado.busqueda = document.getElementById('searchInput').value.toLowerCase().trim();
+    aplicarFiltros();
+  }
+  function limpiarBusqueda() {
+    document.getElementById('searchInput').value = '';
+    estado.busqueda = '';
+    aplicarFiltros();
+  }
+
+  // ─── D. SELECT LOB ──────────────────────────────────────────
+  function filtrarLOB(val) {
+    estado.lob = val;
+    aplicarFiltros();
+  }
+
+  // ─── E. RANGE SLIDER ────────────────────────────────────────
+  function filtrarScore(val) {
+    const n = parseInt(val, 10);
+    estado.scoreMin = n;
+    document.getElementById('sliderVal').textContent = n;
+
+    // Actualizar el gradiente del track para Chrome
+    const slider = document.getElementById('scoreSlider');
+    const pct = (n / 10) * 100;
+    slider.style.background =
+      'linear-gradient(to right, #3b82f6 ' + pct + '%, #1e2640 ' + pct + '%)';
+
+    aplicarFiltros();
+  }
+
+  // ─── F. CHECKBOXES AGENTES ──────────────────────────────────
+  function filtrarAgentes() {
+    const checks = document.querySelectorAll('#checkAgentes input[type=checkbox]:not([value=todos])');
+    estado.agentes = new Set();
+    checks.forEach(function(cb) {
+      if (cb.checked) estado.agentes.add(cb.value);
+    });
+
+    // Sincronizar el checkbox "Todos"
+    const todosCb = document.querySelector('#checkAgentes input[value=todos]');
+    todosCb.checked = estado.agentes.size === checks.length;
+
+    aplicarFiltros();
+  }
+  function toggleTodosAgentes(el) {
+    const checks = document.querySelectorAll('#checkAgentes input[type=checkbox]:not([value=todos])');
+    checks.forEach(function(cb) { cb.checked = el.checked; });
+    filtrarAgentes();
+  }
+
+  // ─── G. TOGGLE ALERTAS ──────────────────────────────────────
+  function filtrarAlertas() {
+    const cb = document.getElementById('toggleAlertas');
+    estado.alerta = cb.checked;
+    document.getElementById('toggleLabel').textContent = cb.checked
+      ? 'Activado — solo alertas (score ≤ 5)'
+      : 'Desactivado — mostrando todo';
+    aplicarFiltros();
+  }
+
+  // ─── H. ORDENAR COLUMNAS ────────────────────────────────────
+  function ordenarCol(col) {
+    const dir = sortDir[col];
+    sortDir[col] = dir * -1; // alterna asc/desc
+
+    // Actualizar ícono en cabecera
+    document.querySelectorAll('.sort-icon').forEach(function(ic) {
+      ic.textContent = '↕';
+    });
+    const ic = document.getElementById('sort-' + col);
+    if (ic) ic.textContent = dir === 1 ? '↑' : '↓';
+
+    const tbody = document.getElementById('tablaBody');
+    const rows  = Array.from(tbody.querySelectorAll('tr'));
+
+    rows.sort(function(a, b) {
+      let va, vb;
+      if (col === 'score') {
+        va = parseInt(a.dataset.score, 10);
+        vb = parseInt(b.dataset.score, 10);
+        return dir * (va - vb);
+      }
+      va = a.dataset[col] || a.cells[0].textContent;
+      vb = b.dataset[col] || b.cells[0].textContent;
+      return dir * va.localeCompare(vb, 'es');
+    });
+
+    rows.forEach(function(r) { tbody.appendChild(r); });
+    aplicarFiltros();
+  }
+
+  // ─── RESET TOTAL ────────────────────────────────────────────
+  function resetearTodo() {
+    // Resetear estado
+    estado.tipo     = 'todos';
+    estado.canal    = 'todos';
+    estado.lob      = 'todos';
+    estado.agentes  = new Set(['luis','sofia','jorge','andrea']);
+    estado.scoreMin = 0;
+    estado.alerta   = false;
+    estado.busqueda = '';
+
+    // Resetear UI
+    document.querySelectorAll('#pillTipo .pill').forEach(function(b) { b.classList.remove('on'); });
+    document.querySelector('#pillTipo .pill').classList.add('on');
+
+    document.querySelectorAll('#tabCanal .tab').forEach(function(b) { b.classList.remove('on'); });
+    document.querySelector('#tabCanal .tab').classList.add('on');
+
+    document.getElementById('searchInput').value   = '';
+    document.getElementById('selectLOB').value     = 'todos';
+    document.getElementById('scoreSlider').value   = '0';
+    document.getElementById('sliderVal').textContent = '0';
+    document.getElementById('scoreSlider').style.background = 'linear-gradient(to right, #3b82f6 0%, #1e2640 0%)';
+
+    document.querySelectorAll('#checkAgentes input[type=checkbox]').forEach(function(cb) {
+      cb.checked = true;
+    });
+
+    document.getElementById('toggleAlertas').checked = false;
+    document.getElementById('toggleLabel').textContent = 'Desactivado — mostrando todo';
+
+    aplicarFiltros();
+  }
+
+  // Inicializar al cargar
+  aplicarFiltros();
+</script>
+
+<!-- ============================================================
+     CSS — AL FINAL DEL ARCHIVO (según requerimiento)
+     REGLA: <style> puede ir en cualquier parte del HTML.
+     Ponerlo al final evita el FOUC (flash of unstyled content)
+     solo si el HTML es muy largo. Para archivos cortos no importa.
+     En Power BI HTML Visual funciona igual en cualquier posición.
+     ============================================================ -->
+<style>
+
+  /* ── TOKENS GLOBALES ──────────────────────────────────────── */
+  :root {
+    --bg:          #0d1117;
+    --bg2:         #161b27;
+    --bg3:         #1a2035;
+    --border:      #1e2640;
+    --border2:     #2a3556;
+
+    --text:        #e2e8f0;
+    --text2:       #7c8db0;
+    --text3:       #3a4a6a;
+
+    --blue:        #3b82f6;
+    --blue-dim:    #1e3a5f;
+    --blue-text:   #60a5fa;
+
+    --green:       #1d9e75;
+    --green-dim:   #064e3b;
+    --green-text:  #34d399;
+
+    --amber:       #ef9f27;
+    --amber-dim:   #451a03;
+    --amber-text:  #fbbf24;
+
+    --red:         #e24b4a;
+    --red-dim:     #450a0a;
+    --red-text:    #f87171;
+
+    --purple:      #7c3aed;
+    --purple-dim:  #2e1065;
+    --purple-text: #a78bfa;
+
+    --radius-sm:   6px;
+    --radius-md:   8px;
+    --radius-lg:   12px;
+    --radius-pill: 20px;
+    --radius-full: 9999px;
+  }
+
+  /* ── RESET Y BASE ─────────────────────────────────────────── */
+  *, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 0 0 40px;
+  }
+
+  /* ── HEADER ──────────────────────────────────────────────── */
+  .site-header {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 20px;
+    margin-bottom: 20px;
+  }
+  .header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .site-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -.3px;
+  }
+  .site-sub {
+    font-size: 12px;
+    color: var(--text3);
+    margin-top: 2px;
+  }
+  .header-meta {
+    display: flex;
+    gap: 6px;
+  }
+  .pill-meta {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: var(--radius-full);
+    background: var(--bg3);
+    color: var(--text2);
+    border: 1px solid var(--border);
+    letter-spacing: .04em;
+  }
+
+  /* ── SECCIONES ───────────────────────────────────────────── */
+  .section {
+    padding: 0 20px;
+    margin-bottom: 20px;
+  }
+
+  /* ── KPIS ────────────────────────────────────────────────── */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+  }
+  @media (max-width: 800px) {
+    .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+  .kpi-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 14px;
+    text-align: center;
+  }
+  .kpi-card.kpi-green { border-color: var(--green-dim); }
+  .kpi-card.kpi-amber { border-color: var(--amber-dim); }
+  .kpi-card.kpi-red   { border-color: var(--red-dim);   }
+  .kpi-card.kpi-purple{ border-color: var(--purple-dim);}
+  .kpi-label {
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    margin-bottom: 6px;
+  }
+  .kpi-value {
+    display: block;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1;
+  }
+  .kpi-green .kpi-value { color: var(--green-text); }
+  .kpi-amber .kpi-value { color: var(--amber-text); }
+  .kpi-red   .kpi-value { color: var(--red-text);   }
+  .kpi-purple .kpi-value{ color: var(--purple-text); }
+
+  /* ── BLOQUES DE FILTRO ───────────────────────────────────── */
+  .filter-block {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 14px 16px;
+  }
+  .filter-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .filter-icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--blue-dim);
+    color: var(--blue-text);
+    font-size: 10px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .filter-tip {
+    font-weight: 400;
+    color: var(--text3);
+    font-size: 11px;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+
+  /* ── A. PILLS ────────────────────────────────────────────── */
+  .pill-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .pill {
+    font-size: 12px;
+    font-weight: 500;
+    padding: 5px 14px;
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-pill);
+    background: transparent;
+    color: var(--text2);
+    cursor: pointer;
+    font-family: inherit;
+    transition: all .15s ease;
+    line-height: 1;
+  }
+  .pill:hover:not(.on) {
+    background: var(--bg3);
+    color: var(--text);
+  }
+  .pill.on {
+    background: var(--blue-dim);
+    border-color: var(--blue);
+    color: var(--blue-text);
+  }
+  .pill-green.on { background: var(--green-dim); border-color: var(--green); color: var(--green-text); }
+  .pill-amber.on { background: var(--amber-dim); border-color: var(--amber); color: var(--amber-text); }
+  .pill-red.on   { background: var(--red-dim);   border-color: var(--red);   color: var(--red-text);   }
+
+  /* ── B. TABS ─────────────────────────────────────────────── */
+  .tab-group {
+    display: flex;
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    width: fit-content;
+    flex-wrap: wrap;
+  }
+  .tab {
+    font-size: 12px;
+    font-weight: 500;
+    padding: 7px 16px;
+    background: transparent;
+    border: none;
+    border-right: 1px solid var(--border2);
+    color: var(--text2);
+    cursor: pointer;
+    font-family: inherit;
+    transition: all .12s ease;
+    line-height: 1;
+  }
+  .tab:last-child { border-right: none; }
+  .tab:hover:not(.on) { background: var(--bg3); color: var(--text); }
+  .tab.on { background: var(--blue-dim); color: var(--blue-text); }
+
+  /* ── C. BUSCADOR ─────────────────────────────────────────── */
+  .search-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-md);
+    padding: 0 12px;
+    transition: border-color .15s;
+  }
+  .search-wrap:focus-within {
+    border-color: var(--blue);
+  }
+  .search-icon {
+    width: 15px;
+    height: 15px;
+    color: var(--text3);
+    flex-shrink: 0;
+  }
+  .input-text {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    font-size: 13px;
+    color: var(--text);
+    font-family: inherit;
+    padding: 9px 0;
+  }
+  .input-text::placeholder { color: var(--text3); }
+  .btn-clear {
+    background: none;
+    border: none;
+    color: var(--text3);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0;
+    line-height: 1;
+    transition: color .15s;
+  }
+  .btn-clear:hover { color: var(--text2); }
+
+  /* ── D. SELECT DROPDOWN ─────────────────────────────────── */
+  .input-select {
+    font-size: 13px;
+    font-weight: 500;
+    padding: 8px 36px 8px 12px;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-md);
+    color: var(--text);
+    font-family: inherit;
+    cursor: pointer;
+    outline: none;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%237c8db0' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    min-width: 200px;
+    transition: border-color .15s;
+  }
+  .input-select:focus { border-color: var(--blue); }
+  .input-select option { background: var(--bg2); }
+
+  /* ── E. RANGE SLIDER ─────────────────────────────────────── */
+  /*
+     ESTRUCTURA DEL SLIDER:
+     .slider-wrap → contenedor
+       .slider-labels → etiqueta "Score mínimo:" + badge del valor
+       .slider-track-wrap → min-label + input[range] + max-label
+       .slider-ticks → marcas 0–10 debajo
+  */
+  .slider-wrap { padding: 4px 0; }
+
+  .slider-labels {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    font-size: 12px;
+    color: var(--text2);
+  }
+  .slider-value-badge {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--blue-text);
+    background: var(--blue-dim);
+    border: 1px solid var(--blue);
+    border-radius: var(--radius-full);
+    padding: 1px 10px;
+    min-width: 32px;
+    text-align: center;
+    transition: all .15s;
+  }
+
+  .slider-track-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .slider-min-lbl,
+  .slider-max-lbl {
+    font-size: 11px;
+    color: var(--text3);
+    flex-shrink: 0;
+    width: 14px;
+    text-align: center;
+  }
+
+  /* ── INPUT[TYPE=RANGE] — GUÍA COMPLETA POWER BI ─────────── */
+
+  /* PASO 1: Quitar estilo nativo del browser */
+  input[type=range].slider {
+    -webkit-appearance: none;  /* Chrome, Safari, Edge */
+    appearance: none;          /* Firefox moderno      */
+    background: var(--bg3);    /* fallback              */
+    background: linear-gradient(to right, var(--blue) 0%, #1e2640 0%);
+    width: 100%;
+    height: 6px;               /* altura del track      */
+    border-radius: 3px;
+    cursor: pointer;
+    outline: none;
+    border: none;
+    transition: background .1s;
+  }
+
+  /* PASO 2: Track Webkit (Chrome, Safari, Edge) */
+  input[type=range].slider::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: 3px;
+    /* El background se controla desde el elemento base con gradient */
+  }
+
+  /* PASO 3: Thumb Webkit */
+  input[type=range].slider::-webkit-slider-thumb {
+    -webkit-appearance: none;  /* OBLIGATORIO en Webkit */
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--blue);
+    border: 2px solid var(--bg);
+    cursor: pointer;
+    margin-top: -6px;          /* centra el thumb en el track de 6px */
+    transition: background .15s, transform .15s;
+  }
+  input[type=range].slider::-webkit-slider-thumb:hover {
+    background: var(--blue-text);
+    transform: scale(1.15);
+  }
+
+  /* PASO 4: Track Firefox */
+  input[type=range].slider::-moz-range-track {
+    height: 6px;
+    border-radius: 3px;
+    background: #1e2640;
+  }
+  /* Parte llena (Firefox nativo) */
+  input[type=range].slider::-moz-range-progress {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--blue);
+  }
+
+  /* PASO 5: Thumb Firefox */
+  input[type=range].slider::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--blue);
+    border: 2px solid var(--bg);
+    cursor: pointer;
+    box-sizing: border-box;    /* evita deformación con border */
+  }
+  input[type=range].slider::-moz-range-thumb:hover {
+    background: var(--blue-text);
+  }
+
+  /* PASO 6: Estado focus (accesibilidad) */
+  input[type=range].slider:focus::-webkit-slider-thumb {
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.3);
+  }
+  input[type=range].slider:focus {
+    outline: none;
+  }
+
+  /* Marcas debajo del slider */
+  .slider-ticks {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 6px;
+    font-size: 10px;
+    color: var(--text3);
+    padding: 0 4px;
+  }
+
+  /* ── F. CHECKBOXES ───────────────────────────────────────── */
+  .checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+  }
+  .check-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text2);
+    user-select: none;
+    transition: color .15s;
+  }
+  .check-label:hover { color: var(--text); }
+
+  /* Ocultar el checkbox nativo */
+  .check-label input[type=checkbox] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+  }
+
+  /* Caja custom */
+  .check-box {
+    width: 16px;
+    height: 16px;
+    border: 1.5px solid var(--border2);
+    border-radius: 4px;
+    background: var(--bg3);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all .15s;
+  }
+  .check-label input[type=checkbox]:checked + .check-box {
+    background: var(--blue);
+    border-color: var(--blue);
+  }
+  /* El checkmark con CSS puro */
+  .check-label input[type=checkbox]:checked + .check-box::after {
+    content: '';
+    display: block;
+    width: 4px;
+    height: 7px;
+    border: 2px solid white;
+    border-top: none;
+    border-left: none;
+    transform: rotate(45deg) translateY(-1px);
+  }
+
+  /* ── G. TOGGLE SWITCH ────────────────────────────────────── */
+  .toggle-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    user-select: none;
+  }
+  /* Ocultar el checkbox nativo */
+  .toggle-wrap input[type=checkbox] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+  /* Track del toggle */
+  .toggle-track {
+    width: 42px;
+    height: 22px;
+    border-radius: var(--radius-full);
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    position: relative;
+    transition: background .2s, border-color .2s;
+    flex-shrink: 0;
+  }
+  /* Thumb del toggle */
+  .toggle-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--text3);
+    transition: transform .2s ease, background .2s;
+  }
+  /* Estado checked */
+  .toggle-wrap input[type=checkbox]:checked + .toggle-track {
+    background: var(--red-dim);
+    border-color: var(--red);
+  }
+  .toggle-wrap input[type=checkbox]:checked + .toggle-track .toggle-thumb {
+    transform: translateX(20px);
+    background: var(--red-text);
+  }
+  .toggle-text {
+    font-size: 13px;
+    color: var(--text2);
+    transition: color .2s;
+  }
+
+  /* ── TABLA PRINCIPAL ─────────────────────────────────────── */
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    margin-top: 14px;
+  }
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    table-layout: fixed;
+  }
+  .data-table thead tr {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+  }
+  .data-table th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text2);
+    padding: 10px 12px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+  }
+  .data-table th:hover { color: var(--text); }
+  .sort-icon {
+    font-size: 11px;
+    color: var(--text3);
+    margin-left: 3px;
+  }
+  .data-table td {
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .data-table tbody tr:last-child td { border-bottom: none; }
+  .data-table tbody tr:hover td { background: var(--bg3); }
+  .data-table tr.hidden { display: none; }
+
+  /* Badges */
+  .badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    letter-spacing: .03em;
+  }
+  .badge-pro { background: var(--green-dim); color: var(--green-text); border: 1px solid var(--green); }
+  .badge-pas { background: var(--amber-dim); color: var(--amber-text); border: 1px solid var(--amber);}
+  .badge-det { background: var(--red-dim);   color: var(--red-text);   border: 1px solid var(--red);  }
+
+  /* Pie de tabla */
+  .table-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .no-results-msg {
+    font-size: 13px;
+    color: var(--text2);
+  }
+  .count-msg {
+    font-size: 12px;
+    color: var(--text3);
+  }
+  .btn-reset {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 14px;
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text2);
+    cursor: pointer;
+    font-family: inherit;
+    transition: all .15s;
+    letter-spacing: .02em;
+  }
+  .btn-reset:hover {
+    background: var(--bg3);
+    color: var(--text);
+    border-color: var(--blue);
+  }
+
+  /* ── SECCIÓN DOCUMENTACIÓN ───────────────────────────────── */
+  .doc-section { border-top: 1px solid var(--border); padding-top: 24px; }
+  .doc-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 16px;
+    letter-spacing: -.2px;
+  }
+  .doc-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 12px;
+  }
+  .doc-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+  }
+  .doc-card-num {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--blue-text);
+    background: var(--blue-dim);
+    border-radius: var(--radius-sm);
+    padding: 2px 8px;
+    display: inline-block;
+    margin-bottom: 8px;
+    letter-spacing: .06em;
+  }
+  .doc-card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+  .doc-card-text {
+    font-size: 12px;
+    color: var(--text2);
+    margin-bottom: 10px;
+    line-height: 1.6;
+  }
+  .doc-card-text code, .doc-card code {
+    background: var(--bg3);
+    color: var(--blue-text);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-family: 'Courier New', monospace;
+  }
+  .doc-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .doc-list li {
+    font-size: 12px;
+    color: var(--text2);
+    padding-left: 14px;
+    position: relative;
+    line-height: 1.5;
+  }
+  .doc-list li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: var(--red-text);
+    font-size: 11px;
+  }
+  .doc-list li strong { color: var(--text); }
+
+  /* ── BLOQUE CODE EN DOCS ──────────────────────────────────── */
+  .code {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 10px 12px;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    color: var(--text);
+    line-height: 1.7;
+    overflow-x: auto;
+    margin: 0;
+    white-space: pre;
+  }
+
+  /* ── TABLA REFERENCIA ─────────────────────────────────────── */
+  .ref-grid {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    font-size: 12px;
+  }
+  .ref-row {
+    display: grid;
+    grid-template-columns: 140px 1fr 130px 130px;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    padding: 9px 14px;
+    align-items: center;
+  }
+  .ref-row:last-child { border-bottom: none; }
+  .ref-header {
+    background: var(--bg2);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: var(--text2);
+  }
+  .ref-row:not(.ref-header):hover { background: var(--bg2); }
+  .ref-row span { color: var(--text2); }
+  .ref-row strong { color: var(--text); }
+  .ref-row code {
+    background: var(--bg3);
+    color: var(--blue-text);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+  }
+
+  /* ── RESPONSIVE ──────────────────────────────────────────── */
+  @media (max-width: 600px) {
+    body { font-size: 13px; }
+    .section { padding: 0 12px; }
+    .ref-row { grid-template-columns: 100px 1fr; }
+    .ref-row span:nth-child(3),
+    .ref-row span:nth-child(4) { display: none; }
+  }
+
+</style>
+</body>
+</html>
