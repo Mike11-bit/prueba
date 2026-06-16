@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BNP Paribas Cardif · Dashboard</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- ═══ HEADER ═══ -->
+  <div class="header">
+    BNP PARIBAS CARDIF &middot; DASHBOARD OPERATIVO
+  </div>
+
+  <!-- ═══ FILTROS ═══ -->
+  <form class="filters" method="GET" action="/">
+
+    <div class="filter-item">
+      <label>Mes</label>
+      <select name="mes">
+        <option value="">Mes</option>
+        {% for m in months %}
+        <option value="{{ m }}" {% if mes==m %}selected{% endif %}>{{ m }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="filter-item">
+      <label>Semana</label>
+      <select name="semana">
+        <option value="">Semana</option>
+        {% for s in weeks %}
+        <option value="{{ s }}" {% if semana==s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="filter-item">
+      <label>Fecha Encuesta</label>
+      <select name="fecha_encuesta">
+        <option value="">Fecha Encuesta</option>
+        {% for f in fechas_enc %}
+        <option value="{{ f }}" {% if fecha_encuesta==f %}selected{% endif %}>{{ f }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="filter-item">
+      <label>País</label>
+      <select name="pais">
+        <option value="">País</option>
+        {% for p in paises %}
+        <option value="{{ p }}" {% if pais==p %}selected{% endif %}>{{ p }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="filter-item">
+      <label>LOB</label>
+      <select name="lob">
+        <option value="">LOB</option>
+        {% for l in lobs %}
+        <option value="{{ l }}" {% if lob==l %}selected{% endif %}>{{ l }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="filter-item">
+      <label>Agente</label>
+      <select name="nombre_completo">
+        <option value="">Agente</option>
+        {% for a in agentes %}
+        <option value="{{ a }}" {% if nombre_completo==a %}selected{% endif %}>{{ a }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="filter-item">
+      <label>Supervisor</label>
+      <select name="nombre_superv">
+        <option value="">Supervisor</option>
+        {% for sv in supervisores %}
+        <option value="{{ sv }}" {% if nombre_superv==sv %}selected{% endif %}>{{ sv }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="filter-item filter-btns">
+      <button type="submit">Filtrar</button>
+      <a href="/" class="btn-reset">Limpiar</a>
+    </div>
+
+  </form>
+
+  <!-- ═══ KPI ═══ -->
+  <div class="kpi">
+    Total registros: <b>{{ total }}</b>
+  </div>
+
+  <!-- ═══ BOTONES VISTA ═══ -->
+  <div class="view-buttons">
+    <button onclick="showTop()">TOP 10</button>
+    <button onclick="showAll()">VER TODO</button>
+  </div>
+
+  <!-- ═══ NPS + GRAFICO ═══ -->
+  <div class="nps-section">
+
+    <!-- NPS Cards -->
+    <div class="nps-block">
+      <div class="nps-title">NPS Score: <span class="nps-score">{{ score_nps }}</span></div>
+      <div class="nps-cards">
+        {% for r in tabla_nps %}
+        <div class="nps-card nps-{{ r.categoria | lower | replace(' ','') }}">
+          <div class="nps-cat">{{ r.categoria }}</div>
+          <div class="nps-num">{{ r.total }}</div>
+          <div class="nps-pct">{{ r.participacion }}%</div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="nps-bar">
+        {% for r in tabla_nps if r.categoria != 'Sin dato' %}
+        <div class="nps-seg nps-seg-{{ r.categoria | lower }}"
+             style="width:{{ r.participacion }}%"
+             title="{{ r.categoria }}: {{ r.participacion }}%">
+          {% if r.participacion > 8 %}{{ r.participacion }}%{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Grafico Pastel -->
+    <div class="chart-block">
+      <div class="chart-title">ENC. Responsabilidad</div>
+      <div class="chart-wrap">
+        <canvas id="chartResp"></canvas>
+      </div>
+      <div class="chart-legend">
+        {% for r in pastel_resp %}
+        <div class="legend-item">
+          <span class="legend-dot" data-idx="{{ loop.index0 }}"></span>
+          <span class="legend-label">{{ r.label }}</span>
+          <span class="legend-val">{{ r.participacion }}%</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════
+       TOP 10
+  ══════════════════════════════════ -->
+  <div id="top">
+    <div class="table-box">
+      <table>
+        <tr>
+          <th>Responsabilidad</th>
+          <th>Motivo</th>
+          <th>Detalle</th>
+          <th>Total</th>
+          <th>%</th>
+        </tr>
+        {% for r in top10 %}
+        <tr>
+          <td>{{r.responsabilidad}}</td>
+          <td>{{r.motivo}}</td>
+          <td>{{r.detalle}}</td>
+          <td>{{r.total}}</td>
+          <td>{{r.participacion}}%</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════
+       FULL
+  ══════════════════════════════════ -->
+  <div id="all" class="hidden">
+    <div class="table-box">
+      <table>
+        <tr>
+          <th>Responsabilidad</th>
+          <th>Motivo</th>
+          <th>Detalle</th>
+          <th>Total</th>
+          <th>%</th>
+        </tr>
+        {% for r in data %}
+        <tr>
+          <td>{{r.responsabilidad}}</td>
+          <td>{{r.motivo}}</td>
+          <td>{{r.detalle}}</td>
+          <td>{{r.total}}</td>
+          <td>{{r.participacion}}%</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══ SCRIPTS ═══ -->
+<script>
+const PALETTE = [
+  '#00843D','#004B87','#E8A000','#C8372D',
+  '#5DB95D','#3A7DC9','#F4C842','#E8765C','#009E73'
+];
+
+const respLabels = {{ pastel_resp | map(attribute='label') | list | tojson }};
+const respValues = {{ pastel_resp | map(attribute='total') | list | tojson }};
+
+const ctx = document.getElementById('chartResp').getContext('2d');
+new Chart(ctx, {
+  type: 'doughnut',
+  data: {
+    labels: respLabels,
+    datasets: [{
+      data: respValues,
+      backgroundColor: PALETTE.slice(0, respLabels.length),
+      borderWidth: 2,
+      borderColor: '#0d1b2a'
+    }]
+  },
+  options: {
+    responsive: true,
+    cutout: '60%',
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: ctx => {
+            const total = ctx.dataset.data.reduce((a,b) => a+b, 0);
+            const pct = ((ctx.parsed / total) * 100).toFixed(1);
+            return ` ${ctx.label}: ${ctx.parsed.toLocaleString()} (${pct}%)`;
+          }
+        }
+      }
+    }
+  }
+});
+
+document.querySelectorAll('.legend-dot').forEach(dot => {
+  dot.style.background = PALETTE[parseInt(dot.dataset.idx) % PALETTE.length];
+});
+
+function showTop() {
+  document.getElementById('top').style.display = 'block';
+  document.getElementById('all').style.display = 'none';
+}
+function showAll() {
+  document.getElementById('top').style.display = 'none';
+  document.getElementById('all').style.display = 'block';
+}
+</script>
+
+</body>
+</html>
