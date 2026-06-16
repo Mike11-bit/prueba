@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BNP Paribas Cardif · Dashboard Operativo</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- ═══════════════════ SIDEBAR FILTROS ═══════════════════ -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <span class="logo-bnp">BNP</span>
+      <span class="logo-cardif">CARDIF</span>
+    </div>
+    <p class="sidebar-sub">Dashboard Operativo</p>
+
+    <form method="GET" action="/" class="filter-form">
+
+      <div class="filter-group">
+        <label>Mes</label>
+        <select name="mes">
+          <option value="">Todos</option>
+          {% for m in months %}
+          <option value="{{ m }}" {% if mes==m %}selected{% endif %}>{{ m }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label>Semana</label>
+        <select name="semana">
+          <option value="">Todas</option>
+          {% for s in weeks %}
+          <option value="{{ s }}" {% if semana==s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label>Fecha Encuesta</label>
+        <select name="fecha_encuesta">
+          <option value="">Todas</option>
+          {% for f in fechas_enc %}
+          <option value="{{ f }}" {% if fecha_encuesta==f %}selected{% endif %}>{{ f }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label>País</label>
+        <select name="pais">
+          <option value="">Todos</option>
+          {% for p in paises %}
+          <option value="{{ p }}" {% if pais==p %}selected{% endif %}>{{ p }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label>LOB</label>
+        <select name="lob">
+          <option value="">Todos</option>
+          {% for l in lobs %}
+          <option value="{{ l }}" {% if lob==l %}selected{% endif %}>{{ l }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label>Agente</label>
+        <select name="nombre_completo">
+          <option value="">Todos</option>
+          {% for a in agentes %}
+          <option value="{{ a }}" {% if nombre_completo==a %}selected{% endif %}>{{ a }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label>Supervisor</label>
+        <select name="nombre_superv">
+          <option value="">Todos</option>
+          {% for sv in supervisores %}
+          <option value="{{ sv }}" {% if nombre_superv==sv %}selected{% endif %}>{{ sv }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <button type="submit" class="btn-filter">Filtrar</button>
+      <a href="/" class="btn-reset">Limpiar filtros</a>
+
+    </form>
+  </aside>
+
+  <!-- ═══════════════════ MAIN CONTENT ═══════════════════ -->
+  <main class="main">
+
+    <!-- KPI BAR -->
+    <div class="kpi-bar">
+      <div class="kpi-card">
+        <span class="kpi-val">{{ total_registros | int }}</span>
+        <span class="kpi-lbl">Total registros</span>
+      </div>
+      <div class="kpi-card accent-green">
+        <span class="kpi-val">{{ score_nps }}</span>
+        <span class="kpi-lbl">NPS Score</span>
+      </div>
+      <div class="kpi-card accent-blue">
+        <span class="kpi-val">{{ score_re }}</span>
+        <span class="kpi-lbl">Re-encuesta NPS</span>
+      </div>
+    </div>
+
+    <!-- ═══ SECCIÓN 1: RESPONSABILIDAD + NIVEL II ═══ -->
+    <section class="section">
+      <div class="section-header">
+        <h2>Responsabilidad × Gestión Nivel II</h2>
+        <div class="view-toggle">
+          <button onclick="toggleView('t1','top1','all1')" id="top1" class="tog active">Top 10</button>
+          <button onclick="toggleView('t1','all1','top1')" id="all1" class="tog">Ver todo</button>
+        </div>
+      </div>
+
+      <div class="table-wrap" id="t1-top1">
+        <table>
+          <thead><tr>
+            <th>Responsabilidad</th>
+            <th>Gestión Nivel II</th>
+            <th>Total</th>
+            <th>%</th>
+            <th>Barra</th>
+          </tr></thead>
+          <tbody>
+          {% for r in tabla1_top10 %}
+          <tr>
+            <td>{{ r.responsabilidad }}</td>
+            <td>{{ r.nivel2 }}</td>
+            <td class="num">{{ r.total }}</td>
+            <td class="num">{{ r.participacion }}%</td>
+            <td><div class="bar-cell"><div class="bar-fill" style="width:{{ r.participacion }}%"></div></div></td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="table-wrap hidden" id="t1-all1">
+        <table>
+          <thead><tr>
+            <th>Responsabilidad</th>
+            <th>Gestión Nivel II</th>
+            <th>Total</th>
+            <th>%</th>
+            <th>Barra</th>
+          </tr></thead>
+          <tbody>
+          {% for r in tabla1 %}
+          <tr>
+            <td>{{ r.responsabilidad }}</td>
+            <td>{{ r.nivel2 }}</td>
+            <td class="num">{{ r.total }}</td>
+            <td class="num">{{ r.participacion }}%</td>
+            <td><div class="bar-cell"><div class="bar-fill" style="width:{{ r.participacion }}%"></div></div></td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ═══ SECCIÓN 2: RESPONSABILIDAD + NIVEL II + NIVEL III ═══ -->
+    <section class="section">
+      <div class="section-header">
+        <h2>Responsabilidad × Nivel II × Nivel III</h2>
+        <div class="view-toggle">
+          <button onclick="toggleView('t2','top2','all2')" id="top2" class="tog active">Top 10</button>
+          <button onclick="toggleView('t2','all2','top2')" id="all2" class="tog">Ver todo</button>
+        </div>
+      </div>
+
+      <div class="table-wrap" id="t2-top2">
+        <table>
+          <thead><tr>
+            <th>Responsabilidad</th>
+            <th>Nivel II</th>
+            <th>Nivel III</th>
+            <th>Total</th>
+            <th>%</th>
+            <th>Barra</th>
+          </tr></thead>
+          <tbody>
+          {% for r in tabla2_top10 %}
+          <tr>
+            <td>{{ r.responsabilidad }}</td>
+            <td>{{ r.nivel2 }}</td>
+            <td>{{ r.nivel3 }}</td>
+            <td class="num">{{ r.total }}</td>
+            <td class="num">{{ r.participacion }}%</td>
+            <td><div class="bar-cell"><div class="bar-fill" style="width:{{ r.participacion }}%"></div></div></td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="table-wrap hidden" id="t2-all2">
+        <table>
+          <thead><tr>
+            <th>Responsabilidad</th>
+            <th>Nivel II</th>
+            <th>Nivel III</th>
+            <th>Total</th>
+            <th>%</th>
+            <th>Barra</th>
+          </tr></thead>
+          <tbody>
+          {% for r in tabla2 %}
+          <tr>
+            <td>{{ r.responsabilidad }}</td>
+            <td>{{ r.nivel2 }}</td>
+            <td>{{ r.nivel3 }}</td>
+            <td class="num">{{ r.total }}</td>
+            <td class="num">{{ r.participacion }}%</td>
+            <td><div class="bar-cell"><div class="bar-fill" style="width:{{ r.participacion }}%"></div></div></td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ═══ SECCIÓN 3: PASTEL RESPONSABILIDAD ═══ -->
+    <section class="section section-split">
+      <div class="chart-panel">
+        <div class="section-header"><h2>ENC. Responsabilidad</h2></div>
+        <div class="chart-container">
+          <canvas id="chartResp"></canvas>
+        </div>
+      </div>
+      <div class="table-panel">
+        <table>
+          <thead><tr><th>Responsabilidad</th><th>Total</th><th>%</th></tr></thead>
+          <tbody>
+          {% for r in pastel_resp %}
+          <tr>
+            <td><span class="dot" data-idx="{{ loop.index0 }}"></span>{{ r.label }}</td>
+            <td class="num">{{ r.total }}</td>
+            <td class="num">{{ r.participacion }}%</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ═══ SECCIÓN 4: NPS PRINCIPAL ═══ -->
+    <section class="section">
+      <div class="section-header">
+        <h2>NPS — Encuesta Principal</h2>
+        <div class="nps-score-badge">
+          Score: <strong>{{ score_nps }}</strong>
+        </div>
+      </div>
+      <div class="nps-grid">
+        {% for r in tabla_nps %}
+        <div class="nps-card nps-{{ r.categoria | lower | replace(' ','') }}">
+          <div class="nps-cat">{{ r.categoria }}</div>
+          <div class="nps-num">{{ r.total }}</div>
+          <div class="nps-pct">{{ r.participacion }}%</div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="nps-bar-visual">
+        {% for r in tabla_nps if r.categoria != 'Sin dato' %}
+        <div class="nps-seg nps-seg-{{ r.categoria | lower }}" style="width:{{ r.participacion }}%" title="{{ r.categoria }}: {{ r.participacion }}%">
+          {{ r.participacion }}%
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <!-- ═══ SECCIÓN 5: NPS x SPLIT N ═══ -->
+    <section class="section">
+      <div class="section-header"><h2>NPS por Split N</h2></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Split</th>
+            <th>Promotor</th>
+            <th>Neutro</th>
+            <th>Detractor</th>
+            <th>Total</th>
+            <th>%</th>
+            <th>NPS Score</th>
+          </tr></thead>
+          <tbody>
+          {% for r in tabla_split %}
+          <tr>
+            <td>{{ r.split }}</td>
+            <td class="num green">{{ r.promotor }}</td>
+            <td class="num yellow">{{ r.neutro }}</td>
+            <td class="num red">{{ r.detractor }}</td>
+            <td class="num">{{ r.total }}</td>
+            <td class="num">{{ r.participacion }}%</td>
+            <td class="num {% if r.nps_score >= 0 %}green{% else %}red{% endif %}">
+              {{ r.nps_score }}
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ═══ SECCIÓN 6: RE-ENCUESTA NPS ═══ -->
+    <section class="section">
+      <div class="section-header">
+        <h2>NPS — Re-encuesta (Nueva Calificación)</h2>
+        <div class="nps-score-badge">
+          Score: <strong>{{ score_re }}</strong>
+        </div>
+      </div>
+      <div class="nps-grid">
+        {% for r in tabla_re %}
+        <div class="nps-card nps-{{ r.categoria | lower | replace(' ','') }}">
+          <div class="nps-cat">{{ r.categoria }}</div>
+          <div class="nps-num">{{ r.total }}</div>
+          <div class="nps-pct">{{ r.participacion }}%</div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="nps-bar-visual">
+        {% for r in tabla_re if r.categoria != 'Sin dato' %}
+        <div class="nps-seg nps-seg-{{ r.categoria | lower }}" style="width:{{ r.participacion }}%" title="{{ r.categoria }}: {{ r.participacion }}%">
+          {{ r.participacion }}%
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <!-- ═══ SECCIÓN 7: HEATMAP HORA CREACION ═══ -->
+    <section class="section">
+      <div class="section-header"><h2>Distribución por Hora de Creación</h2></div>
+      <div class="chart-container-wide">
+        <canvas id="chartHeatmap"></canvas>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ════ SCRIPTS ════ -->
+<script>
+// ─── DATOS DESDE FLASK ───────────────────────────────────────
+const respLabels = {{ pastel_resp | map(attribute='label') | list | tojson }};
+const respValues = {{ pastel_resp | map(attribute='total') | list | tojson }};
+
+const heatmapHoras = {{ heatmap_data | map(attribute='hora') | list | tojson }};
+const heatmapTotals = {{ heatmap_data | map(attribute='total') | list | tojson }};
+
+// ─── COLORES ─────────────────────────────────────────────────
+const PALETTE = [
+  '#00843D','#004B87','#E8A000','#C8372D',
+  '#5DB95D','#3A7DC9','#F4C842','#E8765C',
+  '#009E73','#0072B2','#D55E00','#CC79A7',
+  '#56B4E9','#F0E442','#999999'
+];
+
+// ─── CHART: PASTEL RESPONSABILIDAD ───────────────────────────
+const ctxResp = document.getElementById('chartResp').getContext('2d');
+new Chart(ctxResp, {
+  type: 'doughnut',
+  data: {
+    labels: respLabels,
+    datasets: [{
+      data: respValues,
+      backgroundColor: PALETTE.slice(0, respLabels.length),
+      borderWidth: 2,
+      borderColor: '#0d1117'
+    }]
+  },
+  options: {
+    responsive: true,
+    cutout: '62%',
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: ctx => ` ${ctx.label}: ${ctx.parsed.toLocaleString()} (${((ctx.parsed / ctx.dataset.data.reduce((a,b)=>a+b,0))*100).toFixed(1)}%)`
+        }
+      }
+    }
+  }
+});
+
+// Dots de leyenda
+document.querySelectorAll('.dot').forEach(dot => {
+  const idx = parseInt(dot.dataset.idx);
+  dot.style.background = PALETTE[idx % PALETTE.length];
+});
+
+// ─── CHART: HEATMAP HORA ─────────────────────────────────────
+const maxH = Math.max(...heatmapTotals) || 1;
+const ctxH = document.getElementById('chartHeatmap').getContext('2d');
+new Chart(ctxH, {
+  type: 'bar',
+  data: {
+    labels: heatmapHoras.map(h => `${String(h).padStart(2,'0')}:00`),
+    datasets: [{
+      label: 'Registros',
+      data: heatmapTotals,
+      backgroundColor: heatmapTotals.map(v => {
+        const pct = v / maxH;
+        if (pct > 0.75) return '#00843D';
+        if (pct > 0.5)  return '#5DB95D';
+        if (pct > 0.25) return '#E8A000';
+        return '#C8372D';
+      }),
+      borderRadius: 4,
+      borderSkipped: false
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: ctx => ` ${ctx.parsed.y.toLocaleString()} registros`
+        }
+      }
+    },
+    scales: {
+      x: {
+        grid: { color: 'rgba(255,255,255,0.05)' },
+        ticks: { color: '#8b9ab0', font: { size: 11 } }
+      },
+      y: {
+        grid: { color: 'rgba(255,255,255,0.05)' },
+        ticks: { color: '#8b9ab0', font: { size: 11 } }
+      }
+    }
+  }
+});
+
+// ─── TOGGLE VER TODO / TOP 10 ─────────────────────────────────
+function toggleView(prefix, showId, hideId) {
+  document.getElementById(prefix + '-' + showId).classList.remove('hidden');
+  document.getElementById(prefix + '-' + hideId).classList.add('hidden');
+  document.getElementById(showId).classList.add('active');
+  document.getElementById(hideId).classList.remove('active');
+}
+</script>
+
+</body>
+</html>
